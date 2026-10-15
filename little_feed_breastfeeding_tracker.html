@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f8f5f0">
+<title>Little Feed — Baby Feeding Tracker</title>
+<style>
+  :root {
+    --bg: #f8f5f0; --card: #fffdf9; --ink: #30332f; --muted: #85877f;
+    --sage: #789783; --sage-dark: #52715d; --sage-light: #e7eee7;
+    --peach: #f2d9ca; --line: #ece7df; --shadow: 0 10px 30px rgba(67, 61, 49, .06);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .app { width: min(100%, 520px); min-height: 100dvh; margin: 0 auto; padding: max(22px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); }
+  header { display:flex; justify-content:space-between; align-items:center; margin: 6px 2px 24px; }
+  .brand { display:flex; align-items:center; gap:11px; }
+  .logo { width:43px; height:43px; border-radius:16px; display:grid; place-items:center; background:#e4ebe2; font-size:23px; }
+  h1 { font-size:21px; letter-spacing:-.7px; margin:0; font-weight:750; }
+  .subtitle { color:var(--muted); font-size:12px; margin-top:2px; }
+  .today { font-size:12px; color:var(--muted); background:#fffdf9; border:1px solid var(--line); padding:8px 11px; border-radius:99px; }
+  .greeting { margin: 0 2px 18px; }
+  .eyebrow { color:var(--sage-dark); font-weight:750; text-transform:uppercase; font-size:10px; letter-spacing:1.6px; }
+  h2 { font-size:26px; line-height:1.15; letter-spacing:-1px; margin:7px 0 0; }
+  .card { background:var(--card); border:1px solid rgba(225,219,208,.7); border-radius:26px; box-shadow:var(--shadow); }
+  .timer-card { padding:22px 18px 18px; }
+  .section-top { display:flex; justify-content:space-between; align-items:center; }
+  .section-title { font-size:14px; font-weight:750; }
+  .live { color:var(--sage-dark); background:var(--sage-light); border-radius:99px; padding:6px 9px; font-size:10px; font-weight:750; letter-spacing:.5px; }
+  .timer { text-align:center; padding:24px 0 20px; }
+  .clock { font-variant-numeric:tabular-nums; font-size:53px; letter-spacing:-2.5px; font-weight:650; line-height:1.05; }
+  .clock-caption { color:var(--muted); font-size:12px; margin-top:8px; }
+  .side-buttons { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .side-btn { min-height:104px; border-radius:20px; border:1.5px solid var(--line); background:#fff; padding:14px 12px; text-align:left; color:var(--ink); transition:transform .12s, border-color .12s, background .12s; }
+  .side-btn:active, .primary:active { transform:scale(.98); }
+  .side-btn.active { border-color:var(--sage); background:var(--sage-light); }
+  .side-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .side-name { font-size:14px; font-weight:750; }
+  .side-icon { width:30px; height:30px; display:grid; place-items:center; border-radius:11px; background:#f5eee7; font-size:16px; }
+  .side-btn.active .side-icon { background:#d4e2d4; }
+  .side-time { margin-top:10px; font-size:21px; font-weight:700; letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
+  .side-hint { color:var(--muted); font-size:11px; margin-top:2px; }
+  .actions { display:grid; grid-template-columns:1fr auto; gap:10px; margin-top:14px; }
+  .primary { background:var(--sage-dark); color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(82,113,93,.15); }
+  .secondary { background:#fff; border:1px solid var(--line); border-radius:16px; padding:0 17px; min-height:52px; color:var(--ink); font-weight:700; }
+  .last-card { margin-top:14px; display:flex; align-items:center; gap:13px; padding:16px; box-shadow:none; }
+  .last-icon { flex:0 0 42px; height:42px; border-radius:15px; display:grid; place-items:center; background:#f6e8dd; font-size:20px; }
+  .last-label { color:var(--muted); font-size:11px; margin-bottom:3px; }
+  .last-value { font-size:14px; font-weight:750; }
+  .last-detail { font-size:11px; color:var(--muted); margin-top:3px; }
+  .history-head { display:flex; align-items:center; justify-content:space-between; margin:27px 2px 12px; }
+  .history-head h3 { margin:0; font-size:18px; letter-spacing:-.5px; }
+  .count { color:var(--muted); font-size:12px; }
+  .history-list { display:flex; flex-direction:column; gap:9px; }
+  .history-item { padding:15px 16px; display:flex; align-items:center; gap:12px; box-shadow:none; border-radius:20px; }
+  .history-mark { width:40px; height:40px; flex:0 0 40px; display:grid; place-items:center; border-radius:14px; background:var(--sage-light); font-size:18px; }
+  .history-main { flex:1; min-width:0; }
+  .history-date { font-size:13px; font-weight:750; }
+  .history-meta { color:var(--muted); font-size:11px; margin-top:4px; }
+  .history-duration { text-align:right; font-size:14px; font-weight:750; white-space:nowrap; }
+  .history-duration small { display:block; color:var(--muted); font-size:10px; font-weight:500; margin-top:3px; }
+  .delete { background:transparent; border:0; color:#a5a49d; font-size:19px; padding:6px 0 6px 7px; }
+  .empty { text-align:center; padding:27px 18px; color:var(--muted); font-size:13px; line-height:1.5; box-shadow:none; }
+  .empty-icon { font-size:27px; margin-bottom:8px; }
+  .footnote { text-align:center; font-size:10px; color:#a3a197; padding:22px 10px 4px; }
+  .toast { position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); left:50%; transform:translate(-50%, 15px); opacity:0; pointer-events:none; background:#30332f; color:#fff; padding:11px 16px; border-radius:99px; font-size:12px; transition:.2s; white-space:nowrap; box-shadow:var(--shadow); }
+  .toast.show { opacity:1; transform:translate(-50%, 0); }
+  @media (min-width: 520px) { body { padding:18px 0; } .app { min-height:calc(100dvh - 36px); border-radius:30px; } }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">🌱</div>
+      <div><h1>little feed</h1><div class="subtitle">your little one's feeding journal</div></div>
+    </div>
+    <div class="today" id="todayLabel">Today</div>
+  </header>
+
+  <section class="greeting">
+    <div class="eyebrow">One feed at a time</div>
+    <h2>Let's get comfy. 🤍</h2>
+  </section>
+
+  <section class="card timer-card" aria-label="Breastfeeding timer">
+    <div class="section-top">
+      <div class="section-title">Feeding timer</div>
+      <div class="live" id="statusPill">READY WHEN YOU ARE</div>
+    </div>
+    <div class="timer">
+      <div class="clock" id="mainClock">00:00</div>
+      <div class="clock-caption" id="clockCaption">Choose a side to begin</div>
+    </div>
+    <div class="side-buttons">
+      <button class="side-btn" id="leftBtn" type="button" aria-label="Start left breast">
+        <div class="side-row"><span class="side-name">Left side</span><span class="side-icon">🌿</span></div>
+        <div class="side-time" id="leftTime">00:00</div><div class="side-hint">Tap to start</div>
+      </button>
+      <button class="side-btn" id="rightBtn" type="button" aria-label="Start right breast">
+        <div class="side-row"><span class="side-name">Right side</span><span class="side-icon">🌼</span></div>
+        <div class="side-time" id="rightTime">00:00</div><div class="side-hint">Tap to start</div>
+      </button>
+    </div>
+    <div class="actions">
+      <button class="primary" id="finishBtn" type="button">Finish & save feed</button>
+      <button class="secondary" id="resetBtn" type="button">Reset</button>
+    </div>
+  </section>
+
+  <section class="card last-card" aria-live="polite">
+    <div class="last-icon">🍼</div>
+    <div>
+      <div class="last-label">LAST FED ON</div>
+      <div class="last-value" id="lastSide">No feeds logged yet</div>
+      <div class="last-detail" id="lastDetail">Your last side will show up here.</div>
+    </div>
+  </section>
+
+  <div class="history-head">
+    <h3>Feeding history</h3><span class="count" id="historyCount">0 feeds</span>
+  </div>
+  <section class="history-list" id="historyList" aria-live="polite"></section>
+  <div class="footnote">Made with love for the little moments ✨<br>Your data stays on this device.</div>
+</main>
+<div class="toast" id="toast" role="status"></div>
+<script>
+(() => {
+  const KEY = 'littleFeed.v1';
+  const $ = id => document.getElementById(id);
+  const state = {
+    history: [], leftMs: 0, rightMs: 0, active: null,
+    startedAt: null, segmentStartedAt: null, lastSide: null
+  };
+  let ticker = null, toastTimer = null;
+
+  function load() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+      state.history = Array.isArray(saved.history) ? saved.history : [];
+      state.lastSide = saved.lastSide || null;
+    } catch (_) {}
+  }
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify({history: state.history, lastSide: state.lastSide})); } catch (_) {}
+  }
+  function fmt(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return h ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  }
+  function elapsed(side) {
+    return (side === 'left' ? state.leftMs : state.rightMs) +
+      (state.active === side && state.segmentStartedAt ? Date.now() - state.segmentStartedAt : 0);
+  }
+  function totalElapsed() { return elapsed('left') + elapsed('right'); }
+  function setSide(side) {
+    const now = Date.now();
+    if (state.active && state.segmentStartedAt) {
+      const duration = now - state.segmentStartedAt;
+      if (state.active === 'left') state.leftMs += duration;
+      else state.rightMs += duration;
+    }
+    if (state.active === side) {
+      state.active = null; state.segmentStartedAt = null;
+      showToast('Timer paused');
+    } else {
+      state.active = side; state.segmentStartedAt = now;
+      if (!state.startedAt) state.startedAt = now;
+    }
+    render();
+  }
+  function render() {
+    const left = elapsed('left'), right = elapsed('right');
+    $('leftTime').textContent = fmt(left); $('rightTime').textContent = fmt(right);
+    $('mainClock').textContent = fmt(totalElapsed());
+    $('leftBtn').classList.toggle('active', state.active === 'left');
+    $('rightBtn').classList.toggle('active', state.active === 'right');
+    $('leftBtn').querySelector('.side-hint').textContent = state.active === 'left' ? 'Currently feeding' : (left ? 'Tap to switch / resume' : 'Tap to start');
+    $('rightBtn').querySelector('.side-hint').textContent = state.active === 'right' ? 'Currently feeding' : (right ? 'Tap to switch / resume' : 'Tap to start');
+    $('statusPill').textContent = state.active ? `FEEDING · ${state.active.toUpperCase()}` : (totalElapsed() ? 'TIMER PAUSED' : 'READY WHEN YOU ARE');
+    $('clockCaption').textContent = state.active ? `On the ${state.active} side · tap the other side to switch` : (totalElapsed() ? 'Paused · pick a side to continue' : 'Choose a side to begin');
+    $('finishBtn').disabled = totalElapsed() === 0;
+    $('finishBtn').style.opacity = totalElapsed() === 0 ? '.55' : '1';
+    renderLast(); renderHistory();
+  }
+  function renderLast() {
+    if (!state.lastSide) {
+      $('lastSide').textContent = 'No feeds logged yet';
+      $('lastDetail').textContent = 'Your last side will show up here.';
+      return;
+    }
+    $('lastSide').textContent = `${capitalize(state.lastSide)} side`;
+    $('lastDetail').textContent = state.lastSideAt ? `Last feed · ${relativeTime(state.lastSideAt)}` : 'Last recorded feeding side';
+  }
+  function renderHistory() {
+    const list = $('historyList');
+    $('historyCount').textContent = `${state.history.length} ${state.history.length === 1 ? 'feed' : 'feeds'}`;
+    if (!state.history.length) {
+      list.innerHTML = '<div class="card empty"><div class="empty-icon">🌙</div><strong>Your feeding story starts here</strong><br>When you finish a feed, it will appear here.</div>';
+      return;
+    }
+    list.innerHTML = state.history.slice(0, 30).map(item => {
+      const date = new Date(item.endedAt);
+      const dateText = isSameDay(date, new Date()) ? `Today, ${date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}` :
+        date.toLocaleDateString([], {month:'short', day:'numeric'}) + ` · ` + date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+      const parts = [];
+      if (item.leftMs > 0) parts.push(`Left ${fmt(item.leftMs)}`);
+      if (item.rightMs > 0) parts.push(`Right ${fmt(item.rightMs)}`);
+      const last = item.lastSide ? `${capitalize(item.lastSide)} was last` : 'Side not recorded';
+      return `<article class="card history-item">
+        <div class="history-mark">🍼</div>
+        <div class="history-main"><div class="history-date">${dateText}</div><div class="history-meta">${parts.join(' · ') || 'Duration not recorded'}<br>${last}</div></div>
+        <div class="history-duration">${fmt(item.totalMs)}<small>total</small></div>
+        <button class="delete" type="button" aria-label="Delete feed" data-delete="${item.id}">×</button>
+      </article>`;
+    }).join('');
+  }
+  function finish() {
+    const now = Date.now();
+    if (state.active && state.segmentStartedAt) {
+      const duration = now - state.segmentStartedAt;
+      if (state.active === 'left') state.leftMs += duration; else state.rightMs += duration;
+    }
+    const total = state.leftMs + state.rightMs;
+    if (!total) return;
+    const item = {id: `${now}-${Math.random().toString(36).slice(2,7)}`, startedAt: state.startedAt || now-total, endedAt: now,
+      leftMs: state.leftMs, rightMs: state.rightMs, totalMs: total,
+      lastSide: state.active || (state.rightMs > state.leftMs ? 'right' : 'left')};
+    state.history.unshift(item);
+    state.lastSide = item.lastSide; state.lastSideAt = now;
+    // Store the last-side timestamp along with the history.
+    state.active = null; state.segmentStartedAt = null; state.startedAt = null; state.leftMs = 0; state.rightMs = 0;
+    persistExtended(); render(); showToast('Feed saved — you’re doing great 🤍');
+  }
+  function persistExtended() {
+    try { localStorage.setItem(KEY, JSON.stringify({history:state.history, lastSide:state.lastSide, lastSideAt:state.lastSideAt})); } catch (_) {}
+  }
+  function reset() {
+    if (totalElapsed() && !confirm('Reset this timer without saving the feed?')) return;
+    state.leftMs = 0; state.rightMs = 0; state.active = null; state.startedAt = null; state.segmentStartedAt = null;
+    render(); showToast('Timer reset');
+  }
+  function showToast(msg) {
+    const el = $('toast'); el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2300);
+  }
+  function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : ''; }
+  function isSameDay(a,b) { return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+  function relativeTime(timestamp) {
+    const mins = Math.max(0, Math.floor((Date.now()-timestamp)/60000));
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min${mins===1?'':'s'} ago`;
+    const hours = Math.floor(mins/60);
+    if (hours < 24) return `${hours} hr${hours===1?'':'s'} ago`;
+    return new Date(timestamp).toLocaleDateString([], {month:'short',day:'numeric'});
+  }
+  $('leftBtn').addEventListener('click', () => setSide('left'));
+  $('rightBtn').addEventListener('click', () => setSide('right'));
+  $('finishBtn').addEventListener('click', finish);
+  $('resetBtn').addEventListener('click', reset);
+  $('historyList').addEventListener('click', e => {
+    const btn = e.target.closest('[data-delete]');
+    if (!btn) return;
+    const item = state.history.find(x => x.id === btn.dataset.delete);
+    if (!item || !confirm('Delete this feeding record?')) return;
+    state.history = state.history.filter(x => x.id !== item.id);
+    if (state.history.length) {
+      const newest = state.history.reduce((a,b) => a.endedAt > b.endedAt ? a : b);
+      state.lastSide = newest.lastSide; state.lastSideAt = newest.endedAt;
+    } else { state.lastSide = null; state.lastSideAt = null; }
+    persistExtended(); render(); showToast('Feed removed');
+  });
+  const now = new Date();
+  $('todayLabel').textContent = now.toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'});
+  load();
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    state.lastSideAt = saved.lastSideAt || null;
+  } catch (_) {}
+  if (!state.lastSide && state.history.length) {
+    const newest = state.history.reduce((a,b) => a.endedAt > b.endedAt ? a : b);
+    state.lastSide = newest.lastSide; state.lastSideAt = newest.endedAt;
+  }
+  render();
+  ticker = setInterval(() => { if (state.active) render(); }, 250);
+})();
+</script>
+</body>
+</html>
