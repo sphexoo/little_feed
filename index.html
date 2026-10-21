@@ -271,8 +271,8 @@
             <strong id="sleepDurationValue">00 min</strong>
           </div>
         </div>
-        <input id="sleepStartSlider" type="range" min="0" max="1440" step="1" value="0" aria-label="Adjust sleep start time; move right to set an earlier start">
-        <div class="sleep-slider-labels"><span>Now</span><span id="sleepSliderMaxLabel">24 hours ago</span></div>
+        <input id="sleepStartSlider" type="range" min="0" max="1000" step="1" value="0" aria-label="Adjust sleep start time; move right to set an earlier start">
+        <div class="sleep-slider-labels"><span>Now</span><span id="sleepSliderMaxLabel">5 hours ago</span></div>
       </div>
     </div>
     <button class="sleep-button" id="sleepToggleBtn" type="button">🌙 Start sleep</button>
@@ -870,10 +870,17 @@
     if (isSameDay(date, yesterday)) return `Yesterday, ${time}`;
     return `${date.toLocaleDateString([], {month:'short', day:'numeric'})}, ${time}`;
   }
-  function sleepSliderMaxMinutes(startTimestamp, now = Date.now()) {
-    const ageMinutes = Math.max(0, Math.ceil((now - startTimestamp) / 60000));
-    // Keep the usual slider range at 24 hours, but widen it for unusually long sessions.
-    return ageMinutes < 1440 ? 1440 : Math.ceil((ageMinutes + 120) / 60) * 60;
+  // Non-linear sleep adjustment: a fine range near "Now", with larger steps further back.
+  // The slider's position (0–1000) maps quadratically to a maximum of five hours.
+  const SLEEP_SLIDER_MAX_MINUTES = 5 * 60;
+  const SLEEP_SLIDER_STEPS = 1000;
+  function sleepSliderMinutesFromPosition(position) {
+    const ratio = Math.max(0, Math.min(1, Number(position) / SLEEP_SLIDER_STEPS));
+    return Math.round(SLEEP_SLIDER_MAX_MINUTES * ratio * ratio);
+  }
+  function sleepSliderPositionFromMinutes(minutes) {
+    const ratio = Math.max(0, Math.min(1, Number(minutes) / SLEEP_SLIDER_MAX_MINUTES));
+    return Math.round(Math.sqrt(ratio) * SLEEP_SLIDER_STEPS);
   }
   function renderSleep() {
     const sleeping = !!state.activeSleepStart;
@@ -890,12 +897,12 @@
       $('sleepStartValue').textContent = sleepStartLabel(displayStart);
       $('sleepDurationValue').textContent = humanDuration(elapsed);
       const slider = $('sleepStartSlider');
-      const maxMinutes = sleepSliderMaxMinutes(Number(state.activeSleepStart), now);
-      $('sleepSliderMaxLabel').textContent = `${maxMinutes / 60} hours ago`;
+      $('sleepSliderMaxLabel').textContent = '5 hours ago';
       // While a user is dragging, don't move the thumb under their finger.
       if (sleepStartPreview === null && document.activeElement !== slider) {
-        slider.max = String(maxMinutes);
-        slider.value = String(Math.min(maxMinutes, Math.max(0, Math.round((now - Number(state.activeSleepStart)) / 60000))));
+        const minutesAgo = Math.max(0, Math.round((now - Number(state.activeSleepStart)) / 60000));
+        slider.max = String(SLEEP_SLIDER_STEPS);
+        slider.value = String(sleepSliderPositionFromMinutes(minutesAgo));
       }
     }
     $('sleepToggleBtn').textContent = sleeping ? '☀️ Wake up & save sleep' : '🌙 Start sleep';
@@ -1286,9 +1293,10 @@
   // Event wiring and startup. Keep side effects here so app behavior is easy to find.
   $('sleepStartSlider').addEventListener('input', () => {
     if (!state.activeSleepStart) return;
-    const minutesAgo = Number($('sleepStartSlider').value);
-    if (!Number.isFinite(minutesAgo)) return;
-    sleepStartPreview = Date.now() - Math.max(0, minutesAgo) * 60000;
+    const position = Number($('sleepStartSlider').value);
+    if (!Number.isFinite(position)) return;
+    const minutesAgo = sleepSliderMinutesFromPosition(position);
+    sleepStartPreview = Date.now() - minutesAgo * 60000;
     // Update only the sleep display while dragging, so the slider stays responsive.
     renderSleep();
   });
