@@ -126,9 +126,6 @@
   .record-actions { display:flex; align-items:center; gap:5px; margin-left:auto; }
   .edit-record { background:#f4f1ea; border:1px solid #ebe5db; color:#66675f; border-radius:10px; padding:7px 9px; font-size:11px; font-weight:750; }
   .delete { background:transparent; border:0; color:#a5a49d; font-size:19px; padding:6px 0 6px 4px; }
-  .adjust-timer { display:block; width:100%; margin-top:9px; padding:10px 12px; background:transparent; color:var(--sage-dark); border:1px dashed #cbd8cc; border-radius:13px; font-size:12px; font-weight:750; }
-  .adjust-timer:disabled { opacity:.4; cursor:default; }
-  .sleep-adjust { color:#75658f; border-color:#d8cfe8; }
   .editor-backdrop { position:fixed; inset:0; z-index:100; background:rgba(37,38,34,.38); display:flex; align-items:flex-end; justify-content:center; padding:16px 12px max(12px, env(safe-area-inset-bottom)); }
   .editor-backdrop[hidden] { display:none !important; }
   .editor-panel { width:min(100%, 490px); max-height:90dvh; overflow:auto; background:var(--card); border-radius:26px; padding:22px 20px 18px; box-shadow:0 24px 70px rgba(30,30,24,.2); }
@@ -325,7 +322,7 @@
 <div class="toast" id="toast" role="status"></div>
 <script>
 (() => {
-  const KEY = 'littleFeed.v1';
+  // Application configuration and in-memory state.
   const $ = id => document.getElementById(id);
   const state = {
     history: [], leftMs: 0, rightMs: 0, active: null,
@@ -333,7 +330,9 @@
     sleepHistory: [], activeSleepStart: null,
     timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false
   };
-  let ticker = null, toastTimer = null, lastTimelineRenderSecond = -1, editorContext = null;
+  let toastTimer = null;
+  let lastTimelineRenderSecond = -1;
+  let editorContext = null;
 
   const DB_NAME = 'LittleFeedDatabase';
   const DB_VERSION = 1;
@@ -347,10 +346,9 @@
     'Milestone','Category','Label','Notes','Source'
   ];
   let db = null;
-  let storageMode = 'opening';
-  let persistentStorageGranted = false;
   let saveChain = Promise.resolve();
 
+  // CSV import/export: only the 'breast' and 'sleep' types are supported.
   function csvEscape(value) {
     const text = String(value ?? '');
     return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -488,20 +486,10 @@
     return Math.abs(Number(a.startedAt) - Number(b.startedAt)) < 1500 && Math.abs(Number(a.endedAt) - Number(b.endedAt)) < 1500;
   }
 
-  function readTextFile(file) {
-    if (file && typeof file.text === 'function') return file.text();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(reader.error || new Error('Could not read file.'));
-      reader.readAsText(file, 'UTF-8');
-    });
-  }
-
   async function importCsvFile(file) {
     if (!file) return;
     let rows;
-    try { rows = csvParse(await readTextFile(file)); }
+    try { rows = csvParse(await file.text()); }
     catch (_) { alert('Could not read this CSV file.'); return; }
     if (rows.length < 2) { alert('This CSV does not contain any data rows.'); return; }
     const headers = rows[0].map(h => String(h || '').replace(/^\uFEFF/, '').trim().toLowerCase());
@@ -534,7 +522,10 @@
       if (Number.isFinite(end) && end > start && end <= now + 60000) {
         const elapsedMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : end - start;
         if (type === 'sleep') {
-          pendingSleeps.push({id:`import-sleep-${start}-${end}`, startedAt:start, endedAt:end, durationMs:Math.max(0, elapsedMs), imported:true});
+          pendingSleeps.push({
+            id: `import-sleep-${start}-${end}`, startedAt: start, endedAt: end,
+            durationMs: Math.max(0, elapsedMs)
+          });
         } else {
           let leftMs = 0, rightMs = 0, lastSide = null, importedAggregate = false;
           if (side === 'left') { leftMs = elapsedMs; lastSide = 'left'; }
@@ -544,9 +535,11 @@
             // Keep it combined instead of inventing side-specific values.
             importedAggregate = true;
           }
-          pendingFeeds.push({id:`import-breast-${start}-${end}`, startedAt:start, endedAt:end,
-            leftMs, rightMs, totalMs:Math.max(0, elapsedMs), lastSide, importedSide:side,
-            importedAggregate, imported:true});
+          pendingFeeds.push({
+            id: `import-breast-${start}-${end}`, startedAt: start, endedAt: end,
+            leftMs, rightMs, totalMs: Math.max(0, elapsedMs), lastSide, importedSide: side,
+            importedAggregate
+          });
         }
       } else if (!rawEnd && !rawDuration) {
         if (type === 'sleep') openSleeps.push({start});
@@ -605,6 +598,7 @@
     alert(details);
   }
 
+  // IndexedDB persistence. All app state is stored as one versioned snapshot.
   function openDatabase() {
     return new Promise((resolve, reject) => {
       if (!('indexedDB' in window) || !window.indexedDB) {
@@ -654,14 +648,6 @@
     });
   }
 
-  function legacyLocalStorageState() {
-    // Read localStorage only once to migrate records from older Little Feed versions.
-    try {
-      const raw = window.localStorage.getItem(KEY);
-      return raw ? JSON.parse(raw) : null;
-    } catch (_) { return null; }
-  }
-
   function applySavedState(saved) {
     if (!saved || typeof saved !== 'object') return;
     state.history = Array.isArray(saved.history) ? saved.history : [];
@@ -702,43 +688,28 @@
   async function initializeStorage() {
     try {
       db = await openDatabase();
-      let saved = await readDatabaseState();
-      if (!saved) {
-        const legacy = legacyLocalStorageState();
-        if (legacy && typeof legacy === 'object' && (
-          Array.isArray(legacy.history) || Array.isArray(legacy.sleepHistory) || legacy.activeFeed || legacy.activeSleepStart
-        )) {
-          applySavedState(legacy);
-          await writeDatabaseState(persistedStateSnapshot());
-          saved = legacy;
-          // Remove the old copy only after IndexedDB has accepted the migrated data.
-          try { window.localStorage.removeItem(KEY); } catch (_) {}
-        }
-      }
+      const saved = await readDatabaseState();
       if (saved) applySavedState(saved);
-      storageMode = 'indexeddb';
+
+      let persistent = false;
       try {
-        if (navigator.storage && typeof navigator.storage.persisted === 'function') {
-          persistentStorageGranted = await navigator.storage.persisted();
-        }
-        if (!persistentStorageGranted && navigator.storage && typeof navigator.storage.persist === 'function') {
-          persistentStorageGranted = await navigator.storage.persist();
-        }
-      } catch (_) { persistentStorageGranted = false; }
-      setStorageStatus(persistentStorageGranted
+        if (navigator.storage?.persisted) persistent = await navigator.storage.persisted();
+        if (!persistent && navigator.storage?.persist) persistent = await navigator.storage.persist();
+      } catch (_) {
+        // Persistent-storage requests are optional; IndexedDB still works without a grant.
+      }
+
+      setStorageStatus(persistent
         ? 'Saved on this device with IndexedDB · persistent storage enabled'
         : 'Saved on this device with IndexedDB · browser storage can still be cleared');
     } catch (error) {
-      storageMode = 'unavailable';
-      const legacy = legacyLocalStorageState();
-      if (legacy) applySavedState(legacy);
+      db = null;
       setStorageStatus('IndexedDB is unavailable here. Changes may not persist; open this app in a regular Safari tab or add it to your Home Screen.', true);
       console.warn('Little Feed storage initialization failed:', error);
     }
   }
 
-  function persist() { persistExtended(); }
-
+  // Timer calculations and presentation.
   function fmt(ms) {
     const s = Math.max(0, Math.floor(ms / 1000));
     const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
@@ -792,6 +763,7 @@
     render();
     showToast(`${capitalize(side)} side ${deltaMinutes > 0 ? '+1' : '−1'} minute`);
   }
+  // UI rendering. Renderers read state but do not mutate stored records.
   function render() {
     const left = elapsed('left'), right = elapsed('right');
     $('leftTime').textContent = fmt(left); $('rightTime').textContent = fmt(right);
@@ -907,6 +879,7 @@
       </article>`;
     }).join('');
   }
+  // Timeline rendering and horizontal history expansion.
   function renderTimeline() {
     const host = $('weekDiagram');
     const scroller = $('timelineScroller');
@@ -1029,6 +1002,7 @@
     if (!track) { lastTimelineRenderSecond = Math.floor(Date.now() / 1000); renderTimeline(); }
   }
 
+  // User actions for timers and record changes.
   function toggleSleep() {
     const now = Date.now();
     if (!state.activeSleepStart) {
@@ -1069,7 +1043,7 @@
     persistExtended(); render(); showToast('Feed saved — you’re doing great 🤍');
   }
   function persistExtended() {
-    if (storageMode !== 'indexeddb' || !db) return;
+    if (!db) return;
     const snapshot = persistedStateSnapshot();
     saveChain = saveChain.then(() => writeDatabaseState(snapshot)).catch(error => {
       console.warn('Little Feed could not save to IndexedDB:', error);
@@ -1095,6 +1069,7 @@
     if (hours < 24) return `${hours} hr${hours===1?'':'s'} ago`;
     return new Date(timestamp).toLocaleDateString([], {month:'short',day:'numeric'});
   }
+  // Shared helpers for the record editor.
   function localDateTimeValue(timestamp) {
     const n = Number(timestamp);
     if (!Number.isFinite(n)) return '';
@@ -1253,6 +1228,7 @@
     }
   }
 
+  // Event wiring and startup. Keep side effects here so app behavior is easy to find.
   $('sleepStartTime').addEventListener('change', () => {
     if (!state.activeSleepStart) return;
     const value = $('sleepStartTime').value;
@@ -1328,7 +1304,7 @@
       state.lastSide = newest.lastSide; state.lastSideAt = newest.endedAt;
     }
     render();
-    ticker = setInterval(() => { if (state.active || state.activeSleepStart) render(); }, 250);
+    setInterval(() => { if (state.active || state.activeSleepStart) render(); }, 250);
   });
 })();
 </script>
