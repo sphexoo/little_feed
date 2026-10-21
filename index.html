@@ -9,7 +9,7 @@
   :root {
     --bg: #f8f5f0; --card: #fffdf9; --ink: #30332f; --muted: #85877f;
     --sage: #789783; --sage-dark: #52715d; --sage-light: #e7eee7;
-    --peach: #f2d9ca; --line: #ece7df; --shadow: 0 10px 30px rgba(67, 61, 49, .06);
+    --peach: #f2d9ca; --feed-tint: #f3f7f1; --feed-tint-strong: #edf4eb; --sleep-tint: #f7f3fb; --sleep-tint-strong: #f1ebf8; --line: #ece7df; --shadow: 0 10px 30px rgba(67, 61, 49, .06);
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -23,7 +23,7 @@
   .today { font-size:12px; color:var(--muted); background:#fffdf9; border:1px solid var(--line); padding:8px 11px; border-radius:99px; }
   h2 { font-size:26px; line-height:1.15; letter-spacing:-1px; margin:7px 0 0; }
   .card { background:var(--card); border:1px solid rgba(225,219,208,.7); border-radius:26px; box-shadow:var(--shadow); }
-  .timer-card { padding:22px 18px 18px; }
+  .timer-card { margin-top:14px; padding:22px 18px 18px; background:var(--feed-tint); border-color:#dfe9dc; }
   .section-top { display:flex; justify-content:space-between; align-items:center; }
   .section-actions { display:flex; align-items:center; gap:7px; }
   .history-toggle { width:32px; height:32px; flex:0 0 32px; display:grid; place-items:center; border:1px solid var(--line); border-radius:11px; background:#fff; color:var(--muted); padding:0; }
@@ -51,15 +51,19 @@
   .side-btn.active .side-icon { background:#d4e2d4; }
   .side-time { margin-top:10px; font-size:21px; font-weight:700; letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
   .side-hint { color:var(--muted); font-size:11px; margin-top:2px; }
-  .actions { display:grid; grid-template-columns:1fr auto; gap:10px; margin-top:14px; }
+  .actions { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; margin-top:14px; align-items:center; }
+  .actions-secondary { display:flex; align-items:center; gap:8px; }
+  .actions .history-toggle, .sleep-actions .history-toggle { width:44px; height:44px; flex-basis:44px; }
   .primary { background:var(--sage-dark); color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(82,113,93,.15); }
   .secondary { background:#fff; border:1px solid var(--line); border-radius:16px; padding:0 17px; min-height:52px; color:var(--ink); font-weight:700; }
   .last-card { margin-top:14px; display:flex; align-items:center; gap:13px; padding:16px; box-shadow:none; }
+  .feed-last-card { background:var(--feed-tint-strong); border-color:#dce7d8; }
+  .sleep-last-card { background:var(--sleep-tint-strong); border-color:#e5dced; }
   .last-icon { flex:0 0 42px; height:42px; border-radius:15px; display:grid; place-items:center; background:#f6e8dd; font-size:20px; }
   .last-label { color:var(--muted); font-size:11px; margin-bottom:3px; }
   .last-value { font-size:14px; font-weight:750; }
   .last-detail { font-size:11px; color:var(--muted); margin-top:3px; }
-  .sleep-card { margin-top:14px; padding:22px 18px 18px; }
+  .sleep-card { margin-top:14px; padding:22px 18px 18px; background:var(--sleep-tint); border-color:#e5dced; }
   .sleep-card .live { color:#71628e; background:#eee9f7; }
   .sleep-timer { text-align:center; padding:22px 0 18px; }
   .sleep-clock { font-variant-numeric:tabular-nums; font-size:47px; letter-spacing:-2px; font-weight:650; line-height:1.05; }
@@ -74,6 +78,7 @@
   #sleepStartSlider { display:block; width:100%; min-height:28px; margin:4px 0 0; padding:0; accent-color:#75658f; cursor:pointer; touch-action:pan-y; }
   #sleepStartSlider:focus-visible { outline:2px solid #b8a9d4; outline-offset:3px; border-radius:8px; }
   .sleep-slider-labels { display:flex; justify-content:space-between; color:var(--muted); font-size:10px; margin-top:0; }
+  .sleep-actions { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; }
   .sleep-button { width:100%; background:#75658f; color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(117,101,143,.16); }
   .sleep-button.waking { background:#8e6c5f; box-shadow:0 5px 12px rgba(142,108,95,.14); }
   .sleep-last-icon { background:#eee9f7; }
@@ -183,7 +188,7 @@
   </nav>
 
   <section class="tab-panel" id="trackPanel" role="tabpanel" aria-labelledby="trackTabBtn">
-  <section class="card last-card" aria-live="polite">
+  <section class="card last-card feed-last-card" aria-live="polite">
     <div class="last-icon">🍼</div>
     <div>
       <div class="last-label">LAST FED ON</div>
@@ -197,7 +202,6 @@
       <div class="section-title">Feeding timer</div>
       <div class="section-actions">
         <div class="live" id="statusPill">READY WHEN YOU ARE</div>
-        <button class="history-toggle" id="feedHistoryToggle" type="button" aria-expanded="false" aria-controls="feedingHistoryPanel" aria-label="Show feeding history" title="Show feeding history"><span class="history-chevron" aria-hidden="true">⌄</span></button>
       </div>
     </div>
     <div class="timer">
@@ -228,7 +232,10 @@
     </div>
     <div class="actions">
       <button class="primary" id="finishBtn" type="button">Finish & save feed</button>
-      <button class="secondary" id="resetBtn" type="button">Reset</button>
+      <div class="actions-secondary">
+        <button class="secondary" id="resetBtn" type="button">Reset</button>
+        <button class="history-toggle" id="feedHistoryToggle" type="button" aria-expanded="false" aria-controls="feedingHistoryPanel" aria-label="Show feeding history" title="Show feeding history"><span class="history-chevron" aria-hidden="true">⌄</span></button>
+      </div>
     </div>
   </section>
 
@@ -239,7 +246,7 @@
     <section class="history-list" id="historyList" aria-live="polite"></section>
   </div>
 
-  <section class="card last-card" aria-live="polite">
+  <section class="card last-card sleep-last-card" aria-live="polite">
     <div class="last-icon sleep-last-icon">🌙</div>
     <div>
       <div class="last-label">LAST SLEEP</div>
@@ -253,7 +260,6 @@
       <div class="section-title">Sleep tracker</div>
       <div class="section-actions">
         <div class="live" id="sleepStatusPill">BABY IS AWAKE</div>
-        <button class="history-toggle" id="sleepHistoryToggle" type="button" aria-expanded="false" aria-controls="sleepHistoryPanel" aria-label="Show sleep history" title="Show sleep history"><span class="history-chevron" aria-hidden="true">⌄</span></button>
       </div>
     </div>
     <div class="sleep-timer">
@@ -275,7 +281,10 @@
         <div class="sleep-slider-labels"><span>Now</span><span id="sleepSliderMaxLabel">5 hours ago</span></div>
       </div>
     </div>
-    <button class="sleep-button" id="sleepToggleBtn" type="button">🌙 Start sleep</button>
+    <div class="sleep-actions">
+      <button class="sleep-button" id="sleepToggleBtn" type="button">🌙 Start sleep</button>
+      <button class="history-toggle" id="sleepHistoryToggle" type="button" aria-expanded="false" aria-controls="sleepHistoryPanel" aria-label="Show sleep history" title="Show sleep history"><span class="history-chevron" aria-hidden="true">⌄</span></button>
+    </div>
   </section>
 
   <div class="history-collapse" id="sleepHistoryPanel" hidden>
