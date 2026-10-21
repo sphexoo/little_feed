@@ -33,9 +33,15 @@
   .clock { font-variant-numeric:tabular-nums; font-size:53px; letter-spacing:-2.5px; font-weight:650; line-height:1.05; }
   .clock-caption { color:var(--muted); font-size:12px; margin-top:8px; }
   .side-buttons { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .side-btn { min-height:104px; border-radius:20px; border:1.5px solid var(--line); background:#fff; padding:14px 12px; text-align:left; color:var(--ink); transition:transform .12s, border-color .12s, background .12s; }
+  .side-tile { min-width:0; border:1.5px solid var(--line); background:#fff; border-radius:20px; padding:0 8px 9px; transition:border-color .12s, background .12s; }
+  .side-tile.active { border-color:var(--sage); background:var(--sage-light); }
+  .side-btn { display:block; width:100%; min-height:99px; border:0; border-radius:17px; background:transparent; padding:14px 4px 6px; text-align:left; color:var(--ink); transition:transform .12s; }
   .side-btn:active, .primary:active { transform:scale(.98); }
-  .side-btn.active { border-color:var(--sage); background:var(--sage-light); }
+  .side-btn.active { background:transparent; }
+  .minute-controls { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .minute-btn { min-width:0; min-height:34px; border:1px solid var(--line); border-radius:11px; background:#fffdf9; color:var(--ink); padding:7px 2px; font-size:11px; font-weight:750; touch-action:manipulation; }
+  .minute-btn:active { transform:scale(.97); }
+  .side-tile.active .minute-btn { background:#f8fbf7; border-color:#d5e2d5; color:var(--sage-dark); }
   .side-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .side-name { font-size:14px; font-weight:750; }
   .side-icon { width:30px; height:30px; display:grid; place-items:center; border-radius:11px; background:#f5eee7; font-size:16px; }
@@ -55,7 +61,11 @@
   .sleep-timer { text-align:center; padding:22px 0 18px; }
   .sleep-clock { font-variant-numeric:tabular-nums; font-size:47px; letter-spacing:-2px; font-weight:650; line-height:1.05; }
   .sleep-caption { color:var(--muted); font-size:12px; margin-top:8px; }
-  .sleep-orb { width:58px; height:58px; display:grid; place-items:center; margin:0 auto 12px; border-radius:21px; font-size:27px; background:#eee9f7; }
+  .sleep-start-row { display:flex; align-items:center; justify-content:center; gap:9px; margin:14px auto 0; }
+  .sleep-start-row[hidden] { display:none !important; }
+  .sleep-start-row label { color:#75658f; font-size:12px; font-weight:750; }
+  .sleep-start-row input { width:112px; min-height:42px; padding:8px 11px; background:#fbf9ff; border:1px solid #d8cfe8; border-radius:12px; color:#514563; font:inherit; font-size:16px; font-weight:750; font-variant-numeric:tabular-nums; text-align:center; }
+  .sleep-start-row input:focus { outline:2px solid #b8a9d4; outline-offset:2px; }
   .sleep-button { width:100%; background:#75658f; color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(117,101,143,.16); }
   .sleep-button.waking { background:#8e6c5f; box-shadow:0 5px 12px rgba(142,108,95,.14); }
   .sleep-note { color:var(--muted); font-size:11px; text-align:center; margin:11px 4px 0; line-height:1.45; }
@@ -177,20 +187,31 @@
       <div class="clock-caption" id="clockCaption">Choose a side to begin</div>
     </div>
     <div class="side-buttons">
-      <button class="side-btn" id="leftBtn" type="button" aria-label="Start left breast">
-        <div class="side-row"><span class="side-name">Left side</span><span class="side-icon">🌿</span></div>
-        <div class="side-time" id="leftTime">00:00</div><div class="side-hint">Tap to start</div>
-      </button>
-      <button class="side-btn" id="rightBtn" type="button" aria-label="Start right breast">
-        <div class="side-row"><span class="side-name">Right side</span><span class="side-icon">🌼</span></div>
-        <div class="side-time" id="rightTime">00:00</div><div class="side-hint">Tap to start</div>
-      </button>
+      <div class="side-tile" id="leftTile">
+        <button class="side-btn" id="leftBtn" type="button" aria-label="Start left breast">
+          <div class="side-row"><span class="side-name">Left side</span><span class="side-icon">🌿</span></div>
+          <div class="side-time" id="leftTime">00:00</div><div class="side-hint">Tap to start</div>
+        </button>
+        <div class="minute-controls" aria-label="Adjust left-side feeding time">
+          <button class="minute-btn" type="button" data-adjust-side="left" data-adjust-minutes="-1" aria-label="Subtract one minute from left side">−1 min</button>
+          <button class="minute-btn" type="button" data-adjust-side="left" data-adjust-minutes="1" aria-label="Add one minute to left side">+1 min</button>
+        </div>
+      </div>
+      <div class="side-tile" id="rightTile">
+        <button class="side-btn" id="rightBtn" type="button" aria-label="Start right breast">
+          <div class="side-row"><span class="side-name">Right side</span><span class="side-icon">🌼</span></div>
+          <div class="side-time" id="rightTime">00:00</div><div class="side-hint">Tap to start</div>
+        </button>
+        <div class="minute-controls" aria-label="Adjust right-side feeding time">
+          <button class="minute-btn" type="button" data-adjust-side="right" data-adjust-minutes="-1" aria-label="Subtract one minute from right side">−1 min</button>
+          <button class="minute-btn" type="button" data-adjust-side="right" data-adjust-minutes="1" aria-label="Add one minute to right side">+1 min</button>
+        </div>
+      </div>
     </div>
     <div class="actions">
       <button class="primary" id="finishBtn" type="button">Finish & save feed</button>
       <button class="secondary" id="resetBtn" type="button">Reset</button>
     </div>
-    <button class="adjust-timer" id="editRunningFeedBtn" type="button" disabled>✎ Adjust running timer</button>
   </section>
 
   <section class="card last-card" aria-live="polite">
@@ -211,10 +232,13 @@
       <div class="sleep-orb" aria-hidden="true">🌙</div>
       <div class="sleep-clock" id="sleepClock">00:00</div>
       <div class="sleep-caption" id="sleepCaption">Ready to track the next nap</div>
+      <div class="sleep-start-row" id="sleepStartRow" hidden>
+        <label for="sleepStartTime">Fell asleep at</label>
+        <input id="sleepStartTime" type="time" step="60" aria-label="Fell asleep at time">
+      </div>
     </div>
     <button class="sleep-button" id="sleepToggleBtn" type="button">🌙 Start sleep</button>
-    <button class="adjust-timer sleep-adjust" id="editRunningSleepBtn" type="button" disabled>✎ Adjust sleep start time</button>
-    <p class="sleep-note">Tap when your baby falls asleep, then tap again at wake-up to save the sleep session.</p>
+    <p class="sleep-note" id="sleepNote">Tap when your baby falls asleep, then tap again at wake-up to save the sleep session.</p>
   </section>
 
   <section class="card last-card" aria-live="polite">
@@ -332,20 +356,46 @@
     persistExtended();
     render();
   }
+  function adjustLiveFeedSide(side, deltaMinutes) {
+    const deltaMs = deltaMinutes * 60000;
+    const now = Date.now();
+    const currentElapsed = elapsed(side);
+    if (deltaMs < 0 && currentElapsed < Math.abs(deltaMs)) {
+      showToast('That side cannot go below 00:00');
+      return;
+    }
+
+    // Fold the currently running segment into its base value before changing it,
+    // then restart its clock so time is neither lost nor counted twice.
+    if (state.active === side && state.segmentStartedAt) {
+      const segmentMs = now - state.segmentStartedAt;
+      if (side === 'left') state.leftMs += segmentMs;
+      else state.rightMs += segmentMs;
+      state.segmentStartedAt = now;
+    }
+
+    if (side === 'left') state.leftMs = Math.max(0, state.leftMs + deltaMs);
+    else state.rightMs = Math.max(0, state.rightMs + deltaMs);
+
+    if (totalElapsed() > 0) state.startedAt = now - totalElapsed();
+    persistExtended();
+    render();
+    showToast(`${capitalize(side)} side ${deltaMinutes > 0 ? '+1' : '−1'} minute`);
+  }
   function render() {
     const left = elapsed('left'), right = elapsed('right');
     $('leftTime').textContent = fmt(left); $('rightTime').textContent = fmt(right);
     $('mainClock').textContent = fmt(totalElapsed());
     $('leftBtn').classList.toggle('active', state.active === 'left');
     $('rightBtn').classList.toggle('active', state.active === 'right');
+    $('leftTile').classList.toggle('active', state.active === 'left');
+    $('rightTile').classList.toggle('active', state.active === 'right');
     $('leftBtn').querySelector('.side-hint').textContent = state.active === 'left' ? 'Currently feeding' : (left ? 'Tap to switch / resume' : 'Tap to start');
     $('rightBtn').querySelector('.side-hint').textContent = state.active === 'right' ? 'Currently feeding' : (right ? 'Tap to switch / resume' : 'Tap to start');
     $('statusPill').textContent = state.active ? `FEEDING · ${state.active.toUpperCase()}` : (totalElapsed() ? 'TIMER PAUSED' : 'READY WHEN YOU ARE');
     $('clockCaption').textContent = state.active ? `On the ${state.active} side · tap the other side to switch` : (totalElapsed() ? 'Paused · pick a side to continue' : 'Choose a side to begin');
     $('finishBtn').disabled = totalElapsed() === 0;
     $('finishBtn').style.opacity = totalElapsed() === 0 ? '.55' : '1';
-    $('editRunningFeedBtn').disabled = totalElapsed() === 0 && !state.active;
-    $('editRunningFeedBtn').textContent = state.active ? '✎ Adjust running feed timer' : '✎ Adjust paused feed timer';
     renderLast(); renderHistory(); renderSleep(); renderSleepHistory();
     if (!$('timelinePanel').hidden) {
       const second = Math.floor(Date.now() / 1000);
@@ -397,11 +447,17 @@
     $('sleepClock').textContent = sleeping ? fmt(elapsed) : '00:00';
     $('sleepStatusPill').textContent = sleeping ? 'BABY IS SLEEPING' : 'BABY IS AWAKE';
     $('sleepCaption').textContent = sleeping
-      ? `Fell asleep at ${new Date(state.activeSleepStart).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`
+      ? 'Adjust the start time below if you began tracking late.'
       : 'Ready to track the next nap';
+    $('sleepStartRow').hidden = !sleeping;
+    const sleepStartInput = $('sleepStartTime');
+    if (sleeping && document.activeElement !== sleepStartInput) {
+      const startDate = new Date(state.activeSleepStart);
+      const timeValue = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
+      if (sleepStartInput.value !== timeValue) sleepStartInput.value = timeValue;
+    }
     $('sleepToggleBtn').textContent = sleeping ? '☀️ Wake up & save sleep' : '🌙 Start sleep';
     $('sleepToggleBtn').classList.toggle('waking', sleeping);
-    $('editRunningSleepBtn').disabled = !sleeping;
     if (!state.sleepHistory.length) {
       $('lastSleepValue').textContent = 'No sleep logged yet';
       $('lastSleepDetail').textContent = sleeping ? 'A sleep session is currently in progress.' : 'Your latest sleep duration will show up here.';
@@ -770,8 +826,24 @@
     }
   }
 
-  $('editRunningFeedBtn').addEventListener('click', () => openEditor('active-feed'));
-  $('editRunningSleepBtn').addEventListener('click', () => openEditor('active-sleep'));
+  $('sleepStartTime').addEventListener('change', () => {
+    if (!state.activeSleepStart) return;
+    const value = $('sleepStartTime').value;
+    if (!/^\d{2}:\d{2}$/.test(value)) return;
+    const [hours, minutes] = value.split(':').map(Number);
+    const adjusted = new Date(state.activeSleepStart);
+    adjusted.setHours(hours, minutes, 0, 0);
+    // A time later than the current clock time is treated as the previous day,
+    // which supports correcting overnight sleep without requiring a date picker.
+    if (adjusted.getTime() > Date.now()) adjusted.setDate(adjusted.getDate() - 1);
+    state.activeSleepStart = adjusted.getTime();
+    persistExtended();
+    render();
+    showToast(`Sleep start updated to ${value}`);
+  });
+  document.querySelectorAll('[data-adjust-side]').forEach(button => {
+    button.addEventListener('click', () => adjustLiveFeedSide(button.dataset.adjustSide, Number(button.dataset.adjustMinutes)));
+  });
   $('editorForm').addEventListener('submit', saveEditor);
   $('editorCloseBtn').addEventListener('click', closeEditor);
   $('editorCancelBtn').addEventListener('click', closeEditor);
