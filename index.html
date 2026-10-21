@@ -21,8 +21,6 @@
   h1 { font-size:21px; letter-spacing:-.7px; margin:0; font-weight:750; }
   .subtitle { color:var(--muted); font-size:12px; margin-top:2px; }
   .today { font-size:12px; color:var(--muted); background:#fffdf9; border:1px solid var(--line); padding:8px 11px; border-radius:99px; }
-  .greeting { margin: 0 2px 18px; }
-  .eyebrow { color:var(--sage-dark); font-weight:750; text-transform:uppercase; font-size:10px; letter-spacing:1.6px; }
   h2 { font-size:26px; line-height:1.15; letter-spacing:-1px; margin:7px 0 0; }
   .card { background:var(--card); border:1px solid rgba(225,219,208,.7); border-radius:26px; box-shadow:var(--shadow); }
   .timer-card { padding:22px 18px 18px; }
@@ -68,50 +66,47 @@
   .sleep-start-row input:focus { outline:2px solid #b8a9d4; outline-offset:2px; }
   .sleep-button { width:100%; background:#75658f; color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(117,101,143,.16); }
   .sleep-button.waking { background:#8e6c5f; box-shadow:0 5px 12px rgba(142,108,95,.14); }
-  .sleep-note { color:var(--muted); font-size:11px; text-align:center; margin:11px 4px 0; line-height:1.45; }
   .sleep-last-icon { background:#eee9f7; }
   .sleep-history-mark { background:#eee9f7; }
   .tab-nav { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:5px; margin:0 0 18px; background:#eee9e1; border-radius:17px; }
   .tab-button { border:0; border-radius:13px; min-height:43px; padding:10px 9px; color:var(--muted); background:transparent; font-size:12px; font-weight:750; }
   .tab-button[aria-selected="true"] { background:var(--card); color:var(--ink); box-shadow:0 2px 8px rgba(67,61,49,.07); }
   .tab-panel[hidden] { display:none !important; }
-  .timeline-card { padding:20px 15px 17px; box-shadow:none; }
-  .timeline-heading { margin-bottom:16px; }
-  .timeline-heading h3 { font-size:19px; letter-spacing:-.55px; margin:0 0 5px; }
-  .timeline-heading p { margin:0; color:var(--muted); font-size:12px; line-height:1.45; }
-  .timeline-summary { color:var(--muted); font-size:10px; font-weight:750; letter-spacing:.8px; margin:15px 0 13px; text-transform:uppercase; }
-  .diagram-legend { display:flex; flex-wrap:wrap; gap:13px; margin:0 0 14px; font-size:11px; color:var(--muted); }
-  .legend-item { display:flex; align-items:center; gap:6px; }
-  .legend-swatch { display:inline-block; border-radius:5px; width:18px; }
-  .legend-swatch.sleep { height:14px; background:#b8a9d4; }
-  .legend-swatch.feed { height:7px; background:#86a891; }
-  .timeline-scroll { width:100%; overflow-x:auto; overflow-y:hidden; border-radius:13px; background:#fffdfa; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:thin; scrollbar-color:#c9c2b7 #f1eee8; }
-  .timeline-scroll::-webkit-scrollbar { height:7px; }
+  /* Timeline stays inside its card and uses the browser's native horizontal scrollbar. */
+  .timeline-card { padding:18px 14px 16px; box-shadow:none; }
+  .timeline-heading { margin-bottom:10px; }
+  .timeline-heading h3 { font-size:18px; letter-spacing:-.45px; margin:0; }
+  .timeline-summary { color:var(--muted); font-size:9px; font-weight:750; letter-spacing:.7px; margin:9px 0 7px; text-transform:uppercase; }
+  .diagram-legend { display:flex; flex-wrap:wrap; gap:10px; margin:0 0 8px; font-size:10px; color:var(--muted); }
+  .legend-item { display:flex; align-items:center; gap:5px; }
+  .legend-swatch { display:inline-block; border-radius:4px; width:15px; }
+  .legend-swatch.sleep { height:12px; background:#b8a9d4; }
+  .legend-swatch.feed { height:6px; background:#638f70; }
+  .timeline-scroll { display:block; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; border-radius:12px; background:#fffdfa; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:auto; scrollbar-color:#c9c2b7 #f1eee8; }
+  .timeline-scroll::-webkit-scrollbar { height:10px; }
   .timeline-scroll::-webkit-scrollbar-track { background:#f1eee8; border-radius:99px; }
-  .timeline-scroll::-webkit-scrollbar-thumb { background:#c9c2b7; border-radius:99px; }
+  .timeline-scroll::-webkit-scrollbar-thumb { background:#c9c2b7; border:2px solid #f1eee8; border-radius:99px; }
   .timeline-content { display:flex; align-items:stretch; width:max-content; min-width:100%; }
-  .time-axis { position:sticky; left:0; z-index:5; flex:0 0 39px; width:39px; background:#fffdfa; box-shadow:4px 0 7px rgba(67,61,49,.05); }
-  .time-axis-spacer { height:43px; border-bottom:1px solid #e8e2d9; }
-  .time-ruler { position:relative; height:600px; border-right:1px solid #e8e2d9; }
-  .time-label { position:absolute; left:0; width:35px; transform:translateY(-50%); padding-right:4px; text-align:right; color:#97958c; font-size:9px; line-height:1; font-variant-numeric:tabular-nums; background:#fffdfa; }
+  .time-axis { position:sticky; left:0; z-index:5; flex:0 0 32px; width:32px; background:#fffdfa; box-shadow:3px 0 6px rgba(67,61,49,.05); }
+  .time-axis-spacer { height:37px; border-bottom:1px solid #e8e2d9; }
+  .time-ruler { position:relative; height:480px; border-right:1px solid #e8e2d9; }
+  .time-label { position:absolute; left:0; width:29px; transform:translateY(-50%); padding-right:3px; text-align:right; color:#97958c; font-size:8px; line-height:1; font-variant-numeric:tabular-nums; background:#fffdfa; }
   .time-label.first { transform:none; }
   .time-label.last { transform:translateY(-100%); }
-  .timeline-days { display:flex; align-items:stretch; gap:6px; padding-right:8px; }
-  .timeline-day { flex:0 0 72px; width:72px; }
-  .timeline-date { height:43px; padding:6px 2px 5px; text-align:center; border-bottom:1px solid #e8e2d9; color:var(--muted); font-size:10px; line-height:1.15; white-space:nowrap; }
-  .timeline-date strong { display:block; color:var(--ink); font-size:11px; margin-bottom:3px; }
-  .timeline-day.today-column .timeline-date { color:#52715d; background:#eff4ee; border-radius:9px 9px 0 0; }
+  .timeline-days { display:flex; align-items:stretch; gap:3px; padding-right:5px; }
+  .timeline-day { flex:0 0 46px; width:46px; }
+  .timeline-date { height:37px; padding:5px 1px 4px; text-align:center; border-bottom:1px solid #e8e2d9; color:var(--muted); font-size:9px; line-height:1.1; white-space:nowrap; }
+  .timeline-date strong { display:block; color:var(--ink); font-size:10px; margin-bottom:2px; }
+  .timeline-day.today-column .timeline-date { color:#52715d; background:#eff4ee; border-radius:7px 7px 0 0; }
   .timeline-day.today-column .timeline-date strong { color:#52715d; }
-  .timeline-plot { position:relative; height:600px; width:100%; overflow:hidden; border-radius:0 0 9px 9px; background-color:#faf8f3; background-image:linear-gradient(to bottom, rgba(137,133,123,.20) 1px, transparent 1px); background-size:100% 12.5%; }
+  .timeline-plot { position:relative; height:480px; width:100%; overflow:hidden; border-radius:0 0 6px 6px; background-color:#faf8f3; background-image:linear-gradient(to bottom, rgba(137,133,123,.20) 1px, transparent 1px); background-size:100% 12.5%; }
   .timeline-day:nth-child(even) .timeline-plot { background-color:#f7f4ee; }
-  .timeline-block { position:absolute; display:block; border:0; padding:0; min-height:3px; overflow:hidden; border-radius:5px; }
-  .timeline-block.sleep { left:8%; width:62%; background:#b8a9d4; box-shadow:inset 0 0 0 1px rgba(100,79,139,.12); z-index:1; }
-  .timeline-block.feed { left:75%; width:18%; min-width:6px; background:#86a891; box-shadow:inset 0 0 0 1px rgba(61,106,74,.15); border-radius:4px; z-index:3; }
+  .timeline-block { position:absolute; display:block; border:0; padding:0; min-height:3px; overflow:hidden; border-radius:4px; }
+  .timeline-block.sleep { left:11%; width:78%; background:#b8a9d4; box-shadow:inset 0 0 0 1px rgba(100,79,139,.12); z-index:1; }
+  .timeline-block.feed { left:31%; width:38%; min-width:5px; background:#638f70; box-shadow:inset 0 0 0 1px rgba(38,86,49,.2); border-radius:3px; z-index:3; }
   .timeline-block.ongoing { outline:2px dashed rgba(68,64,59,.52); outline-offset:-2px; }
   .timeline-empty { margin-top:14px; padding:13px 14px; background:#f8f5f0; border-radius:15px; font-size:11px; line-height:1.45; color:var(--muted); }
   .timeline-footnote { margin:14px 2px 0; font-size:10px; line-height:1.45; color:#a3a197; }
-  .timeline-scroll-hint { margin:0 0 10px; display:flex; gap:6px; align-items:center; color:#8f8c82; font-size:10px; }
-  .timeline-scroll-hint span { display:inline-grid; place-items:center; width:18px; height:18px; border-radius:6px; background:#f0ece4; color:#777368; font-size:12px; }
   .history-head { display:flex; align-items:center; justify-content:space-between; margin:27px 2px 12px; }
   .history-head h3 { margin:0; font-size:18px; letter-spacing:-.5px; }
   .count { color:var(--muted); font-size:12px; }
@@ -171,17 +166,21 @@
     <div class="today" id="todayLabel">Today</div>
   </header>
 
-  <section class="greeting">
-    <div class="eyebrow">One feed at a time</div>
-    <h2>Let's get comfy. 🤍</h2>
-  </section>
-
   <nav class="tab-nav" role="tablist" aria-label="App views">
     <button class="tab-button" id="trackTabBtn" type="button" role="tab" aria-controls="trackPanel" aria-selected="true">♡ Track</button>
-    <button class="tab-button" id="timelineTabBtn" type="button" role="tab" aria-controls="timelinePanel" aria-selected="false">▥ 7-day diagram</button>
+    <button class="tab-button" id="timelineTabBtn" type="button" role="tab" aria-controls="timelinePanel" aria-selected="false">▥ History</button>
   </nav>
 
   <section class="tab-panel" id="trackPanel" role="tabpanel" aria-labelledby="trackTabBtn">
+  <section class="card last-card" aria-live="polite">
+    <div class="last-icon">🍼</div>
+    <div>
+      <div class="last-label">LAST FED ON</div>
+      <div class="last-value" id="lastSide">No feeds logged yet</div>
+      <div class="last-detail" id="lastDetail">Your last side will show up here.</div>
+    </div>
+  </section>
+
   <section class="card timer-card" aria-label="Breastfeeding timer">
     <div class="section-top">
       <div class="section-title">Feeding timer</div>
@@ -219,14 +218,7 @@
     </div>
   </section>
 
-  <section class="card last-card" aria-live="polite">
-    <div class="last-icon">🍼</div>
-    <div>
-      <div class="last-label">LAST FED ON</div>
-      <div class="last-value" id="lastSide">No feeds logged yet</div>
-      <div class="last-detail" id="lastDetail">Your last side will show up here.</div>
-    </div>
-  </section>
+
 
   <section class="card sleep-card" aria-label="Baby sleep tracker">
     <div class="section-top">
@@ -243,7 +235,6 @@
       </div>
     </div>
     <button class="sleep-button" id="sleepToggleBtn" type="button">🌙 Start sleep</button>
-    <p class="sleep-note" id="sleepNote">Tap when your baby falls asleep, then tap again at wake-up to save the sleep session.</p>
   </section>
 
   <section class="card last-card" aria-live="polite">
@@ -270,14 +261,12 @@
     <div class="card timeline-card">
       <div class="timeline-heading">
         <h3>Sleep &amp; feeding timeline</h3>
-        <p>Each column is one day, with midnight at the top and midnight at the bottom.</p>
       </div>
       <div class="diagram-legend" aria-label="Diagram legend">
         <span class="legend-item"><i class="legend-swatch sleep"></i> Sleep interval</span>
         <span class="legend-item"><i class="legend-swatch feed"></i> Feeding session</span>
       </div>
       <div class="timeline-summary" id="timelineSummary">Last 4 weeks</div>
-      <p class="timeline-scroll-hint"><span>↔</span> Swipe right to reveal older days · today stays on the right</p>
       <div class="timeline-scroll" id="timelineScroller" tabindex="0" aria-label="Scrollable baby sleep and feeding timeline. Older days are to the left and today is on the right.">
         <div class="timeline-content" id="timelineContent">
           <div class="time-axis" id="timeAxis" aria-hidden="true"></div>
@@ -285,7 +274,7 @@
         </div>
       </div>
       <div class="timeline-empty" id="timelineEmpty" hidden>No sleep or feeding sessions are recorded for this period yet. Start tracking a few sessions and they'll appear here.</div>
-      <p class="timeline-footnote">Lavender blocks show sleep intervals; shorter green marks show feeds. Events that cross midnight continue into the next day's column. Ongoing sessions are outlined.</p>
+      <p class="timeline-footnote">Lavender blocks show sleep; narrower green marks overlay the same column for feeds. Overnight sessions continue into the next day. Outlined blocks are still in progress.</p>
     </div>
   </section>
 
@@ -971,7 +960,9 @@
 
     if (!wasInitialized) {
       state.timelineInitialized = true;
-      requestAnimationFrame(() => { scroller.scrollLeft = scroller.scrollWidth; });
+      requestAnimationFrame(() => {
+        scroller.scrollLeft = scroller.scrollWidth;
+      });
     } else if (!state.extendingTimeline) {
       // Preserve the user's horizontal position while active timers refresh the drawing.
       scroller.scrollLeft = oldScrollLeft;
