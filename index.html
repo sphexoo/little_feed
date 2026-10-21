@@ -150,6 +150,12 @@
   @media (min-width:520px) { .editor-backdrop { align-items:center; } }
   .empty { text-align:center; padding:27px 18px; color:var(--muted); font-size:13px; line-height:1.5; box-shadow:none; }
   .empty-icon { font-size:27px; margin-bottom:8px; }
+  .data-card { margin-top:18px; padding:18px; box-shadow:none; }
+  .data-help { margin:10px 0 14px; color:var(--muted); font-size:11px; line-height:1.5; }
+  .data-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .data-actions button { min-width:0; padding:12px 8px; font-size:12px; }
+  .data-actions .secondary { border-radius:14px; }
+  .data-actions .primary { border-radius:14px; }
   .storage-status { text-align:center; max-width:420px; margin:18px auto -12px; color:#8e8c82; font-size:10px; line-height:1.45; }
   .storage-status.warning { color:#9b5b3f; }
   .footnote { text-align:center; font-size:10px; color:#a3a197; padding:22px 10px 4px; }
@@ -285,6 +291,20 @@
       <p class="timeline-footnote">Lavender blocks show sleep intervals; shorter green marks show feeds. Events that cross midnight continue into the next day's column. Ongoing sessions are outlined.</p>
     </div>
   </section>
+
+  <section class="card data-card" aria-label="Import and export data">
+    <div class="section-top">
+      <div class="section-title">Data &amp; backups</div>
+      <div class="live">CSV</div>
+    </div>
+    <p class="data-help">Import or export using the 36-column CSV format. Only <strong>breast</strong> and <strong>sleep</strong> records are handled; other entry types are ignored. Unused columns are left blank.</p>
+    <div class="data-actions">
+      <button class="secondary" id="exportCsvBtn" type="button">↓ Export CSV</button>
+      <button class="primary" id="importCsvBtn" type="button">↑ Import CSV</button>
+    </div>
+    <input id="importCsvFile" type="file" accept=".csv,text/csv" hidden>
+  </section>
+
   <div class="storage-status" id="storageStatus" role="status" aria-live="polite">Opening secure local storage…</div>
   <div class="footnote">Made with love for the little moments ✨<br>Your data stays on this device; it is not synced to the cloud.</div>
 </main>
@@ -319,10 +339,271 @@
   const DB_VERSION = 1;
   const DB_STORE = 'appRecords';
   const DB_RECORD_ID = 'appState';
+  const CSV_HEADERS = [
+    'Type','Timestamp','Date','Time','End Timestamp','Duration (min)','Amount','Unit','Side',
+    'Diaper Type','Rash','Food','Allergen Tags','Medication','Dose','Vaccine','Vaccine Site',
+    'Vaccine Lot','Vaccine Place','Temperature','Temp Unit','Temp Method','Weight','Weight Unit',
+    'Height','Height Unit','Head Circ','Head Circ Unit','Severity','Quality','Drink Type',
+    'Milestone','Category','Label','Notes','Source'
+  ];
   let db = null;
   let storageMode = 'opening';
   let persistentStorageGranted = false;
   let saveChain = Promise.resolve();
+
+  function csvEscape(value) {
+    const text = String(value ?? '');
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  }
+
+  function csvParse(text) {
+    // Small RFC-4180-compatible parser: handles BOM, quoted commas, escaped quotes and newlines.
+    const input = String(text ?? '').replace(/^\uFEFF/, '');
+    const rows = [];
+    let row = [], field = '', quoted = false;
+    for (let i = 0; i < input.length; i++) {
+      const ch = input[i];
+      if (quoted) {
+        if (ch === '"' && input[i + 1] === '"') { field += '"'; i++; }
+        else if (ch === '"') quoted = false;
+        else field += ch;
+      } else if (ch === '"' && field.length === 0) {
+        quoted = true;
+      } else if (ch === ',') {
+        row.push(field); field = '';
+      } else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && input[i + 1] === '\n') i++;
+        row.push(field); rows.push(row); row = []; field = '';
+      } else {
+        field += ch;
+      }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows.filter((r, index) => !(r.length === 1 && r[0] === '' && index === rows.length - 1));
+  }
+
+  function localOffsetIso(timestamp) {
+    const d = new Date(Number(timestamp));
+    if (!Number.isFinite(d.getTime())) return '';
+    const pad = n => String(n).padStart(2, '0');
+    const offset = -d.getTimezoneOffset();
+    const sign = offset >= 0 ? '+' : '-';
+    const abs = Math.abs(offset);
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${pad(Math.floor(abs/60))}:${pad(abs%60)}`;
+  }
+
+  function csvDate(timestamp) {
+    const d = new Date(Number(timestamp));
+    if (!Number.isFinite(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function csvTime(timestamp) {
+    const d = new Date(Number(timestamp));
+    return Number.isFinite(d.getTime()) ? d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '';
+  }
+
+  function newCsvRow(type, startAt, endAt, durationMs, side = '') {
+    const row = Array(CSV_HEADERS.length).fill('');
+    row[0] = type;
+    row[1] = localOffsetIso(startAt);
+    row[2] = csvDate(startAt);
+    row[3] = csvTime(startAt);
+    row[4] = endAt == null ? '' : localOffsetIso(endAt);
+    row[5] = durationMs == null ? '' : String(Math.max(0, Math.round(Number(durationMs) / 60000)));
+    row[8] = side || '';
+    // Source and all unrelated scheme columns intentionally remain blank.
+    return row;
+  }
+
+  function getFeedSide(item) {
+    if (item.importedAggregate && item.importedSide) return item.importedSide;
+    if (Number(item.leftMs) > 0 && Number(item.rightMs) > 0) return 'both';
+    if (Number(item.leftMs) > 0) return 'left';
+    if (Number(item.rightMs) > 0) return 'right';
+    return item.importedSide || '';
+  }
+
+  function exportCsv() {
+    const rows = [CSV_HEADERS];
+    const records = [];
+    for (const item of state.history) {
+      const start = Number(item.startedAt || (Number(item.endedAt) - Number(item.totalMs || 0)));
+      const end = Number(item.endedAt);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+      records.push({start, row:newCsvRow('breast', start, end, Number(item.totalMs) || Number(item.leftMs || 0) + Number(item.rightMs || 0), getFeedSide(item))});
+    }
+    for (const item of state.sleepHistory) {
+      const start = Number(item.startedAt), end = Number(item.endedAt);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+      records.push({start, row:newCsvRow('sleep', start, end, Number(item.durationMs) || end - start)});
+    }
+    // An in-progress sleep is represented the same way as the sample scheme: a start timestamp and blank end/duration.
+    if (state.activeSleepStart) {
+      const start = Number(state.activeSleepStart);
+      if (Number.isFinite(start)) records.push({start, row:newCsvRow('sleep', start, null, null)});
+    }
+    records.sort((a,b) => a.start - b.start);
+    for (const item of records) rows.push(item.row);
+    const csv = '\uFEFF' + rows.map(row => row.map(csvEscape).join(',')).join('\r\n') + '\r\n';
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `little-feed-${csvDate(Date.now())}.csv`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast(`Exported ${records.length} breast/sleep records`);
+  }
+
+  function parseCsvTimestamp(value, dateValue = '', timeValue = '') {
+    const raw = String(value ?? '').trim();
+    if (raw) {
+      const parsed = Date.parse(raw);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    const date = String(dateValue ?? '').trim();
+    const time = String(timeValue ?? '').trim();
+    const dateMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(date);
+    if (!dateMatch) return NaN;
+    let hour = 0, minute = 0, second = 0;
+    if (time) {
+      const timeMatch = /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i.exec(time);
+      if (!timeMatch) return NaN;
+      hour = Number(timeMatch[1]); minute = Number(timeMatch[2]); second = Number(timeMatch[3] || 0);
+      const ampm = (timeMatch[4] || '').toUpperCase();
+      if (ampm) {
+        if (hour < 1 || hour > 12) return NaN;
+        hour = hour % 12 + (ampm === 'PM' ? 12 : 0);
+      }
+      if (hour > 23 || minute > 59 || second > 59) return NaN;
+    }
+    return new Date(Number(dateMatch[1]), Number(dateMatch[2])-1, Number(dateMatch[3]), hour, minute, second, 0).getTime();
+  }
+
+  function sameSession(a, b) {
+    return Math.abs(Number(a.startedAt) - Number(b.startedAt)) < 1500 && Math.abs(Number(a.endedAt) - Number(b.endedAt)) < 1500;
+  }
+
+  function readTextFile(file) {
+    if (file && typeof file.text === 'function') return file.text();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error || new Error('Could not read file.'));
+      reader.readAsText(file, 'UTF-8');
+    });
+  }
+
+  async function importCsvFile(file) {
+    if (!file) return;
+    let rows;
+    try { rows = csvParse(await readTextFile(file)); }
+    catch (_) { alert('Could not read this CSV file.'); return; }
+    if (rows.length < 2) { alert('This CSV does not contain any data rows.'); return; }
+    const headers = rows[0].map(h => String(h || '').replace(/^\uFEFF/, '').trim().toLowerCase());
+    const col = name => headers.indexOf(name.toLowerCase());
+    if (col('type') < 0 || (col('timestamp') < 0 && col('date') < 0)) {
+      alert('This file does not look like a compatible CSV: the Type and Timestamp/Date columns are required.');
+      return;
+    }
+    const value = (row, name) => { const i = col(name); return i < 0 ? '' : String(row[i] ?? '').trim(); };
+    const pendingFeeds = [], pendingSleeps = [];
+    const openFeeds = [], openSleeps = [];
+    let unsupported = 0, invalid = 0;
+    const now = Date.now();
+
+    for (const row of rows.slice(1)) {
+      if (!row.length || row.every(cell => String(cell ?? '').trim() === '')) continue;
+      const type = value(row, 'Type').toLowerCase();
+      if (type !== 'breast' && type !== 'sleep') { unsupported++; continue; }
+      const start = parseCsvTimestamp(value(row, 'Timestamp'), value(row, 'Date'), value(row, 'Time'));
+      if (!Number.isFinite(start) || start > now) { invalid++; continue; }
+      const rawEnd = value(row, 'End Timestamp');
+      const rawDuration = value(row, 'Duration (min)');
+      const durationNumber = rawDuration === '' ? NaN : Number(rawDuration);
+      const durationMs = Number.isFinite(durationNumber) && durationNumber >= 0 ? durationNumber * 60000 : NaN;
+      let end = rawEnd ? parseCsvTimestamp(rawEnd) : NaN;
+      if (!Number.isFinite(end) && Number.isFinite(durationMs) && durationMs > 0) end = start + durationMs;
+      const rawSide = value(row, 'Side').toLowerCase();
+      const side = ['left','right','both'].includes(rawSide) ? rawSide : (rawSide === 'l' ? 'left' : rawSide === 'r' ? 'right' : '');
+
+      if (Number.isFinite(end) && end > start && end <= now + 60000) {
+        const elapsedMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : end - start;
+        if (type === 'sleep') {
+          pendingSleeps.push({id:`import-sleep-${start}-${end}`, startedAt:start, endedAt:end, durationMs:Math.max(0, elapsedMs), imported:true});
+        } else {
+          let leftMs = 0, rightMs = 0, lastSide = null, importedAggregate = false;
+          if (side === 'left') { leftMs = elapsedMs; lastSide = 'left'; }
+          else if (side === 'right') { rightMs = elapsedMs; lastSide = 'right'; }
+          else if (side === 'both') {
+            // The interoperable CSV has one combined duration, not a left/right split.
+            // Keep it combined instead of inventing side-specific values.
+            importedAggregate = true;
+          }
+          pendingFeeds.push({id:`import-breast-${start}-${end}`, startedAt:start, endedAt:end,
+            leftMs, rightMs, totalMs:Math.max(0, elapsedMs), lastSide, importedSide:side,
+            importedAggregate, imported:true});
+        }
+      } else if (!rawEnd && !rawDuration) {
+        if (type === 'sleep') openSleeps.push({start});
+        else if (side === 'left' || side === 'right') openFeeds.push({start, side});
+        else invalid++;
+      } else {
+        invalid++;
+      }
+    }
+
+    // Only the newest unclosed row can represent an active timer.
+    openSleeps.sort((a,b) => b.start - a.start);
+    openFeeds.sort((a,b) => b.start - a.start);
+    const incomingOpenSleep = openSleeps[0] || null;
+    const incomingOpenFeed = openFeeds[0] || null;
+    const candidateCount = pendingFeeds.length + pendingSleeps.length + (incomingOpenSleep ? 1 : 0) + (incomingOpenFeed ? 1 : 0);
+    if (!candidateCount) {
+      showToast('No valid breast or sleep records found');
+      alert(`No valid breast or sleep records were found. Unsupported rows ignored: ${unsupported}; invalid rows: ${invalid}.`);
+      return;
+    }
+    const approved = confirm(`Import ${pendingFeeds.length} feeding records and ${pendingSleeps.length} sleep sessions?\n\nExisting data will be kept. Exact duplicates will be skipped.\nUnsupported entry types (such as growth or diaper) will be ignored.\n${incomingOpenSleep ? 'The CSV also contains an active sleep timer. ' : ''}${incomingOpenFeed ? 'The CSV also contains an active feeding timer. ' : ''}`);
+    if (!approved) return;
+
+    let addedFeeds = 0, addedSleeps = 0, duplicates = 0;
+    for (const item of pendingFeeds) {
+      if (state.history.some(existing => sameSession(existing, item))) { duplicates++; continue; }
+      state.history.push(item); addedFeeds++;
+    }
+    for (const item of pendingSleeps) {
+      if (state.sleepHistory.some(existing => sameSession(existing, item))) { duplicates++; continue; }
+      state.sleepHistory.push(item); addedSleeps++;
+    }
+    if (incomingOpenSleep) {
+      if (!state.activeSleepStart) state.activeSleepStart = incomingOpenSleep.start;
+      else duplicates++;
+    }
+    if (incomingOpenFeed) {
+      if (!state.startedAt && !state.active && !state.leftMs && !state.rightMs) {
+        const elapsedMs = Math.max(0, now - incomingOpenFeed.start);
+        state.leftMs = incomingOpenFeed.side === 'left' ? elapsedMs : 0;
+        state.rightMs = incomingOpenFeed.side === 'right' ? elapsedMs : 0;
+        state.active = incomingOpenFeed.side;
+        state.startedAt = incomingOpenFeed.start;
+        state.segmentStartedAt = now;
+      } else duplicates++;
+    }
+    state.history.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
+    state.sleepHistory.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
+    recalculateLastFeed();
+    persistExtended();
+    await saveChain;
+    render();
+    const details = `Imported ${addedFeeds} feeding and ${addedSleeps} sleep records${duplicates ? `; ${duplicates} duplicate/active record(s) skipped` : ''}${unsupported ? `; ${unsupported} unsupported row(s) ignored` : ''}${invalid ? `; ${invalid} invalid row(s) skipped` : ''}.`;
+    showToast(`Imported ${addedFeeds + addedSleeps} records`);
+    alert(details);
+  }
 
   function openDatabase() {
     return new Promise((resolve, reject) => {
@@ -532,9 +813,14 @@
     }
   }
   function renderLast() {
-    if (!state.lastSide) {
+    if (!state.history.length) {
       $('lastSide').textContent = 'No feeds logged yet';
       $('lastDetail').textContent = 'Your last side will show up here.';
+      return;
+    }
+    if (!state.lastSide) {
+      $('lastSide').textContent = 'Last side not specified';
+      $('lastDetail').textContent = state.lastSideAt ? `Most recent feed · ${relativeTime(state.lastSideAt)}` : 'The imported data does not identify the last side.';
       return;
     }
     $('lastSide').textContent = `${capitalize(state.lastSide)} side`;
@@ -552,9 +838,13 @@
       const dateText = isSameDay(date, new Date()) ? `Today, ${date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}` :
         date.toLocaleDateString([], {month:'short', day:'numeric'}) + ` · ` + date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
       const parts = [];
-      if (item.leftMs > 0) parts.push(`Left ${fmt(item.leftMs)}`);
-      if (item.rightMs > 0) parts.push(`Right ${fmt(item.rightMs)}`);
-      const last = item.lastSide ? `${capitalize(item.lastSide)} was last` : 'Side not recorded';
+      if (item.importedAggregate && item.importedSide === 'both') {
+        parts.push(`Both sides · ${fmt(item.totalMs)} combined`);
+      } else {
+        if (item.leftMs > 0) parts.push(`Left ${fmt(item.leftMs)}`);
+        if (item.rightMs > 0) parts.push(`Right ${fmt(item.rightMs)}`);
+      }
+      const last = item.lastSide ? `${capitalize(item.lastSide)} was last` : (item.importedSide === 'both' ? 'Last side not specified in CSV' : 'Side not recorded');
       return `<article class="card history-item">
         <div class="history-mark">🍼</div>
         <div class="history-main"><div class="history-date">${dateText}</div><div class="history-meta">${parts.join(' · ') || 'Duration not recorded'}<br>${last}</div></div>
@@ -850,10 +1140,14 @@
       title = 'Edit feeding record';
       fields = editField('Feed started at', 'startAt', 'datetime-local', localDateTimeValue(item.startedAt || (item.endedAt - item.totalMs)), {full:true}) +
         editField('Feed ended at', 'endAt', 'datetime-local', localDateTimeValue(item.endedAt), {full:true}) +
-        editField('Left side · minutes', 'leftMinutes', 'number', editMinutes(item.leftMs), {min:0, step:0.1}) +
-        editField('Right side · minutes', 'rightMinutes', 'number', editMinutes(item.rightMs), {min:0, step:0.1}) +
-        editField('Last side used', 'savedLastSide', 'select', item.lastSide || (item.rightMs > item.leftMs ? 'right' : 'left'), {full:true, choices:[{value:'left',label:'Left side'},{value:'right',label:'Right side'}]});
-      help = 'You can change the session times, each side’s duration, and which side was used last. Total feeding duration is recalculated from the two side durations.';
+        (item.importedAggregate
+          ? editField('Combined duration · minutes', 'combinedMinutes', 'number', editMinutes(item.totalMs), {full:true, min:0, step:0.1})
+          : editField('Left side · minutes', 'leftMinutes', 'number', editMinutes(item.leftMs), {min:0, step:0.1}) +
+            editField('Right side · minutes', 'rightMinutes', 'number', editMinutes(item.rightMs), {min:0, step:0.1}) +
+            editField('Last side used', 'savedLastSide', 'select', item.lastSide || (item.rightMs > item.leftMs ? 'right' : 'left'), {full:true, choices:[{value:'left',label:'Left side'},{value:'right',label:'Right side'}]}));
+      help = item.importedAggregate
+        ? 'This CSV record says both sides were used but does not provide separate durations or which side was last. Edit the combined duration and times here; the missing side split will stay unspecified.'
+        : 'You can change the session times, each side’s duration, and which side was used last. Total feeding duration is recalculated from the two side durations.';
     } else if (type === 'sleep-record') {
       const item = state.sleepHistory.find(x => String(x.id) === String(id));
       if (!item) return;
@@ -928,15 +1222,26 @@
     if (editorContext.type === 'feed-record') {
       const item = state.history.find(x => String(x.id) === String(editorContext.id));
       if (!item) { closeEditor(); return; }
-      const leftMs = positiveDurationInput('leftMinutes');
-      const rightMs = positiveDurationInput('rightMinutes');
-      const lastSide = input('savedLastSide');
-      if (leftMs === null || rightMs === null || leftMs + rightMs <= 0) {
-        editorError('Enter valid side durations. At least one side must have a duration greater than zero.'); return;
-      }
       item.startedAt = startAt; item.endedAt = endAt;
-      item.leftMs = leftMs; item.rightMs = rightMs; item.totalMs = leftMs + rightMs;
-      item.lastSide = ['left','right'].includes(lastSide) ? lastSide : 'left';
+      if (item.importedAggregate) {
+        const combinedMs = positiveDurationInput('combinedMinutes');
+        if (combinedMs === null || combinedMs <= 0) {
+          editorError('Enter a combined duration greater than zero.'); return;
+        }
+        item.leftMs = 0; item.rightMs = 0; item.totalMs = combinedMs;
+        item.lastSide = null; item.importedSide = 'both'; item.importedAggregate = true;
+      } else {
+        const leftMs = positiveDurationInput('leftMinutes');
+        const rightMs = positiveDurationInput('rightMinutes');
+        const lastSide = input('savedLastSide');
+        if (leftMs === null || rightMs === null || leftMs + rightMs <= 0) {
+          editorError('Enter valid side durations. At least one side must have a duration greater than zero.'); return;
+        }
+        item.leftMs = leftMs; item.rightMs = rightMs; item.totalMs = leftMs + rightMs;
+        item.lastSide = ['left','right'].includes(lastSide) ? lastSide : 'left';
+        item.importedAggregate = false;
+        item.importedSide = leftMs > 0 && rightMs > 0 ? 'both' : (leftMs > 0 ? 'left' : 'right');
+      }
       recalculateLastFeed();
       persistExtended(); closeEditor(); render(); showToast('Feeding record updated'); return;
     }
@@ -971,6 +1276,15 @@
   $('editorCancelBtn').addEventListener('click', closeEditor);
   $('editorBackdrop').addEventListener('click', e => { if (e.target === $('editorBackdrop')) closeEditor(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('editorBackdrop').hidden) closeEditor(); });
+
+  $('exportCsvBtn').addEventListener('click', exportCsv);
+  $('importCsvBtn').addEventListener('click', () => $('importCsvFile').click());
+  $('importCsvFile').addEventListener('change', async event => {
+    const file = event.target.files && event.target.files[0];
+    // Reset the chooser so the same file can be selected again after corrections.
+    event.target.value = '';
+    if (file) await importCsvFile(file);
+  });
 
   $('trackTabBtn').addEventListener('click', () => activateTab('track'));
   $('timelineTabBtn').addEventListener('click', () => activateTab('timeline'));
