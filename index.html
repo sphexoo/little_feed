@@ -25,6 +25,11 @@
   .card { background:var(--card); border:1px solid rgba(225,219,208,.7); border-radius:26px; box-shadow:var(--shadow); }
   .timer-card { padding:22px 18px 18px; }
   .section-top { display:flex; justify-content:space-between; align-items:center; }
+  .section-actions { display:flex; align-items:center; gap:7px; }
+  .history-toggle { width:32px; height:32px; flex:0 0 32px; display:grid; place-items:center; border:1px solid var(--line); border-radius:11px; background:#fff; color:var(--muted); padding:0; }
+  .history-chevron { display:block; font-size:20px; line-height:1; transform:translateY(-2px); transition:transform .18s ease; }
+  .history-toggle[aria-expanded="true"] .history-chevron { transform:rotate(180deg) translateY(2px); }
+  .history-toggle:focus-visible { outline:2px solid var(--sage); outline-offset:2px; }
   .section-title { font-size:14px; font-weight:750; }
   .live { color:var(--sage-dark); background:var(--sage-light); border-radius:99px; padding:6px 9px; font-size:10px; font-weight:750; letter-spacing:.5px; }
   .timer { text-align:center; padding:24px 0 20px; }
@@ -59,11 +64,16 @@
   .sleep-timer { text-align:center; padding:22px 0 18px; }
   .sleep-clock { font-variant-numeric:tabular-nums; font-size:47px; letter-spacing:-2px; font-weight:650; line-height:1.05; }
   .sleep-caption { color:var(--muted); font-size:12px; margin-top:8px; }
-  .sleep-start-row { display:flex; align-items:center; justify-content:center; gap:9px; margin:14px auto 0; }
+  .sleep-start-row { display:block; margin:16px auto 0; max-width:420px; text-align:left; }
   .sleep-start-row[hidden] { display:none !important; }
-  .sleep-start-row label { color:#75658f; font-size:12px; font-weight:750; }
-  .sleep-start-row input { width:112px; min-height:42px; padding:8px 11px; background:#fbf9ff; border:1px solid #d8cfe8; border-radius:12px; color:#514563; font:inherit; font-size:16px; font-weight:750; font-variant-numeric:tabular-nums; text-align:center; }
-  .sleep-start-row input:focus { outline:2px solid #b8a9d4; outline-offset:2px; }
+  .sleep-adjustment-values { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; margin-bottom:8px; }
+  .sleep-adjustment-value { display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .sleep-adjustment-value:last-child { text-align:right; align-items:flex-end; }
+  .sleep-adjust-label { color:#75658f; font-size:11px; font-weight:750; }
+  .sleep-adjustment-value strong { color:#514563; font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; }
+  #sleepStartSlider { display:block; width:100%; min-height:28px; margin:4px 0 0; padding:0; accent-color:#75658f; cursor:pointer; touch-action:pan-y; }
+  #sleepStartSlider:focus-visible { outline:2px solid #b8a9d4; outline-offset:3px; border-radius:8px; }
+  .sleep-slider-labels { display:flex; justify-content:space-between; color:var(--muted); font-size:10px; margin-top:0; }
   .sleep-button { width:100%; background:#75658f; color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(117,101,143,.16); }
   .sleep-button.waking { background:#8e6c5f; box-shadow:0 5px 12px rgba(142,108,95,.14); }
   .sleep-last-icon { background:#eee9f7; }
@@ -108,6 +118,7 @@
   .timeline-empty { margin-top:14px; padding:13px 14px; background:#f8f5f0; border-radius:15px; font-size:11px; line-height:1.45; color:var(--muted); }
   .timeline-footnote { margin:14px 2px 0; font-size:10px; line-height:1.45; color:#a3a197; }
   .history-head { display:flex; align-items:center; justify-content:space-between; margin:27px 2px 12px; }
+  .history-collapse .history-head { margin:12px 2px 10px; }
   .history-head h3 { margin:0; font-size:18px; letter-spacing:-.5px; }
   .count { color:var(--muted); font-size:12px; }
   .history-list { display:flex; flex-direction:column; gap:9px; }
@@ -184,7 +195,10 @@
   <section class="card timer-card" aria-label="Breastfeeding timer">
     <div class="section-top">
       <div class="section-title">Feeding timer</div>
-      <div class="live" id="statusPill">READY WHEN YOU ARE</div>
+      <div class="section-actions">
+        <div class="live" id="statusPill">READY WHEN YOU ARE</div>
+        <button class="history-toggle" id="feedHistoryToggle" type="button" aria-expanded="false" aria-controls="feedingHistoryPanel" aria-label="Show feeding history" title="Show feeding history"><span class="history-chevron" aria-hidden="true">⌄</span></button>
+      </div>
     </div>
     <div class="timer">
       <div class="clock" id="mainClock">00:00</div>
@@ -218,24 +232,12 @@
     </div>
   </section>
 
-
-
-  <section class="card sleep-card" aria-label="Baby sleep tracker">
-    <div class="section-top">
-      <div class="section-title">Sleep tracker</div>
-      <div class="live" id="sleepStatusPill">BABY IS AWAKE</div>
+  <div class="history-collapse" id="feedingHistoryPanel" hidden>
+    <div class="history-head">
+      <h3>Feeding history</h3><span class="count" id="historyCount">0 feeds</span>
     </div>
-    <div class="sleep-timer">
-      <div class="sleep-orb" aria-hidden="true">🌙</div>
-      <div class="sleep-clock" id="sleepClock">00:00</div>
-      <div class="sleep-caption" id="sleepCaption">Ready to track the next nap</div>
-      <div class="sleep-start-row" id="sleepStartRow" hidden>
-        <label for="sleepStartTime">Fell asleep at</label>
-        <input id="sleepStartTime" type="time" step="60" aria-label="Fell asleep at time">
-      </div>
-    </div>
-    <button class="sleep-button" id="sleepToggleBtn" type="button">🌙 Start sleep</button>
-  </section>
+    <section class="history-list" id="historyList" aria-live="polite"></section>
+  </div>
 
   <section class="card last-card" aria-live="polite">
     <div class="last-icon sleep-last-icon">🌙</div>
@@ -246,15 +248,44 @@
     </div>
   </section>
 
-  <div class="history-head">
-    <h3>Sleep history</h3><span class="count" id="sleepHistoryCount">0 sessions</span>
-  </div>
-  <section class="history-list" id="sleepHistoryList" aria-live="polite"></section>
+  <section class="card sleep-card" aria-label="Baby sleep tracker">
+    <div class="section-top">
+      <div class="section-title">Sleep tracker</div>
+      <div class="section-actions">
+        <div class="live" id="sleepStatusPill">BABY IS AWAKE</div>
+        <button class="history-toggle" id="sleepHistoryToggle" type="button" aria-expanded="false" aria-controls="sleepHistoryPanel" aria-label="Show sleep history" title="Show sleep history"><span class="history-chevron" aria-hidden="true">⌄</span></button>
+      </div>
+    </div>
+    <div class="sleep-timer">
+      <div class="sleep-orb" aria-hidden="true">🌙</div>
+      <div class="sleep-clock" id="sleepClock">00:00</div>
+      <div class="sleep-caption" id="sleepCaption">Ready to track the next nap</div>
+      <div class="sleep-start-row" id="sleepStartRow" hidden>
+        <div class="sleep-adjustment-values" aria-live="polite" aria-atomic="true">
+          <div class="sleep-adjustment-value">
+            <span class="sleep-adjust-label">Fell asleep at</span>
+            <strong id="sleepStartValue">—</strong>
+          </div>
+          <div class="sleep-adjustment-value">
+            <span class="sleep-adjust-label">Current sleep</span>
+            <strong id="sleepDurationValue">00 min</strong>
+          </div>
+        </div>
+        <input id="sleepStartSlider" type="range" min="0" max="1440" step="1" value="0" aria-label="Adjust sleep start time; move right to set an earlier start">
+        <div class="sleep-slider-labels"><span>Now</span><span id="sleepSliderMaxLabel">24 hours ago</span></div>
+      </div>
+    </div>
+    <button class="sleep-button" id="sleepToggleBtn" type="button">🌙 Start sleep</button>
+  </section>
 
-  <div class="history-head">
-    <h3>Feeding history</h3><span class="count" id="historyCount">0 feeds</span>
+  <div class="history-collapse" id="sleepHistoryPanel" hidden>
+    <div class="history-head">
+      <h3>Sleep history</h3><span class="count" id="sleepHistoryCount">0 sessions</span>
+    </div>
+    <section class="history-list" id="sleepHistoryList" aria-live="polite"></section>
   </div>
-  <section class="history-list" id="historyList" aria-live="polite"></section>
+
+
   </section>
 
   <section class="tab-panel" id="timelinePanel" role="tabpanel" aria-labelledby="timelineTabBtn" hidden>
@@ -322,6 +353,7 @@
   let toastTimer = null;
   let lastTimelineRenderSecond = -1;
   let editorContext = null;
+  let sleepStartPreview = null;
 
   const DB_NAME = 'LittleFeedDatabase';
   const DB_VERSION = 1;
@@ -787,6 +819,13 @@
     $('lastSide').textContent = `${capitalize(state.lastSide)} side`;
     $('lastDetail').textContent = state.lastSideAt ? `Last feed · ${relativeTime(state.lastSideAt)}` : 'Last recorded feeding side';
   }
+  function feedStartTimestamp(item) {
+    const startedAt = Number(item.startedAt);
+    if (item.startedAt != null && Number.isFinite(startedAt) && startedAt > 0) return startedAt;
+    const endedAt = Number(item.endedAt);
+    const duration = Number(item.totalMs);
+    return Number.isFinite(endedAt) && Number.isFinite(duration) ? endedAt - duration : endedAt;
+  }
   function renderHistory() {
     const list = $('historyList');
     $('historyCount').textContent = `${state.history.length} ${state.history.length === 1 ? 'feed' : 'feeds'}`;
@@ -794,8 +833,8 @@
       list.innerHTML = '<div class="card empty"><div class="empty-icon">🌙</div><strong>Your feeding story starts here</strong><br>When you finish a feed, it will appear here.</div>';
       return;
     }
-    list.innerHTML = [...state.history].sort((a,b) => Number(b.endedAt)-Number(a.endedAt)).slice(0, 30).map(item => {
-      const date = new Date(item.endedAt);
+    list.innerHTML = [...state.history].sort((a,b) => feedStartTimestamp(b) - feedStartTimestamp(a)).slice(0, 30).map(item => {
+      const date = new Date(feedStartTimestamp(item));
       const dateText = isSameDay(date, new Date()) ? `Today, ${date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}` :
         date.toLocaleDateString([], {month:'short', day:'numeric'}) + ` · ` + date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
       const parts = [];
@@ -821,20 +860,43 @@
     if (hours) return `${hours} hr`;
     return `${minutes} min`;
   }
+  function sleepStartLabel(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const time = date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
+    if (isSameDay(date, now)) return `Today, ${time}`;
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (isSameDay(date, yesterday)) return `Yesterday, ${time}`;
+    return `${date.toLocaleDateString([], {month:'short', day:'numeric'})}, ${time}`;
+  }
+  function sleepSliderMaxMinutes(startTimestamp, now = Date.now()) {
+    const ageMinutes = Math.max(0, Math.ceil((now - startTimestamp) / 60000));
+    // Keep the usual slider range at 24 hours, but widen it for unusually long sessions.
+    return ageMinutes < 1440 ? 1440 : Math.ceil((ageMinutes + 120) / 60) * 60;
+  }
   function renderSleep() {
     const sleeping = !!state.activeSleepStart;
-    const elapsed = sleeping ? Math.max(0, Date.now() - state.activeSleepStart) : 0;
+    const now = Date.now();
+    const displayStart = sleeping ? (sleepStartPreview ?? Number(state.activeSleepStart)) : null;
+    const elapsed = sleeping ? Math.max(0, now - displayStart) : 0;
     $('sleepClock').textContent = sleeping ? fmt(elapsed) : '00:00';
     $('sleepStatusPill').textContent = sleeping ? 'BABY IS SLEEPING' : 'BABY IS AWAKE';
     $('sleepCaption').textContent = sleeping
       ? 'Adjust the start time below if you began tracking late.'
       : 'Ready to track the next nap';
     $('sleepStartRow').hidden = !sleeping;
-    const sleepStartInput = $('sleepStartTime');
-    if (sleeping && document.activeElement !== sleepStartInput) {
-      const startDate = new Date(state.activeSleepStart);
-      const timeValue = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
-      if (sleepStartInput.value !== timeValue) sleepStartInput.value = timeValue;
+    if (sleeping) {
+      $('sleepStartValue').textContent = sleepStartLabel(displayStart);
+      $('sleepDurationValue').textContent = humanDuration(elapsed);
+      const slider = $('sleepStartSlider');
+      const maxMinutes = sleepSliderMaxMinutes(Number(state.activeSleepStart), now);
+      $('sleepSliderMaxLabel').textContent = `${maxMinutes / 60} hours ago`;
+      // While a user is dragging, don't move the thumb under their finger.
+      if (sleepStartPreview === null && document.activeElement !== slider) {
+        slider.max = String(maxMinutes);
+        slider.value = String(Math.min(maxMinutes, Math.max(0, Math.round((now - Number(state.activeSleepStart)) / 60000))));
+      }
     }
     $('sleepToggleBtn').textContent = sleeping ? '☀️ Wake up & save sleep' : '🌙 Start sleep';
     $('sleepToggleBtn').classList.toggle('waking', sleeping);
@@ -997,13 +1059,15 @@
   function toggleSleep() {
     const now = Date.now();
     if (!state.activeSleepStart) {
+      sleepStartPreview = null;
       state.activeSleepStart = now;
       persistExtended();
       render();
       showToast('Sleep timer started 🌙');
       return;
     }
-    const startedAt = state.activeSleepStart;
+    const startedAt = sleepStartPreview ?? state.activeSleepStart;
+    sleepStartPreview = null;
     const item = {
       id: `${now}-${Math.random().toString(36).slice(2,7)}`,
       startedAt,
@@ -1220,20 +1284,21 @@
   }
 
   // Event wiring and startup. Keep side effects here so app behavior is easy to find.
-  $('sleepStartTime').addEventListener('change', () => {
+  $('sleepStartSlider').addEventListener('input', () => {
     if (!state.activeSleepStart) return;
-    const value = $('sleepStartTime').value;
-    if (!/^\d{2}:\d{2}$/.test(value)) return;
-    const [hours, minutes] = value.split(':').map(Number);
-    const adjusted = new Date(state.activeSleepStart);
-    adjusted.setHours(hours, minutes, 0, 0);
-    // A time later than the current clock time is treated as the previous day,
-    // which supports correcting overnight sleep without requiring a date picker.
-    if (adjusted.getTime() > Date.now()) adjusted.setDate(adjusted.getDate() - 1);
-    state.activeSleepStart = adjusted.getTime();
+    const minutesAgo = Number($('sleepStartSlider').value);
+    if (!Number.isFinite(minutesAgo)) return;
+    sleepStartPreview = Date.now() - Math.max(0, minutesAgo) * 60000;
+    // Update only the sleep display while dragging, so the slider stays responsive.
+    renderSleep();
+  });
+  $('sleepStartSlider').addEventListener('change', () => {
+    if (!state.activeSleepStart || sleepStartPreview === null) return;
+    state.activeSleepStart = sleepStartPreview;
+    sleepStartPreview = null;
     persistExtended();
     render();
-    showToast(`Sleep start updated to ${value}`);
+    showToast(`Sleep start updated to ${new Date(state.activeSleepStart).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hourCycle:'h23'})}`);
   });
   document.querySelectorAll('[data-adjust-side]').forEach(button => {
     button.addEventListener('click', () => adjustLiveFeedSide(button.dataset.adjustSide, Number(button.dataset.adjustMinutes)));
@@ -1258,6 +1323,21 @@
   $('timelineScroller').addEventListener('scroll', maybeLoadEarlierTimeline, {passive:true});
   $('trackTabBtn').addEventListener('keydown', e => { if (e.key === 'ArrowRight') { activateTab('timeline'); $('timelineTabBtn').focus(); } });
   $('timelineTabBtn').addEventListener('keydown', e => { if (e.key === 'ArrowLeft') { activateTab('track'); $('trackTabBtn').focus(); } });
+  function wireHistoryToggle(buttonId, panelId, historyName) {
+    const button = $(buttonId);
+    const panel = $(panelId);
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      const nextExpanded = !expanded;
+      button.setAttribute('aria-expanded', String(nextExpanded));
+      button.setAttribute('aria-label', `${nextExpanded ? 'Hide' : 'Show'} ${historyName}`);
+      button.title = `${nextExpanded ? 'Hide' : 'Show'} ${historyName}`;
+      panel.hidden = !nextExpanded;
+    });
+  }
+  wireHistoryToggle('feedHistoryToggle', 'feedingHistoryPanel', 'feeding history');
+  wireHistoryToggle('sleepHistoryToggle', 'sleepHistoryPanel', 'sleep history');
+
   $('leftBtn').addEventListener('click', () => setSide('left'));
   $('rightBtn').addEventListener('click', () => setSide('right'));
   $('finishBtn').addEventListener('click', finish);
