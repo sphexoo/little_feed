@@ -21,7 +21,12 @@
   .logo { width:43px; height:43px; border-radius:16px; display:grid; place-items:center; background:#e4ebe2; font-size:23px; }
   h1 { font-size:21px; letter-spacing:-.7px; margin:0; font-weight:750; }
   .subtitle { color:var(--muted); font-size:12px; margin-top:2px; }
-  .today { font-size:12px; color:var(--muted); background:#fffdf9; border:1px solid var(--line); padding:8px 11px; border-radius:99px; }
+  .header-tools { display:flex; align-items:center; gap:7px; }
+  .today { font-size:12px; color:var(--muted); background:#fffdf9; border:1px solid var(--line); padding:8px 11px; border-radius:99px; white-space:nowrap; }
+  .refresh-button { display:grid; place-items:center; width:36px; height:36px; flex:0 0 36px; border:1px solid var(--line); border-radius:50%; background:#fffdf9; color:var(--sage-dark); font-size:22px; line-height:1; padding:0; }
+  .refresh-button:hover { background:var(--sage-light); }
+  .refresh-button:active { transform:rotate(35deg); }
+  .refresh-button:focus-visible { outline:2px solid var(--sage); outline-offset:2px; }
   h2 { font-size:26px; line-height:1.15; letter-spacing:-1px; margin:7px 0 0; }
   .card { background:var(--card); border:1px solid rgba(225,219,208,.7); border-radius:26px; box-shadow:var(--shadow); }
   .timer-card { margin-top:14px; padding:22px 18px 18px; background:var(--feed-tint); border-color:#dfe9dc; }
@@ -188,7 +193,10 @@
       <div class="logo" aria-hidden="true">🌱</div>
       <div><h1>little feed</h1><div class="subtitle">your little one's feeding journal</div></div>
     </div>
-    <div class="today" id="todayLabel">Today</div>
+    <div class="header-tools">
+      <div class="today" id="todayLabel">Today</div>
+      <button class="refresh-button" id="refreshBtn" type="button" aria-label="Refresh page" title="Refresh page">↻</button>
+    </div>
   </header>
 
   <nav class="tab-nav" role="tablist" aria-label="App views">
@@ -1383,6 +1391,7 @@
     if (file) await importCsvFile(file);
   });
 
+  $('refreshBtn').addEventListener('click', () => window.location.reload());
   $('trackTabBtn').addEventListener('click', () => activateTab('track'));
   $('timelineTabBtn').addEventListener('click', () => activateTab('timeline'));
   $('timelineScroller').addEventListener('scroll', maybeLoadEarlierTimeline, {passive:true});
