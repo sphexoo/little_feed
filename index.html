@@ -196,8 +196,8 @@
   .history-modal-content .history-collapse { margin:0; }
   .history-modal-content .history-head { margin:4px 2px 14px; }
   .history-modal-content .history-list { padding-bottom:4px; }
-  .history-modal-content .history-item { flex-wrap:wrap; }
-  .history-modal-content .history-main { flex:1 1 120px; }
+  .history-modal-content .history-item, .history-modal-content .growth-item { flex-wrap:wrap; }
+  .history-modal-content .history-main, .history-modal-content .growth-entry-main { flex:1 1 120px; }
   .history-modal-content .record-actions { margin-left:auto; }
   @media (min-width:520px) { .history-modal { max-height:88dvh; padding:15px 18px 18px; } }
   .editor-backdrop { position:fixed; inset:0; z-index:100; background:rgba(37,38,34,.38); display:flex; align-items:flex-end; justify-content:center; padding:16px 12px max(12px, env(safe-area-inset-bottom)); }
@@ -221,6 +221,40 @@
   @media (min-width:520px) { .editor-backdrop { align-items:center; } }
   .empty { text-align:center; padding:27px 18px; color:var(--muted); font-size:13px; line-height:1.5; box-shadow:none; }
   .empty-icon { font-size:27px; margin-bottom:8px; }
+  .growth-card { margin-top:14px; padding:20px 18px 18px; background:#fbf8f2; border-color:#e8e0d3; }
+  .growth-subtitle { margin:8px 0 15px; color:var(--muted); font-size:11px; line-height:1.45; }
+  .growth-fields { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; }
+  .growth-field { min-width:0; display:flex; flex-direction:column; gap:6px; }
+  .growth-field label { font-size:10px; font-weight:750; color:#77776e; }
+  .growth-field input { min-width:0; width:100%; min-height:44px; border:1px solid #e8e2d9; border-radius:12px; background:#fff; padding:9px 8px; color:var(--ink); font:inherit; font-size:13px; }
+  .growth-actions { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; margin-top:12px; align-items:center; }
+  .growth-actions-secondary { display:flex; align-items:center; gap:8px; }
+  .growth-actions .history-toggle { width:44px; height:44px; flex-basis:44px; }
+  .growth-chart-button { min-height:52px; border:1px solid #dfe5d8; border-radius:14px; padding:0 13px; background:#eef3e9; color:var(--sage-dark); font-size:12px; font-weight:750; white-space:nowrap; }
+  .growth-list { display:flex; flex-direction:column; gap:8px; }
+  .growth-item { padding:13px 12px; display:flex; align-items:center; gap:10px; box-shadow:none; border-radius:17px; }
+  .growth-mark { width:36px; height:36px; flex:0 0 36px; display:grid; place-items:center; background:#e9eee0; border-radius:12px; font-size:18px; }
+  .growth-entry-main { min-width:0; flex:1; }
+  .growth-date { font-size:12px; font-weight:800; }
+  .growth-values { color:var(--muted); font-size:11px; line-height:1.5; margin-top:4px; overflow-wrap:anywhere; }
+  .growth-item .record-actions { flex-shrink:0; }
+  .growth-chart-backdrop { position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center; padding:12px; background:rgba(37,38,34,.44); }
+  .growth-chart-backdrop[hidden] { display:none !important; }
+  .growth-chart-modal { width:min(100%,560px); max-height:calc(100dvh - 24px); overflow:auto; background:var(--card); border:1px solid rgba(225,219,208,.8); border-radius:26px; padding:16px; box-shadow:0 24px 70px rgba(30,30,24,.24); }
+  .growth-chart-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:14px; }
+  .growth-chart-top h2 { font-size:22px; margin:0; }
+  .growth-chart-close { width:38px; height:38px; flex:0 0 38px; border:0; border-radius:13px; background:#eee9e1; color:#68685f; font-size:24px; line-height:1; }
+  .growth-series-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; padding:5px; margin-bottom:13px; border-radius:15px; background:#eee9e1; }
+  .growth-series-button { min-height:40px; border:0; border-radius:11px; background:transparent; color:var(--muted); font-size:11px; font-weight:750; padding:8px 4px; }
+  .growth-series-button[aria-selected="true"] { color:var(--sage-dark); background:#fffdf9; box-shadow:0 2px 8px rgba(67,61,49,.07); }
+  .growth-chart-stat { display:flex; align-items:baseline; gap:8px; margin:0 2px 8px; }
+  .growth-chart-stat strong { font-size:25px; letter-spacing:-.8px; }
+  .growth-chart-stat span { color:var(--muted); font-size:11px; }
+  .growth-chart-wrap { width:100%; overflow:hidden; border:1px solid #eee8de; background:#fffdf9; border-radius:17px; padding:8px 5px 0; }
+  .growth-chart-svg { width:100%; height:auto; display:block; }
+  .growth-chart-empty { padding:28px 12px; text-align:center; color:var(--muted); font-size:12px; line-height:1.5; }
+  .growth-chart-foot { color:var(--muted); font-size:10px; line-height:1.45; margin:10px 3px 0; }
+  @media (max-width:380px) { .growth-fields { grid-template-columns:1fr; } .growth-field input { min-height:42px; } .growth-item { flex-wrap:wrap; } .growth-item .record-actions { margin-left:46px; } }
   .data-card { margin-top:18px; padding:18px; box-shadow:none; }
   .data-help { margin:10px 0 14px; color:var(--muted); font-size:11px; line-height:1.5; }
   .data-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
@@ -332,7 +366,27 @@
     </div>
   </section>
 
-
+  <section class="card growth-card" aria-label="Baby growth tracker">
+    <div class="section-top">
+      <div class="section-title">Growth tracker</div>
+      <div class="live" style="color:#66754e;background:#e9eee0">GROWTH</div>
+    </div>
+    <p class="growth-subtitle">Add any measurements you have right now. Weight, height, and head circumference are optional individually.</p>
+    <form id="growthAddForm">
+      <div class="growth-fields">
+        <div class="growth-field"><label for="growthWeight">Weight · kg</label><input id="growthWeight" name="weight" type="number" inputmode="decimal" min="0.001" step="0.001" placeholder="e.g. 3.845"></div>
+        <div class="growth-field"><label for="growthHeight">Height · cm</label><input id="growthHeight" name="height" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="e.g. 55"></div>
+        <div class="growth-field"><label for="growthHeadCirc">Head · cm</label><input id="growthHeadCirc" name="headCirc" type="number" inputmode="decimal" min="0.1" step="0.1" placeholder="e.g. 37"></div>
+      </div>
+      <div class="growth-actions">
+        <button class="primary" type="submit">＋ Save measurements</button>
+        <div class="growth-actions-secondary">
+          <button class="secondary growth-chart-button" id="openGrowthChartBtn" type="button">View charts ↗</button>
+          <button class="history-toggle" id="growthHistoryToggle" type="button" aria-expanded="false" aria-controls="growthHistoryPanel" aria-label="Open growth history" title="Open growth history"><span class="history-symbol" aria-hidden="true">◷</span></button>
+        </div>
+      </div>
+    </form>
+  </section>
 
   </section>
 
@@ -377,7 +431,7 @@
       <div class="section-title">Data &amp; backups</div>
       <div class="live">CSV</div>
     </div>
-    <p class="data-help">Import or export using the 36-column CSV format. Only <strong>breast</strong> and <strong>sleep</strong> records are handled; other entry types are ignored. Unused columns are left blank.</p>
+    <p class="data-help">Import or export using the 36-column CSV format. Supports <strong>breast</strong>, <strong>sleep</strong>, and <strong>growth</strong> records; other entry types are ignored. Unused columns are left blank.</p>
     <div class="data-actions">
       <button class="secondary" id="exportCsvBtn" type="button">↓ Export CSV</button>
       <button class="primary" id="importCsvBtn" type="button">↑ Import CSV</button>
@@ -406,6 +460,12 @@
         </div>
         <section class="history-list" id="sleepHistoryList" aria-live="polite"></section>
       </div>
+      <div class="history-collapse" id="growthHistoryPanel" hidden>
+        <div class="history-head">
+          <h3>Growth history</h3><span class="count" id="growthCount">0 entries</span>
+        </div>
+        <section class="history-list growth-list" id="growthList" aria-live="polite"></section>
+      </div>
     </div>
   </section>
 </div>
@@ -423,6 +483,18 @@
     </form>
   </section>
 </div>
+<div class="growth-chart-backdrop" id="growthChartBackdrop" hidden>
+  <section class="growth-chart-modal" role="dialog" aria-modal="true" aria-labelledby="growthChartTitle">
+    <div class="growth-chart-top"><div><div class="editor-kicker">Little Feed · Growth</div><h2 id="growthChartTitle">Growth over time</h2></div><button class="growth-chart-close" id="growthChartCloseBtn" type="button" aria-label="Close growth charts">×</button></div>
+    <nav class="growth-series-nav" role="tablist" aria-label="Growth measurement chart">
+      <button class="growth-series-button" type="button" data-growth-series="weight" role="tab" aria-selected="true">Weight</button>
+      <button class="growth-series-button" type="button" data-growth-series="height" role="tab" aria-selected="false" tabindex="-1">Height</button>
+      <button class="growth-series-button" type="button" data-growth-series="headCirc" role="tab" aria-selected="false" tabindex="-1">Head circ.</button>
+    </nav>
+    <div id="growthChartContent" aria-live="polite"></div>
+    <p class="growth-chart-foot">Each point is a saved measurement. Values with missing measurements are omitted from that series. Imported values are normalized to kg and cm so the lines use consistent units.</p>
+  </section>
+</div>
 <div class="toast" id="toast" role="status"></div>
 <script>
 (() => {
@@ -431,10 +503,11 @@
   const state = {
     history: [], leftMs: 0, rightMs: 0, active: null,
     startedAt: null, segmentStartedAt: null, lastSide: null,
-    sleepHistory: [], activeSleepStart: null,
+    sleepHistory: [], activeSleepStart: null, growthHistory: [],
     timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false
   };
   let selectedTrendDays = 1;
+  let selectedGrowthSeries = 'weight';
   let lastTrendsRenderSecond = -1;
   let toastTimer = null;
   let lastHistoryToggle = null;
@@ -456,7 +529,7 @@
   let db = null;
   let saveChain = Promise.resolve();
 
-  // CSV import/export: only the 'breast' and 'sleep' types are supported.
+  // CSV import/export supports 'breast', 'sleep', and 'growth' records.
   function csvEscape(value) {
     const text = String(value ?? '');
     return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -530,6 +603,16 @@
     return item.importedSide || '';
   }
 
+  function newGrowthCsvRow(item) {
+    const row = Array(CSV_HEADERS.length).fill('');
+    const timestamp = Number(item.timestamp);
+    row[0] = 'growth'; row[1] = localOffsetIso(timestamp); row[2] = csvDate(timestamp); row[3] = csvTime(timestamp);
+    if (item.weight != null && item.weight !== '' && Number.isFinite(Number(item.weight))) { row[22] = String(item.weight); row[23] = 'kg'; }
+    if (item.height != null && item.height !== '' && Number.isFinite(Number(item.height))) { row[24] = String(item.height); row[25] = 'cm'; }
+    if (item.headCirc != null && item.headCirc !== '' && Number.isFinite(Number(item.headCirc))) { row[26] = String(item.headCirc); row[27] = 'cm'; }
+    return row;
+  }
+
   function exportCsv() {
     const rows = [CSV_HEADERS];
     const records = [];
@@ -543,6 +626,10 @@
       const start = Number(item.startedAt), end = Number(item.endedAt);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
       records.push({start, row:newCsvRow('sleep', start, end, Number(item.durationMs) || end - start)});
+    }
+    for (const item of state.growthHistory) {
+      const timestamp = Number(item.timestamp);
+      if (Number.isFinite(timestamp)) records.push({start:timestamp, row:newGrowthCsvRow(item)});
     }
     // An in-progress sleep is represented the same way as the sample scheme: a start timestamp and blank end/duration.
     if (state.activeSleepStart) {
@@ -562,7 +649,7 @@
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast(`Exported ${records.length} breast/sleep records`);
+    showToast(`Exported ${records.length} records`);
   }
 
   function parseCsvTimestamp(value, dateValue = '', timeValue = '') {
@@ -593,6 +680,29 @@
   function sameSession(a, b) {
     return Math.abs(Number(a.startedAt) - Number(b.startedAt)) < 1500 && Math.abs(Number(a.endedAt) - Number(b.endedAt)) < 1500;
   }
+  function canonicalGrowthValue(value, unit, kind) {
+    if (value === '' || value == null) return null;
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    const u = String(unit || (kind === 'weight' ? 'kg' : 'cm')).trim().toLowerCase();
+    if (kind === 'weight') {
+      if (['g','gram','grams'].includes(u)) return n / 1000;
+      if (['lb','lbs','pound','pounds'].includes(u)) return n * 0.45359237;
+      return n;
+    }
+    if (['m','meter','meters','metre','metres'].includes(u)) return n * 100;
+    if (['mm','millimeter','millimeters','millimetre','millimetres'].includes(u)) return n / 10;
+    if (['in','inch','inches','″'].includes(u)) return n * 2.54;
+    return n;
+  }
+  function growthMeasurementEqual(a, b, key) {
+    const av = a[key] == null ? null : Number(a[key]);
+    const bv = b[key] == null ? null : Number(b[key]);
+    return av === bv;
+  }
+  function sameGrowthRecord(a, b) {
+    return Math.abs(Number(a.timestamp) - Number(b.timestamp)) < 1500 && ['weight','height','headCirc'].every(key => growthMeasurementEqual(a,b,key));
+  }
 
   async function importCsvFile(file) {
     if (!file) return;
@@ -607,7 +717,7 @@
       return;
     }
     const value = (row, name) => { const i = col(name); return i < 0 ? '' : String(row[i] ?? '').trim(); };
-    const pendingFeeds = [], pendingSleeps = [];
+    const pendingFeeds = [], pendingSleeps = [], pendingGrowth = [];
     const openFeeds = [], openSleeps = [];
     let unsupported = 0, invalid = 0;
     const now = Date.now();
@@ -615,9 +725,21 @@
     for (const row of rows.slice(1)) {
       if (!row.length || row.every(cell => String(cell ?? '').trim() === '')) continue;
       const type = value(row, 'Type').toLowerCase();
-      if (type !== 'breast' && type !== 'sleep') { unsupported++; continue; }
+      if (!['breast','sleep','growth'].includes(type)) { unsupported++; continue; }
       const start = parseCsvTimestamp(value(row, 'Timestamp'), value(row, 'Date'), value(row, 'Time'));
       if (!Number.isFinite(start) || start > now) { invalid++; continue; }
+      if (type === 'growth') {
+        const weightRaw = value(row, 'Weight'), heightRaw = value(row, 'Height'), headRaw = value(row, 'Head Circ');
+        const item = {
+          id: `growth-${start}-${Math.random().toString(36).slice(2,7)}`, timestamp: start,
+          weight: canonicalGrowthValue(weightRaw, value(row, 'Weight Unit'), 'weight'),
+          height: canonicalGrowthValue(heightRaw, value(row, 'Height Unit'), 'height'),
+          headCirc: canonicalGrowthValue(headRaw, value(row, 'Head Circ Unit'), 'headCirc')
+        };
+        if (item.weight == null && item.height == null && item.headCirc == null) { invalid++; continue; }
+        pendingGrowth.push(item);
+        continue;
+      }
       const rawEnd = value(row, 'End Timestamp');
       const rawDuration = value(row, 'Duration (min)');
       const durationNumber = rawDuration === '' ? NaN : Number(rawDuration);
@@ -663,13 +785,13 @@
     openFeeds.sort((a,b) => b.start - a.start);
     const incomingOpenSleep = openSleeps[0] || null;
     const incomingOpenFeed = openFeeds[0] || null;
-    const candidateCount = pendingFeeds.length + pendingSleeps.length + (incomingOpenSleep ? 1 : 0) + (incomingOpenFeed ? 1 : 0);
+    const candidateCount = pendingFeeds.length + pendingSleeps.length + pendingGrowth.length + (incomingOpenSleep ? 1 : 0) + (incomingOpenFeed ? 1 : 0);
     if (!candidateCount) {
-      showToast('No valid breast or sleep records found');
-      alert(`No valid breast or sleep records were found. Unsupported rows ignored: ${unsupported}; invalid rows: ${invalid}.`);
+      showToast('No valid records found');
+      alert(`No valid breast, sleep, or growth records were found. Unsupported rows ignored: ${unsupported}; invalid rows: ${invalid}.`);
       return;
     }
-    const approved = confirm(`Import ${pendingFeeds.length} feeding records and ${pendingSleeps.length} sleep sessions?\n\nExisting data will be kept. Exact duplicates will be skipped.\nUnsupported entry types (such as growth or diaper) will be ignored.\n${incomingOpenSleep ? 'The CSV also contains an active sleep timer. ' : ''}${incomingOpenFeed ? 'The CSV also contains an active feeding timer. ' : ''}`);
+    const approved = confirm(`Import ${pendingFeeds.length} feeding records, ${pendingSleeps.length} sleep sessions, and ${pendingGrowth.length} growth records?\n\nExisting data will be kept. Exact duplicates will be skipped.\nUnsupported entry types (such as diaper) will be ignored.\n${incomingOpenSleep ? 'The CSV also contains an active sleep timer. ' : ''}${incomingOpenFeed ? 'The CSV also contains an active feeding timer. ' : ''}`);
     if (!approved) return;
 
     let addedFeeds = 0, addedSleeps = 0, duplicates = 0;
@@ -680,6 +802,11 @@
     for (const item of pendingSleeps) {
       if (state.sleepHistory.some(existing => sameSession(existing, item))) { duplicates++; continue; }
       state.sleepHistory.push(item); addedSleeps++;
+    }
+    let addedGrowth = 0;
+    for (const item of pendingGrowth) {
+      if (state.growthHistory.some(existing => sameGrowthRecord(existing, item))) { duplicates++; continue; }
+      state.growthHistory.push(item); addedGrowth++;
     }
     if (incomingOpenSleep) {
       if (!state.activeSleepStart) state.activeSleepStart = incomingOpenSleep.start;
@@ -697,12 +824,13 @@
     }
     state.history.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
     state.sleepHistory.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
+    state.growthHistory.sort((a,b) => Number(b.timestamp) - Number(a.timestamp));
     recalculateLastFeed();
     persistExtended();
     await saveChain;
     render();
-    const details = `Imported ${addedFeeds} feeding and ${addedSleeps} sleep records${duplicates ? `; ${duplicates} duplicate/active record(s) skipped` : ''}${unsupported ? `; ${unsupported} unsupported row(s) ignored` : ''}${invalid ? `; ${invalid} invalid row(s) skipped` : ''}.`;
-    showToast(`Imported ${addedFeeds + addedSleeps} records`);
+    const details = `Imported ${addedFeeds} feeding, ${addedSleeps} sleep, and ${addedGrowth} growth records${duplicates ? `; ${duplicates} duplicate/active record(s) skipped` : ''}${unsupported ? `; ${unsupported} unsupported row(s) ignored` : ''}${invalid ? `; ${invalid} invalid row(s) skipped` : ''}.`;
+    showToast(`Imported ${addedFeeds + addedSleeps + addedGrowth} records`);
     alert(details);
   }
 
@@ -762,6 +890,7 @@
     state.lastSide = saved.lastSide || null;
     state.lastSideAt = Number(saved.lastSideAt) || null;
     state.sleepHistory = Array.isArray(saved.sleepHistory) ? saved.sleepHistory : [];
+    state.growthHistory = Array.isArray(saved.growthHistory) ? saved.growthHistory : [];
     state.activeSleepStart = Number(saved.activeSleepStart) || null;
     if (saved.activeFeed && typeof saved.activeFeed === 'object') {
       state.leftMs = Math.max(0, Number(saved.activeFeed.leftMs) || 0);
@@ -778,6 +907,7 @@
       lastSide: state.lastSide,
       lastSideAt: state.lastSideAt,
       sleepHistory: state.sleepHistory.map(item => ({ ...item })),
+      growthHistory: state.growthHistory.map(item => ({ ...item })),
       activeSleepStart: state.activeSleepStart,
       activeFeed: (state.startedAt || state.leftMs || state.rightMs || state.active) ? {
         leftMs: state.leftMs, rightMs: state.rightMs, active: state.active,
@@ -886,7 +1016,7 @@
     renderFeedCaption();
     $('finishBtn').disabled = totalElapsed() === 0;
     $('finishBtn').style.opacity = totalElapsed() === 0 ? '.55' : '1';
-    renderLast(); renderHistory(); renderSleep(); renderSleepHistory();
+    renderLast(); renderHistory(); renderSleep(); renderSleepHistory(); renderGrowth();
     if (!$('timelinePanel').hidden) {
       const second = Math.floor(Date.now() / 1000);
       if (second !== lastTimelineRenderSecond) { lastTimelineRenderSecond = second; renderTimeline(); }
@@ -1083,6 +1213,109 @@
       </article>`;
     }).join('');
   }
+  function formatGrowthValue(item, key) {
+    const value = item[key];
+    if (value == null || !Number.isFinite(Number(value))) return '';
+    const digits = key === 'weight' ? 3 : 1;
+    return `${Number(value).toFixed(digits).replace(/\.?0+$/, '')} ${key === 'weight' ? 'kg' : 'cm'}`;
+  }
+  function growthDateLabel(timestamp, includeTime = true) {
+    const date = new Date(Number(timestamp));
+    if (!Number.isFinite(date.getTime())) return 'Unknown date';
+    return includeTime
+      ? `${date.toLocaleDateString([], {year:'numeric',month:'short',day:'numeric'})} · ${date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`
+      : date.toLocaleDateString([], {month:'short',day:'numeric'});
+  }
+  function renderGrowth() {
+    const list = $('growthList');
+    if (!list) return;
+    const records = [...state.growthHistory].sort((a,b) => Number(b.timestamp)-Number(a.timestamp));
+    $('growthCount').textContent = `${records.length} ${records.length === 1 ? 'entry' : 'entries'}`;
+    if (!records.length) {
+      list.innerHTML = '<div class="empty" style="padding:17px 10px">No growth measurements yet. Add weight, height, or head circumference above.</div>';
+      return;
+    }
+    list.innerHTML = records.map(item => {
+      const values = [
+        item.weight != null ? `Weight ${formatGrowthValue(item,'weight')}` : '',
+        item.height != null ? `Height ${formatGrowthValue(item,'height')}` : '',
+        item.headCirc != null ? `Head ${formatGrowthValue(item,'headCirc')}` : ''
+      ].filter(Boolean).join(' · ');
+      return `<article class="card growth-item">
+        <div class="growth-mark" aria-hidden="true">📏</div>
+        <div class="growth-entry-main"><div class="growth-date">${safeAttr(growthDateLabel(item.timestamp))}</div><div class="growth-values">${safeAttr(values)}</div></div>
+        <div class="record-actions"><button class="edit-record" type="button" data-edit-growth="${safeAttr(item.id)}">Edit</button><button class="delete" type="button" data-growth-delete="${safeAttr(item.id)}" aria-label="Delete growth record">Delete</button></div>
+      </article>`;
+    }).join('');
+  }
+  const GROWTH_SERIES = {
+    weight: {label:'Weight', unit:'kg', color:'#789783', digits:3},
+    height: {label:'Height', unit:'cm', color:'#4d84ab', digits:1},
+    headCirc: {label:'Head circumference', unit:'cm', color:'#d19a82', digits:1}
+  };
+  function renderGrowthChart() {
+    const content = $('growthChartContent');
+    const series = GROWTH_SERIES[selectedGrowthSeries];
+    const data = [...state.growthHistory]
+      .filter(item => item[selectedGrowthSeries] != null && Number.isFinite(Number(item[selectedGrowthSeries])) && Number.isFinite(Number(item.timestamp)))
+      .sort((a,b) => Number(a.timestamp)-Number(b.timestamp));
+    if (!data.length) {
+      content.innerHTML = `<div class="growth-chart-empty">No ${series.label.toLowerCase()} measurements recorded yet.<br>Add this measurement to a growth entry to see its trend.</div>`;
+      return;
+    }
+    const latest = data[data.length-1];
+    const val = Number(latest[selectedGrowthSeries]);
+    const latestDisplay = val.toFixed(series.digits).replace(/\.?0+$/, '');
+    let chart = '';
+    if (data.length === 1) {
+      chart = `<div class="growth-chart-wrap"><svg class="growth-chart-svg" viewBox="0 0 360 230" role="img" aria-label="One ${safeAttr(series.label.toLowerCase())} measurement, ${safeAttr(latestDisplay)} ${series.unit}"><line x1="24" y1="180" x2="336" y2="180" stroke="#e9e3d8" stroke-width="1"/><circle cx="180" cy="96" r="6" fill="${series.color}" stroke="#fffdf9" stroke-width="2"/><text x="180" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#30332f">${safeAttr(latestDisplay)} ${series.unit}</text><text x="180" y="205" text-anchor="middle" font-size="10" fill="#85877f">${safeAttr(growthDateLabel(latest.timestamp,false))}</text></svg></div>`;
+    } else {
+      const W=360,H=250,left=43,right=13,top=20,bottom=42,plotW=W-left-right,plotH=H-top-bottom;
+      const times=data.map(d=>Number(d.timestamp)), values=data.map(d=>Number(d[selectedGrowthSeries]));
+      let minY=Math.min(...values), maxY=Math.max(...values);
+      let pad=(maxY-minY)*0.14;
+      if (!pad) pad=Math.max(Math.abs(maxY)*0.04, selectedGrowthSeries==='weight' ? 0.05 : 0.5);
+      minY=Math.max(0,minY-pad); maxY+=pad;
+      const minT=times[0], maxT=times[times.length-1];
+      const x=t=>maxT===minT?left+plotW/2:left+(t-minT)/(maxT-minT)*plotW;
+      const y=v=>top+(maxY-v)/(maxY-minY)*plotH;
+      const pts=data.map(item=>({x:x(Number(item.timestamp)),y:y(Number(item[selectedGrowthSeries])),v:Number(item[selectedGrowthSeries]),t:Number(item.timestamp)}));
+      const polyline=pts.map(p=>`${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ');
+      let grid='';
+      for(let i=0;i<5;i++){
+        const yy=top+i*plotH/4, tick=maxY-i*(maxY-minY)/4;
+        grid+=`<line x1="${left}" y1="${yy}" x2="${W-right}" y2="${yy}" stroke="#eee8de" stroke-width="1"/><text x="${left-7}" y="${yy+3}" text-anchor="end" font-size="9" fill="#85877f">${tick.toFixed(series.digits).replace(/\.?0+$/,'')}</text>`;
+      }
+      const xTicks=[pts[0],pts[Math.floor((pts.length-1)/2)],pts[pts.length-1]];
+      const seen=new Set();
+      xTicks.forEach((point,idx)=>{
+        const label=growthDateLabel(point.t,false); if(seen.has(label))return; seen.add(label);
+        const anchor=idx===0?'start':idx===2?'end':'middle';
+        const xx=idx===0?Math.max(left,x(point.t)):idx===2?Math.min(W-right,x(point.t)):x(point.t);
+        grid+=`<text x="${xx}" y="${H-17}" text-anchor="${anchor}" font-size="9" fill="#85877f">${safeAttr(label)}</text>`;
+      });
+      const circles=pts.map(p=>`<circle cx="${p.x}" cy="${p.y}" r="3.8" fill="${series.color}" stroke="#fffdf9" stroke-width="1.5"><title>${safeAttr(growthDateLabel(p.t))}: ${p.v.toFixed(series.digits)} ${series.unit}</title></circle>`).join('');
+      chart=`<div class="growth-chart-wrap"><svg class="growth-chart-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${safeAttr(series.label)} over time, ${data.length} measurements">${grid}<polyline points="${polyline}" fill="none" stroke="${series.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>${circles}</svg></div>`;
+    }
+    content.innerHTML = `<div class="growth-chart-stat"><strong>${safeAttr(latestDisplay)} ${series.unit}</strong><span>Latest · ${safeAttr(growthDateLabel(latest.timestamp))}</span></div>${chart}<p class="growth-chart-foot">${data.length} ${data.length===1?'measurement':'measurements'} plotted from oldest to newest.</p>`;
+  }
+  function openGrowthChart() {
+    selectedGrowthSeries = 'weight';
+    document.querySelectorAll('[data-growth-series]').forEach(button => {
+      const selected = button.dataset.growthSeries === selectedGrowthSeries;
+      button.setAttribute('aria-selected', String(selected)); button.tabIndex = selected ? 0 : -1;
+    });
+    renderGrowthChart();
+    $('growthChartBackdrop').hidden = false;
+    document.body.style.overflow = 'hidden';
+    $('growthChartCloseBtn').focus();
+  }
+  function closeGrowthChart() {
+    $('growthChartBackdrop').hidden = true;
+    if ($('historyBackdrop').hidden && $('editorBackdrop').hidden) document.body.style.overflow = '';
+    $('openGrowthChartBtn').focus();
+  }
+
   // Timeline rendering and horizontal history expansion.
   function renderTimeline() {
     const host = $('weekDiagram');
@@ -1453,7 +1686,8 @@
     const min = options.min !== undefined ? ` min="${options.min}"` : '';
     const max = options.max !== undefined ? ` max="${options.max}"` : '';
     const step = options.step !== undefined ? ` step="${options.step}"` : (type === 'datetime-local' ? ' step="1"' : '');
-    return `<div class="editor-field${full}"><label for="${name}">${label}</label><input id="${name}" name="${name}" type="${type}" value="${safeAttr(value)}"${min}${max}${step} required></div>`;
+    const required = options.required === false ? '' : ' required';
+    return `<div class="editor-field${full}"><label for="${name}">${label}</label><input id="${name}" name="${name}" type="${type}" value="${safeAttr(value)}"${min}${max}${step}${required}></div>`;
   }
   function editMinutes(ms) {
     return (Math.max(0, Number(ms) || 0) / 60000).toFixed(1);
@@ -1495,6 +1729,15 @@
       fields = editField('Fell asleep at', 'startAt', 'datetime-local', localDateTimeValue(item.startedAt), {full:true}) +
         editField('Woke up at', 'endAt', 'datetime-local', localDateTimeValue(item.endedAt), {full:true});
       help = 'Sleep duration is calculated automatically from the start and wake-up times. Overnight sessions are supported.';
+    } else if (type === 'growth-record') {
+      const item = state.growthHistory.find(x => String(x.id) === String(id));
+      if (!item) return;
+      title = 'Edit growth record';
+      fields = editField('Measured at', 'startAt', 'datetime-local', localDateTimeValue(item.timestamp), {full:true}) +
+        editField('Weight · kg', 'growthWeightEdit', 'number', item.weight ?? '', {min:0.001,step:0.001,required:false}) +
+        editField('Height · cm', 'growthHeightEdit', 'number', item.height ?? '', {min:0.1,step:0.1,required:false}) +
+        editField('Head circumference · cm', 'growthHeadEdit', 'number', item.headCirc ?? '', {min:0.1,step:0.1,required:false});
+      help = 'Leave any measurement blank if it was not taken. At least one positive measurement is required.';
     } else return;
     $('editorTitle').textContent = title;
     $('editorFields').innerHTML = fields;
@@ -1554,6 +1797,23 @@
     if (editorContext.type === 'active-sleep') {
       state.activeSleepStart = startAt;
       persistExtended(); closeEditor(); render(); showToast('Sleep timer updated'); return;
+    }
+    if (editorContext.type === 'growth-record') {
+      if (!Number.isFinite(startAt) || startAt > now) { editorError('Please enter a valid measurement date and time that is not in the future.'); return; }
+      const parseOptional = name => {
+        const raw = input(name).trim();
+        if (!raw) return null;
+        const n = Number(raw);
+        return Number.isFinite(n) && n > 0 ? n : NaN;
+      };
+      const weight = parseOptional('growthWeightEdit'), height = parseOptional('growthHeightEdit'), headCirc = parseOptional('growthHeadEdit');
+      if ([weight,height,headCirc].some(Number.isNaN)) { editorError('Measurements must be positive numbers or left blank.'); return; }
+      if ([weight,height,headCirc].every(v => v === null)) { editorError('Enter at least one measurement.'); return; }
+      const item = state.growthHistory.find(x => String(x.id) === String(editorContext.id));
+      if (!item) { closeEditor(); return; }
+      item.timestamp = startAt; item.weight = weight; item.height = height; item.headCirc = headCirc;
+      state.growthHistory.sort((a,b) => Number(b.timestamp)-Number(a.timestamp));
+      persistExtended(); closeEditor(); render(); showToast('Growth record updated'); return;
     }
     if (!Number.isFinite(endAt) || endAt <= startAt || endAt > now) {
       editorError('Please make sure the end time is after the start time and not in the future.');
@@ -1618,7 +1878,53 @@
   $('editorCloseBtn').addEventListener('click', closeEditor);
   $('editorCancelBtn').addEventListener('click', closeEditor);
   $('editorBackdrop').addEventListener('click', e => { if (e.target === $('editorBackdrop')) closeEditor(); });
-  document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('editorBackdrop').hidden) closeEditor(); else if (!$('historyBackdrop').hidden) closeHistoryOverlay(); });
+  document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('editorBackdrop').hidden) closeEditor(); else if (!$('growthChartBackdrop').hidden) closeGrowthChart(); else if (!$('historyBackdrop').hidden) closeHistoryOverlay(); });
+
+  $('growthAddForm').addEventListener('submit', event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const read = name => {
+      const raw = String(form.elements.namedItem(name).value || '').trim();
+      if (!raw) return null;
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : NaN;
+    };
+    const weight=read('weight'), height=read('height'), headCirc=read('headCirc');
+    if ([weight,height,headCirc].some(Number.isNaN)) { showToast('Measurements must be positive numbers'); return; }
+    if ([weight,height,headCirc].every(value => value === null)) { showToast('Add at least one growth measurement'); return; }
+    state.growthHistory.push({id:`growth-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,timestamp:Date.now(),weight,height,headCirc});
+    state.growthHistory.sort((a,b)=>Number(b.timestamp)-Number(a.timestamp));
+    persistExtended(); form.reset(); render(); showToast('Growth measurements saved');
+  });
+  $('growthList').addEventListener('click', event => {
+    const edit = event.target.closest('[data-edit-growth]');
+    if (edit) { openEditor('growth-record', edit.dataset.editGrowth); return; }
+    const del = event.target.closest('[data-growth-delete]');
+    if (!del) return;
+    const item = state.growthHistory.find(x => String(x.id) === String(del.dataset.growthDelete));
+    if (!item || !confirm('Delete this growth record?')) return;
+    state.growthHistory = state.growthHistory.filter(x => x.id !== item.id);
+    persistExtended(); render();
+    if (!$('growthChartBackdrop').hidden) renderGrowthChart();
+    showToast('Growth record removed');
+  });
+  $('openGrowthChartBtn').addEventListener('click', openGrowthChart);
+  $('growthChartCloseBtn').addEventListener('click', closeGrowthChart);
+  $('growthChartBackdrop').addEventListener('click', event => { if (event.target === $('growthChartBackdrop')) closeGrowthChart(); });
+  document.querySelectorAll('[data-growth-series]').forEach((button, index, buttons) => {
+    const choose = () => {
+      selectedGrowthSeries = button.dataset.growthSeries;
+      buttons.forEach(option => { const selected = option === button; option.setAttribute('aria-selected', String(selected)); option.tabIndex = selected ? 0 : -1; });
+      renderGrowthChart();
+    };
+    button.addEventListener('click', choose);
+    button.addEventListener('keydown', event => {
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;
+      buttons[next].focus(); buttons[next].click();
+    });
+  });
 
   $('exportCsvBtn').addEventListener('click', exportCsv);
   $('importCsvBtn').addEventListener('click', () => $('importCsvFile').click());
@@ -1669,29 +1975,25 @@
   $('timelineScroller').addEventListener('scroll', maybeLoadEarlierTimeline, {passive:true});
   function closeHistoryOverlay() {
     $('historyBackdrop').hidden = true;
-    $('feedingHistoryPanel').hidden = true;
-    $('sleepHistoryPanel').hidden = true;
-    $('feedHistoryToggle').setAttribute('aria-expanded', 'false');
-    $('sleepHistoryToggle').setAttribute('aria-expanded', 'false');
+    ['feedingHistoryPanel','sleepHistoryPanel','growthHistoryPanel'].forEach(id => { $(id).hidden = true; });
+    ['feedHistoryToggle','sleepHistoryToggle','growthHistoryToggle'].forEach(id => { $(id).setAttribute('aria-expanded', 'false'); });
     document.body.style.overflow = '';
     if (lastHistoryToggle) lastHistoryToggle.focus();
   }
-  function wireHistoryToggle(buttonId, panelId, historyName) {
+  function wireHistoryToggle(buttonId, panelId) {
     const button = $(buttonId);
-    const panel = $(panelId);
     button.addEventListener('click', () => {
       lastHistoryToggle = button;
-      $('feedingHistoryPanel').hidden = panelId !== 'feedingHistoryPanel';
-      $('sleepHistoryPanel').hidden = panelId !== 'sleepHistoryPanel';
-      $('feedHistoryToggle').setAttribute('aria-expanded', String(panelId === 'feedingHistoryPanel'));
-      $('sleepHistoryToggle').setAttribute('aria-expanded', String(panelId === 'sleepHistoryPanel'));
+      ['feedingHistoryPanel','sleepHistoryPanel','growthHistoryPanel'].forEach(id => { $(id).hidden = id !== panelId; });
+      ['feedHistoryToggle','sleepHistoryToggle','growthHistoryToggle'].forEach(id => { $(id).setAttribute('aria-expanded', String($(id).id === buttonId)); });
       $('historyBackdrop').hidden = false;
       document.body.style.overflow = 'hidden';
       $('historyModalCloseBtn').focus();
     });
   }
-  wireHistoryToggle('feedHistoryToggle', 'feedingHistoryPanel', 'feeding history');
-  wireHistoryToggle('sleepHistoryToggle', 'sleepHistoryPanel', 'sleep history');
+  wireHistoryToggle('feedHistoryToggle', 'feedingHistoryPanel');
+  wireHistoryToggle('sleepHistoryToggle', 'sleepHistoryPanel');
+  wireHistoryToggle('growthHistoryToggle', 'growthHistoryPanel');
   $('historyModalCloseBtn').addEventListener('click', closeHistoryOverlay);
   $('historyBackdrop').addEventListener('click', e => { if (e.target === $('historyBackdrop')) closeHistoryOverlay(); });
 
