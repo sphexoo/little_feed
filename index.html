@@ -89,10 +89,44 @@
   .sleep-button { width:100%; background:var(--sleep-accent); color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(77,132,171,.18); }
   .sleep-button.waking { background:var(--sleep-accent-dark); box-shadow:0 5px 12px rgba(46,98,135,.16); }
   .sleep-history-mark { background:var(--sleep-accent-light); }
-  .tab-nav { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:5px; margin:0 0 18px; background:#eee9e1; border-radius:17px; }
+  .tab-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; padding:5px; margin:0 0 18px; background:#eee9e1; border-radius:17px; }
   .tab-button { border:0; border-radius:13px; min-height:43px; padding:10px 9px; color:var(--muted); background:transparent; font-size:12px; font-weight:750; }
   .tab-button[aria-selected="true"] { background:var(--card); color:var(--ink); box-shadow:0 2px 8px rgba(67,61,49,.07); }
   .tab-panel[hidden] { display:none !important; }
+  .tab-button { padding:10px 5px; font-size:11px; white-space:nowrap; }
+  .trends-page { padding-top:2px; }
+  .trends-intro { margin:0 2px 16px; }
+  .trends-intro h2 { font-size:23px; margin:0; }
+  .trends-intro p { color:var(--muted); font-size:12px; line-height:1.5; margin:7px 0 0; }
+  .trend-period-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; padding:5px; margin:0 0 12px; background:#eee9e1; border-radius:15px; }
+  .trend-period-button { min-height:39px; border:1px solid transparent; border-radius:11px; background:transparent; color:var(--muted); font-weight:750; font-size:12px; }
+  .trend-period-button[aria-selected="true"] { color:var(--sage-dark); background:#fffdf9; border-color:#e2e8df; box-shadow:0 2px 7px rgba(67,61,49,.06); }
+  .trend-period-button:focus-visible { outline:2px solid var(--sage); outline-offset:2px; }
+  .trend-window-caption { margin:0 3px 16px; color:var(--muted); font-size:10px; line-height:1.45; }
+  .trend-group { margin:0 0 18px; }
+  .trend-group-head { display:flex; align-items:center; gap:8px; margin:0 2px 9px; font-size:14px; font-weight:800; }
+  .trend-group-head span { width:26px; height:26px; display:grid; place-items:center; border-radius:9px; font-size:14px; }
+  .trend-group-head.feed span { background:var(--sage-light); }
+  .trend-group-head.sleep span { background:var(--sleep-accent-light); }
+  .trend-metric-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+  .trend-metric { min-width:0; padding:14px 13px 13px; border-radius:19px; box-shadow:none; }
+  .trend-metric.feed { background:var(--feed-tint); border-color:#dfe9dc; }
+  .trend-metric.sleep { background:var(--sleep-tint); border-color:var(--sleep-accent-border); }
+  .trend-metric-label { color:#73796f; font-size:10px; font-weight:750; line-height:1.35; min-height:26px; }
+  .trend-metric.sleep .trend-metric-label { color:#557b96; }
+  .trend-metric-value { margin-top:6px; font-size:21px; line-height:1.15; font-weight:800; letter-spacing:-.7px; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+  .trend-metric-detail { margin-top:5px; color:var(--muted); font-size:10px; line-height:1.4; min-height:14px; }
+  .trend-metric-delta { margin-top:9px; padding-top:8px; border-top:1px solid rgba(125,132,120,.18); color:#6e756b; font-size:10px; font-weight:700; line-height:1.4; overflow-wrap:anywhere; }
+  .trend-metric.sleep .trend-metric-delta { border-top-color:rgba(77,132,171,.16); color:#57768a; }
+  .side-split-track { display:flex; height:7px; overflow:hidden; gap:2px; border-radius:99px; margin-top:9px; background:#e8e4da; }
+  .side-split-left { background:#638f70; height:100%; border-radius:99px 0 0 99px; }
+  .side-split-right { background:#d3a18b; height:100%; border-radius:0 99px 99px 0; }
+  .trend-footnote { margin:2px 3px 0; color:#96958b; font-size:10px; line-height:1.5; }
+  @media (max-width:360px) {
+    .tab-button { font-size:10px; padding:9px 3px; }
+    .trend-metric { padding:12px 10px; }
+    .trend-metric-value { font-size:19px; }
+  }
   /* The History chart bleeds to the viewport edges and keeps the native scrollbar below it. */
   #timelinePanel { width:100vw; max-width:100vw; margin-left:calc(50% - 50vw); }
   .timeline-card { padding:18px 0 16px; border-radius:0; border-left:0; border-right:0; box-shadow:none; }
@@ -216,7 +250,8 @@
 
   <nav class="tab-nav" role="tablist" aria-label="App views">
     <button class="tab-button" id="trackTabBtn" type="button" role="tab" aria-controls="trackPanel" aria-selected="true">♡ Track</button>
-    <button class="tab-button" id="timelineTabBtn" type="button" role="tab" aria-controls="timelinePanel" aria-selected="false">▥ History</button>
+    <button class="tab-button" id="timelineTabBtn" type="button" role="tab" aria-controls="timelinePanel" aria-selected="false" tabindex="-1">▥ History</button>
+    <button class="tab-button" id="trendsTabBtn" type="button" role="tab" aria-controls="trendsPanel" aria-selected="false" tabindex="-1">↗ Trends</button>
   </nav>
 
   <section class="tab-panel" id="trackPanel" role="tabpanel" aria-labelledby="trackTabBtn">
@@ -322,6 +357,21 @@
     </div>
   </section>
 
+  <section class="tab-panel trends-page" id="trendsPanel" role="tabpanel" aria-labelledby="trendsTabBtn" hidden>
+    <div class="trends-intro">
+      <h2>Sleep &amp; feeding trends</h2>
+      <p>See routines over time and how they compare with the previous period.</p>
+    </div>
+    <nav class="trend-period-nav" role="tablist" aria-label="Trend time period">
+      <button class="trend-period-button" id="trendPeriod1Btn" type="button" role="tab" data-trend-days="1" aria-selected="true">1 day</button>
+      <button class="trend-period-button" id="trendPeriod7Btn" type="button" role="tab" data-trend-days="7" aria-selected="false" tabindex="-1">7 days</button>
+      <button class="trend-period-button" id="trendPeriod14Btn" type="button" role="tab" data-trend-days="14" aria-selected="false" tabindex="-1">14 days</button>
+    </nav>
+    <div class="trend-window-caption" id="trendWindowCaption">Today so far · compared with yesterday at this time</div>
+    <div id="trendsContent" aria-live="polite" aria-atomic="false"></div>
+    <p class="trend-footnote">Sessions are grouped by their start time. Sleep time includes any part of a sleep session that overlaps the selected period. Left/right percentages use only recorded side-specific feeding times; imported feeds without a side split are excluded from that calculation. Trends compare with the equivalent period immediately before this one.</p>
+  </section>
+
   <section class="card data-card" aria-label="Import and export data">
     <div class="section-top">
       <div class="section-title">Data &amp; backups</div>
@@ -384,6 +434,8 @@
     sleepHistory: [], activeSleepStart: null,
     timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false
   };
+  let selectedTrendDays = 1;
+  let lastTrendsRenderSecond = -1;
   let toastTimer = null;
   let lastHistoryToggle = null;
   let lastTimelineRenderSecond = -1;
@@ -839,6 +891,10 @@
       const second = Math.floor(Date.now() / 1000);
       if (second !== lastTimelineRenderSecond) { lastTimelineRenderSecond = second; renderTimeline(); }
     }
+    if (!$('trendsPanel').hidden) {
+      const second = Math.floor(Date.now() / 1000);
+      if (second !== lastTrendsRenderSecond) { lastTrendsRenderSecond = second; renderTrends(); }
+    }
   }
   function elapsedAgeLabel(milliseconds) {
     const totalMinutes = Math.floor(Math.max(0, Number(milliseconds) || 0) / 60000);
@@ -1141,15 +1197,163 @@
     state.extendingTimeline = false;
   }
 
+  // Trends are calculated entirely from saved feed and sleep sessions.
+  function startOfLocalDay(date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+  }
+  function shiftCalendarDays(date, days) {
+    const shifted = new Date(date);
+    shifted.setDate(shifted.getDate() + days);
+    return shifted;
+  }
+  function trendWindow(days, now) {
+    const todayStart = startOfLocalDay(now);
+    const start = shiftCalendarDays(todayStart, -(days - 1));
+    return {start: start.getTime(), end: now.getTime(), previousStart: shiftCalendarDays(start, -days).getTime(), previousEnd: shiftCalendarDays(now, -days).getTime()};
+  }
+  function trendFeedRecords(now) {
+    const records = state.history.map(item => {
+      const trendStart = feedStartTimestamp(item);
+      const trendEnd = Number(item.endedAt);
+      const sideTotal = Math.max(0, Number(item.leftMs) || 0) + Math.max(0, Number(item.rightMs) || 0);
+      const explicitTotal = Number(item.totalMs);
+      const trendTotal = Number.isFinite(explicitTotal) && explicitTotal > 0
+        ? explicitTotal
+        : (sideTotal > 0 ? sideTotal : (Number.isFinite(trendEnd) && Number.isFinite(trendStart) ? Math.max(0, trendEnd - trendStart) : 0));
+      return {...item, trendStart, trendEnd, trendTotal};
+    });
+    const liveTotal = totalElapsed();
+    if (state.startedAt && (liveTotal > 0 || state.active)) {
+      records.push({
+        id:'active-feed-trend', startedAt:Number(state.startedAt), trendStart:Number(state.startedAt), trendEnd:now,
+        leftMs:elapsed('left'), rightMs:elapsed('right'), totalMs:liveTotal, trendTotal:liveTotal,
+        lastSide:state.active || state.lastSide, ongoing:true
+      });
+    }
+    return records.filter(item => Number.isFinite(item.trendStart) && item.trendStart > 0);
+  }
+  function trendSleepRecords(now) {
+    const records = state.sleepHistory.map(item => ({
+      ...item, trendStart:Number(item.startedAt), trendEnd:Number(item.endedAt), ongoing:false
+    }));
+    if (state.activeSleepStart) records.push({id:'active-sleep-trend', trendStart:Number(state.activeSleepStart), trendEnd:now, ongoing:true});
+    return records.filter(item => Number.isFinite(item.trendStart) && item.trendStart > 0 && Number.isFinite(item.trendEnd) && item.trendEnd >= item.trendStart);
+  }
+  function calculateTrendStats(window, now) {
+    const feeds = trendFeedRecords(now).filter(item => item.trendStart >= window.start && item.trendStart <= window.end);
+    const feedCount = feeds.length;
+    const feedMs = feeds.reduce((sum, item) => sum + Math.max(0, Number(item.trendTotal) || 0), 0);
+    const leftMs = feeds.reduce((sum, item) => sum + Math.max(0, Number(item.leftMs) || 0), 0);
+    const rightMs = feeds.reduce((sum, item) => sum + Math.max(0, Number(item.rightMs) || 0), 0);
+    const knownSideMs = leftMs + rightMs;
+
+    const sleeps = trendSleepRecords(now);
+    const sleepEpisodes = sleeps.filter(item => item.trendStart >= window.start && item.trendStart <= window.end);
+    const sleepDurations = sleepEpisodes.map(item => Math.max(0, Math.min(item.trendEnd, window.end) - Math.max(item.trendStart, window.start)));
+    const overlappingSleepMs = sleeps.reduce((sum, item) => {
+      const overlap = Math.max(0, Math.min(item.trendEnd, window.end) - Math.max(item.trendStart, window.start));
+      return sum + overlap;
+    }, 0);
+    const sleepEpisodeMs = sleepDurations.reduce((sum, duration) => sum + duration, 0);
+    return {
+      feedCount, feedMs, avgFeedMs: feedCount ? feedMs / feedCount : null,
+      leftMs, rightMs, knownSideMs, leftPercent:knownSideMs ? leftMs / knownSideMs * 100 : null,
+      sleepCount:sleepEpisodes.length, sleepMs:overlappingSleepMs,
+      avgSleepMs:sleepEpisodes.length ? sleepEpisodeMs / sleepEpisodes.length : null,
+      longestSleepMs:sleepDurations.length ? Math.max(...sleepDurations) : null
+    };
+  }
+  function signedCountDelta(current, previous, noun) {
+    const delta = current - previous;
+    if (delta === 0) return `No change vs previous period`;
+    const sign = delta > 0 ? '+' : '−';
+    const abs = Math.abs(delta);
+    const percent = previous > 0 ? ` · ${delta > 0 ? '+' : '−'}${Math.round(abs / previous * 100)}%` : '';
+    return `${sign}${abs} ${noun}${percent} vs previous period`;
+  }
+  function signedDurationDelta(current, previous) {
+    const delta = current - previous;
+    if (Math.round(delta / 60000) === 0) return 'About the same as previous period';
+    const sign = delta > 0 ? '+' : '−';
+    const percent = previous > 0 ? ` · ${delta > 0 ? '+' : '−'}${Math.round(Math.abs(delta) / previous * 100)}%` : '';
+    return `${sign}${humanDuration(Math.abs(delta))}${percent} vs previous period`;
+  }
+  function metricDelta(current, previous, kind, noun) {
+    if (current === null || current === undefined || !Number.isFinite(current)) return 'Not enough recorded data';
+    if (previous === null || previous === undefined || !Number.isFinite(previous)) return 'No previous data';
+    if (kind === 'count') return signedCountDelta(current, previous, noun);
+    if (kind === 'duration') return signedDurationDelta(current, previous);
+    if (kind === 'percent') {
+      if (Math.abs(current - previous) < 0.5) return 'About the same as previous period';
+      const delta = current - previous;
+      return `${delta > 0 ? '+' : '−'}${Math.round(Math.abs(delta))} percentage points vs previous period`;
+    }
+    return '—';
+  }
+  function trendMetric(label, value, delta, group, detail = '', extraHtml = '') {
+    return `<article class="card trend-metric ${group}">
+      <div class="trend-metric-label">${label}</div>
+      <div class="trend-metric-value">${value}</div>
+      ${detail ? `<div class="trend-metric-detail">${detail}</div>` : '<div class="trend-metric-detail"></div>'}
+      ${extraHtml}
+      <div class="trend-metric-delta">${delta}</div>
+    </article>`;
+  }
+  function renderTrends() {
+    const now = new Date();
+    const days = selectedTrendDays;
+    const currentWindow = trendWindow(days, now);
+    const previousWindow = {start:currentWindow.previousStart, end:currentWindow.previousEnd};
+    const current = calculateTrendStats(currentWindow, now.getTime());
+    const previous = calculateTrendStats(previousWindow, currentWindow.previousEnd);
+    if (days === 1) {
+      $('trendWindowCaption').textContent = `Today so far · compared with yesterday up to ${new Date(currentWindow.previousEnd).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`;
+    } else {
+      $('trendWindowCaption').textContent = `Last ${days} calendar days through now · compared with the previous ${days}-day period`;
+    }
+    const leftPercent = current.leftPercent;
+    const rightPercent = leftPercent === null ? null : 100 - leftPercent;
+    const leftValue = leftPercent === null ? '—' : `${Math.round(leftPercent)}%`;
+    const splitDetail = leftPercent === null ? 'No side-specific times recorded' : `${Math.round(leftPercent)}% left · ${Math.round(rightPercent)}% right`;
+    const splitBar = leftPercent === null ? '' : `<div class="side-split-track" aria-label="${Math.round(leftPercent)} percent left, ${Math.round(rightPercent)} percent right"><span class="side-split-left" style="width:${Math.max(0, Math.min(100,leftPercent))}%"></span><span class="side-split-right" style="width:${Math.max(0, Math.min(100,rightPercent))}%"></span></div>`;
+    const feedHtml = [
+      trendMetric('Feeding sessions', String(current.feedCount), metricDelta(current.feedCount, previous.feedCount, 'count', 'feeds'), 'feed'),
+      trendMetric('Total feeding time', humanDuration(current.feedMs), metricDelta(current.feedMs, previous.feedMs, 'duration'), 'feed', 'Combined recorded side time'),
+      trendMetric('Average feed length', current.avgFeedMs === null ? '—' : humanDuration(current.avgFeedMs), metricDelta(current.avgFeedMs, previous.avgFeedMs, 'duration'), 'feed', current.avgFeedMs === null ? 'No feeds in this period' : 'Per feeding session'),
+      trendMetric('Left / right balance', leftValue, metricDelta(current.leftPercent, previous.leftPercent, 'percent'), 'feed', splitDetail, splitBar)
+    ].join('');
+    const sleepHtml = [
+      trendMetric('Sleep sessions', String(current.sleepCount), metricDelta(current.sleepCount, previous.sleepCount, 'count', 'sessions'), 'sleep'),
+      trendMetric('Total time asleep', humanDuration(current.sleepMs), metricDelta(current.sleepMs, previous.sleepMs, 'duration'), 'sleep', 'Sleep overlapping this period'),
+      trendMetric('Average sleep stretch', current.avgSleepMs === null ? '—' : humanDuration(current.avgSleepMs), metricDelta(current.avgSleepMs, previous.avgSleepMs, 'duration'), 'sleep', current.avgSleepMs === null ? 'No sleep sessions started in period' : 'Per session started in period'),
+      trendMetric('Longest sleep stretch', current.longestSleepMs === null ? '—' : humanDuration(current.longestSleepMs), metricDelta(current.longestSleepMs, previous.longestSleepMs, 'duration'), 'sleep', current.longestSleepMs === null ? 'No sleep sessions started in period' : 'Longest session started in period')
+    ].join('');
+    $('trendsContent').innerHTML = `
+      <section class="trend-group" aria-labelledby="feedingTrendHeading">
+        <div class="trend-group-head feed" id="feedingTrendHeading"><span aria-hidden="true">🍼</span> Feeding</div>
+        <div class="trend-metric-grid">${feedHtml}</div>
+      </section>
+      <section class="trend-group" aria-labelledby="sleepTrendHeading">
+        <div class="trend-group-head sleep" id="sleepTrendHeading"><span aria-hidden="true">🌙</span> Sleep</div>
+        <div class="trend-metric-grid">${sleepHtml}</div>
+      </section>`;
+  }
+
   function activateTab(name) {
     const track = name === 'track';
+    const timeline = name === 'timeline';
+    const trends = name === 'trends';
     $('trackPanel').hidden = !track;
-    $('timelinePanel').hidden = track;
-    $('trackTabBtn').setAttribute('aria-selected', track ? 'true' : 'false');
-    $('timelineTabBtn').setAttribute('aria-selected', track ? 'false' : 'true');
+    $('timelinePanel').hidden = !timeline;
+    $('trendsPanel').hidden = !trends;
+    $('trackTabBtn').setAttribute('aria-selected', String(track));
+    $('timelineTabBtn').setAttribute('aria-selected', String(timeline));
+    $('trendsTabBtn').setAttribute('aria-selected', String(trends));
     $('trackTabBtn').tabIndex = track ? 0 : -1;
-    $('timelineTabBtn').tabIndex = track ? -1 : 0;
-    if (!track) { lastTimelineRenderSecond = Math.floor(Date.now() / 1000); renderTimeline(); }
+    $('timelineTabBtn').tabIndex = timeline ? 0 : -1;
+    $('trendsTabBtn').tabIndex = trends ? 0 : -1;
+    if (timeline) { lastTimelineRenderSecond = Math.floor(Date.now() / 1000); renderTimeline(); }
+    if (trends) { lastTrendsRenderSecond = Math.floor(Date.now() / 1000); renderTrends(); }
   }
 
   // User actions for timers and record changes.
@@ -1417,11 +1621,43 @@
   });
 
   $('refreshBtn').addEventListener('click', () => window.location.reload());
-  $('trackTabBtn').addEventListener('click', () => activateTab('track'));
-  $('timelineTabBtn').addEventListener('click', () => activateTab('timeline'));
+  const mainTabs = [
+    {name:'track', id:'trackTabBtn'},
+    {name:'timeline', id:'timelineTabBtn'},
+    {name:'trends', id:'trendsTabBtn'}
+  ];
+  mainTabs.forEach((tab, index) => {
+    const button = $(tab.id);
+    button.addEventListener('click', () => activateTab(tab.name));
+    button.addEventListener('keydown', event => {
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      event.preventDefault();
+      const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? mainTabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + mainTabs.length) % mainTabs.length;
+      activateTab(mainTabs[nextIndex].name);
+      $(mainTabs[nextIndex].id).focus();
+    });
+  });
+  const trendPeriodButtons = Array.from(document.querySelectorAll('[data-trend-days]'));
+  trendPeriodButtons.forEach((button, index) => {
+    const selectPeriod = () => {
+      selectedTrendDays = Number(button.dataset.trendDays);
+      trendPeriodButtons.forEach(option => {
+        option.setAttribute('aria-selected', String(option === button));
+        option.tabIndex = option === button ? 0 : -1;
+      });
+      lastTrendsRenderSecond = -1;
+      renderTrends();
+    };
+    button.addEventListener('click', selectPeriod);
+    button.addEventListener('keydown', event => {
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      event.preventDefault();
+      const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? trendPeriodButtons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + trendPeriodButtons.length) % trendPeriodButtons.length;
+      trendPeriodButtons[nextIndex].focus();
+      trendPeriodButtons[nextIndex].click();
+    });
+  });
   $('timelineScroller').addEventListener('scroll', maybeLoadEarlierTimeline, {passive:true});
-  $('trackTabBtn').addEventListener('keydown', e => { if (e.key === 'ArrowRight') { activateTab('timeline'); $('timelineTabBtn').focus(); } });
-  $('timelineTabBtn').addEventListener('keydown', e => { if (e.key === 'ArrowLeft') { activateTab('track'); $('trackTabBtn').focus(); } });
   function closeHistoryOverlay() {
     $('historyBackdrop').hidden = true;
     $('feedingHistoryPanel').hidden = true;
