@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Little Feed seedling favicon">
+  <rect width="64" height="64" rx="20" fill="#e4ebe2"/>
+  <path d="M32 48V30" fill="none" stroke="#52715d" stroke-width="4" stroke-linecap="round"/>
+  <path d="M31.5 32C18 32 14 23 15 15c10-1 21 4 20 16" fill="#789783" stroke="#52715d" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M32 27c0-10 8-16 18-15 1 10-4 19-18 20" fill="#a8c2a8" stroke="#52715d" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M22 50h20" fill="none" stroke="#52715d" stroke-width="3" stroke-linecap="round"/>
+</svg>
