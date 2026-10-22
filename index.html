@@ -34,8 +34,7 @@
   .section-top { display:flex; justify-content:space-between; align-items:center; }
   .section-actions { display:flex; align-items:center; gap:7px; }
   .history-toggle { width:32px; height:32px; flex:0 0 32px; display:grid; place-items:center; border:1px solid var(--line); border-radius:11px; background:#fff; color:var(--muted); padding:0; }
-  .history-chevron { display:block; font-size:20px; line-height:1; transform:translateY(-2px); transition:transform .18s ease; }
-  .history-toggle[aria-expanded="true"] .history-chevron { transform:rotate(180deg) translateY(2px); }
+  .history-symbol { display:block; font-size:20px; line-height:1; }
   .history-toggle:focus-visible { outline:2px solid var(--sage); outline-offset:2px; }
   .section-title { font-size:14px; font-weight:750; }
   .live { color:var(--sage-dark); background:var(--sage-light); border-radius:99px; padding:6px 9px; font-size:10px; font-weight:750; letter-spacing:.5px; }
@@ -151,7 +150,22 @@
   .history-duration small { display:block; color:var(--muted); font-size:10px; font-weight:500; margin-top:3px; }
   .record-actions { display:flex; align-items:center; gap:5px; margin-left:auto; }
   .edit-record { background:#f4f1ea; border:1px solid #ebe5db; color:#66675f; border-radius:10px; padding:7px 9px; font-size:11px; font-weight:750; }
-  .delete { background:transparent; border:0; color:#a5a49d; font-size:19px; padding:6px 0 6px 4px; }
+  .delete { background:#f8e9e5; border:1px solid #ecd2cb; color:#99584e; border-radius:10px; padding:7px 9px; font-size:11px; font-weight:750; line-height:1.2; min-height:30px; }
+  .delete:hover { background:#f3dfda; border-color:#e4c1b8; }
+  .delete:focus-visible { outline:2px solid #c98578; outline-offset:2px; }
+  .history-backdrop { position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center; padding:12px; background:rgba(37,38,34,.42); }
+  .history-backdrop[hidden] { display:none !important; }
+  .history-modal { width:min(100%, 520px); max-height:calc(100dvh - 24px); display:flex; flex-direction:column; overflow:hidden; background:var(--bg); border:1px solid rgba(225,219,208,.8); border-radius:26px; padding:13px 16px 16px; box-shadow:0 24px 70px rgba(30,30,24,.24); }
+  .history-modal-top { display:flex; align-items:center; justify-content:flex-end; flex:0 0 auto; padding:0 0 4px; }
+  .history-modal-close { width:38px; height:38px; flex:0 0 38px; border:0; border-radius:13px; background:#eee9e1; color:#68685f; font-size:24px; line-height:1; }
+  .history-modal-content { min-height:0; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding-bottom:3px; }
+  .history-modal-content .history-collapse { margin:0; }
+  .history-modal-content .history-head { margin:4px 2px 14px; }
+  .history-modal-content .history-list { padding-bottom:4px; }
+  .history-modal-content .history-item { flex-wrap:wrap; }
+  .history-modal-content .history-main { flex:1 1 120px; }
+  .history-modal-content .record-actions { margin-left:auto; }
+  @media (min-width:520px) { .history-modal { max-height:88dvh; padding:15px 18px 18px; } }
   .editor-backdrop { position:fixed; inset:0; z-index:100; background:rgba(37,38,34,.38); display:flex; align-items:flex-end; justify-content:center; padding:16px 12px max(12px, env(safe-area-inset-bottom)); }
   .editor-backdrop[hidden] { display:none !important; }
   .editor-panel { width:min(100%, 490px); max-height:90dvh; overflow:auto; background:var(--card); border-radius:26px; padding:22px 20px 18px; box-shadow:0 24px 70px rgba(30,30,24,.2); }
@@ -245,17 +259,11 @@
       <button class="primary" id="finishBtn" type="button">Finish & save feed</button>
       <div class="actions-secondary">
         <button class="secondary" id="resetBtn" type="button">Reset</button>
-        <button class="history-toggle" id="feedHistoryToggle" type="button" aria-expanded="false" aria-controls="feedingHistoryPanel" aria-label="Show feeding history" title="Show feeding history"><span class="history-chevron" aria-hidden="true">⌄</span></button>
+        <button class="history-toggle" id="feedHistoryToggle" type="button" aria-expanded="false" aria-controls="feedingHistoryPanel" aria-label="Open feeding history" title="Open feeding history"><span class="history-symbol" aria-hidden="true">◷</span></button>
       </div>
     </div>
   </section>
 
-  <div class="history-collapse" id="feedingHistoryPanel" hidden>
-    <div class="history-head">
-      <h3>Feeding history</h3><span class="count" id="historyCount">0 feeds</span>
-    </div>
-    <section class="history-list" id="historyList" aria-live="polite"></section>
-  </div>
 
   <section class="card sleep-card" aria-label="Baby sleep tracker">
     <div class="section-top">
@@ -285,16 +293,10 @@
     </div>
     <div class="sleep-actions">
       <button class="sleep-button" id="sleepToggleBtn" type="button">🌙 Start sleep</button>
-      <button class="history-toggle" id="sleepHistoryToggle" type="button" aria-expanded="false" aria-controls="sleepHistoryPanel" aria-label="Show sleep history" title="Show sleep history"><span class="history-chevron" aria-hidden="true">⌄</span></button>
+      <button class="history-toggle" id="sleepHistoryToggle" type="button" aria-expanded="false" aria-controls="sleepHistoryPanel" aria-label="Open sleep history" title="Open sleep history"><span class="history-symbol" aria-hidden="true">◷</span></button>
     </div>
   </section>
 
-  <div class="history-collapse" id="sleepHistoryPanel" hidden>
-    <div class="history-head">
-      <h3>Sleep history</h3><span class="count" id="sleepHistoryCount">0 sessions</span>
-    </div>
-    <section class="history-list" id="sleepHistoryList" aria-live="polite"></section>
-  </div>
 
 
   </section>
@@ -336,6 +338,27 @@
   <div class="storage-status" id="storageStatus" role="status" aria-live="polite">Opening secure local storage…</div>
   <div class="footnote">Made with love for the little moments ✨<br>Your data stays on this device; it is not synced to the cloud.</div>
 </main>
+<div class="history-backdrop" id="historyBackdrop" hidden>
+  <section class="history-modal" role="dialog" aria-modal="true" aria-label="Feeding and sleep history">
+    <div class="history-modal-top">
+      <button class="history-modal-close" id="historyModalCloseBtn" type="button" aria-label="Close history">×</button>
+    </div>
+    <div class="history-modal-content" id="historyModalContent">
+      <div class="history-collapse" id="feedingHistoryPanel" hidden>
+        <div class="history-head">
+          <h3>Feeding history</h3><span class="count" id="historyCount">0 feeds</span>
+        </div>
+        <section class="history-list" id="historyList" aria-live="polite"></section>
+      </div>
+      <div class="history-collapse" id="sleepHistoryPanel" hidden>
+        <div class="history-head">
+          <h3>Sleep history</h3><span class="count" id="sleepHistoryCount">0 sessions</span>
+        </div>
+        <section class="history-list" id="sleepHistoryList" aria-live="polite"></section>
+      </div>
+    </div>
+  </section>
+</div>
 <div class="editor-backdrop" id="editorBackdrop" hidden>
   <section class="editor-panel" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
     <div class="editor-top">
@@ -362,6 +385,7 @@
     timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false
   };
   let toastTimer = null;
+  let lastHistoryToggle = null;
   let lastTimelineRenderSecond = -1;
   let editorContext = null;
   let sleepStartPreview = null;
@@ -920,7 +944,7 @@
         <div class="history-mark">🍼</div>
         <div class="history-main"><div class="history-date">${dateText}</div><div class="history-meta">${parts.join(' · ') || 'Duration not recorded'}<br>${last}</div></div>
         <div class="history-duration">${fmt(item.totalMs)}<small>total</small></div>
-        <div class="record-actions"><button class="edit-record" type="button" data-edit-feed="${item.id}">Edit</button><button class="delete" type="button" aria-label="Delete feed" data-delete="${item.id}">×</button></div>
+        <div class="record-actions"><button class="edit-record" type="button" data-edit-feed="${item.id}">Edit</button><button class="delete" type="button" aria-label="Delete feed" data-delete="${item.id}">Delete</button></div>
       </article>`;
     }).join('');
   }
@@ -999,7 +1023,7 @@
         <div class="history-mark sleep-history-mark">🌙</div>
         <div class="history-main"><div class="history-date">${dateText}</div><div class="history-meta">${timeRange}${sameDay ? '' : ' · overnight'}</div></div>
         <div class="history-duration">${humanDuration(item.durationMs)}<small>asleep</small></div>
-        <div class="record-actions"><button class="edit-record" type="button" data-edit-sleep="${item.id}">Edit</button><button class="delete" type="button" aria-label="Delete sleep record" data-sleep-delete="${item.id}">×</button></div>
+        <div class="record-actions"><button class="edit-record" type="button" data-edit-sleep="${item.id}">Edit</button><button class="delete" type="button" aria-label="Delete sleep record" data-sleep-delete="${item.id}">Delete</button></div>
       </article>`;
     }).join('');
   }
@@ -1381,7 +1405,7 @@
   $('editorCloseBtn').addEventListener('click', closeEditor);
   $('editorCancelBtn').addEventListener('click', closeEditor);
   $('editorBackdrop').addEventListener('click', e => { if (e.target === $('editorBackdrop')) closeEditor(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('editorBackdrop').hidden) closeEditor(); });
+  document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('editorBackdrop').hidden) closeEditor(); else if (!$('historyBackdrop').hidden) closeHistoryOverlay(); });
 
   $('exportCsvBtn').addEventListener('click', exportCsv);
   $('importCsvBtn').addEventListener('click', () => $('importCsvFile').click());
@@ -1398,20 +1422,33 @@
   $('timelineScroller').addEventListener('scroll', maybeLoadEarlierTimeline, {passive:true});
   $('trackTabBtn').addEventListener('keydown', e => { if (e.key === 'ArrowRight') { activateTab('timeline'); $('timelineTabBtn').focus(); } });
   $('timelineTabBtn').addEventListener('keydown', e => { if (e.key === 'ArrowLeft') { activateTab('track'); $('trackTabBtn').focus(); } });
+  function closeHistoryOverlay() {
+    $('historyBackdrop').hidden = true;
+    $('feedingHistoryPanel').hidden = true;
+    $('sleepHistoryPanel').hidden = true;
+    $('feedHistoryToggle').setAttribute('aria-expanded', 'false');
+    $('sleepHistoryToggle').setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+    if (lastHistoryToggle) lastHistoryToggle.focus();
+  }
   function wireHistoryToggle(buttonId, panelId, historyName) {
     const button = $(buttonId);
     const panel = $(panelId);
     button.addEventListener('click', () => {
-      const expanded = button.getAttribute('aria-expanded') === 'true';
-      const nextExpanded = !expanded;
-      button.setAttribute('aria-expanded', String(nextExpanded));
-      button.setAttribute('aria-label', `${nextExpanded ? 'Hide' : 'Show'} ${historyName}`);
-      button.title = `${nextExpanded ? 'Hide' : 'Show'} ${historyName}`;
-      panel.hidden = !nextExpanded;
+      lastHistoryToggle = button;
+      $('feedingHistoryPanel').hidden = panelId !== 'feedingHistoryPanel';
+      $('sleepHistoryPanel').hidden = panelId !== 'sleepHistoryPanel';
+      $('feedHistoryToggle').setAttribute('aria-expanded', String(panelId === 'feedingHistoryPanel'));
+      $('sleepHistoryToggle').setAttribute('aria-expanded', String(panelId === 'sleepHistoryPanel'));
+      $('historyBackdrop').hidden = false;
+      document.body.style.overflow = 'hidden';
+      $('historyModalCloseBtn').focus();
     });
   }
   wireHistoryToggle('feedHistoryToggle', 'feedingHistoryPanel', 'feeding history');
   wireHistoryToggle('sleepHistoryToggle', 'sleepHistoryPanel', 'sleep history');
+  $('historyModalCloseBtn').addEventListener('click', closeHistoryOverlay);
+  $('historyBackdrop').addEventListener('click', e => { if (e.target === $('historyBackdrop')) closeHistoryOverlay(); });
 
   $('leftBtn').addEventListener('click', () => setSide('left'));
   $('rightBtn').addEventListener('click', () => setSide('right'));
