@@ -35,6 +35,8 @@
   .timer { text-align:center; padding:24px 0 20px; }
   .clock { font-variant-numeric:tabular-nums; font-size:53px; letter-spacing:-2.5px; font-weight:650; line-height:1.05; }
   .clock-caption { color:var(--muted); font-size:12px; margin-top:8px; }
+  .clock-caption.elapsed-state, .sleep-caption.elapsed-state { display:inline-block; max-width:100%; padding:7px 11px; border-radius:11px; font-size:12px; line-height:1.35; font-weight:750; }
+  .clock-caption.elapsed-state { color:var(--sage-dark); background:#e2ecde; }
   .side-buttons { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .side-tile { min-width:0; border:1.5px solid var(--line); background:#fff; border-radius:20px; padding:0 8px 9px; transition:border-color .12s, background .12s, box-shadow .12s; }
   .side-tile.active { border-color:var(--sage); background:var(--sage-light); }
@@ -61,17 +63,12 @@
   .actions .history-toggle, .sleep-actions .history-toggle { width:44px; height:44px; flex-basis:44px; }
   .primary { background:var(--sage-dark); color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(82,113,93,.15); }
   .secondary { background:#fff; border:1px solid var(--line); border-radius:16px; padding:0 17px; min-height:52px; color:var(--ink); font-weight:700; }
-  .last-card { margin-top:14px; display:flex; align-items:center; gap:13px; padding:16px; box-shadow:none; }
-  .sleep-last-card { background:var(--sleep-tint-strong); border-color:#e5dced; }
-  .last-icon { flex:0 0 42px; height:42px; border-radius:15px; display:grid; place-items:center; background:#f6e8dd; font-size:20px; }
-  .last-label { color:var(--muted); font-size:11px; margin-bottom:3px; }
-  .last-value { font-size:14px; font-weight:750; }
-  .last-detail { font-size:11px; color:var(--muted); margin-top:3px; }
   .sleep-card { margin-top:14px; padding:22px 18px 18px; background:var(--sleep-tint); border-color:#e5dced; }
   .sleep-card .live { color:#71628e; background:#eee9f7; }
   .sleep-timer { text-align:center; padding:22px 0 18px; }
   .sleep-clock { font-variant-numeric:tabular-nums; font-size:47px; letter-spacing:-2px; font-weight:650; line-height:1.05; }
   .sleep-caption { color:var(--muted); font-size:12px; margin-top:8px; }
+  .sleep-caption.elapsed-state { color:#665480; background:#eee9f7; }
   .sleep-start-row { display:block; margin:16px auto 0; max-width:420px; text-align:left; }
   .sleep-start-row[hidden] { display:none !important; }
   .sleep-adjustment-values { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; margin-bottom:8px; }
@@ -85,7 +82,6 @@
   .sleep-actions { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; }
   .sleep-button { width:100%; background:#75658f; color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(117,101,143,.16); }
   .sleep-button.waking { background:#8e6c5f; box-shadow:0 5px 12px rgba(142,108,95,.14); }
-  .sleep-last-icon { background:#eee9f7; }
   .sleep-history-mark { background:#eee9f7; }
   .tab-nav { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:5px; margin:0 0 18px; background:#eee9e1; border-radius:17px; }
   .tab-button { border:0; border-radius:13px; min-height:43px; padding:10px 9px; color:var(--muted); background:transparent; font-size:12px; font-weight:750; }
@@ -243,15 +239,6 @@
     <section class="history-list" id="historyList" aria-live="polite"></section>
   </div>
 
-  <section class="card last-card sleep-last-card" aria-live="polite">
-    <div class="last-icon sleep-last-icon">🌙</div>
-    <div>
-      <div class="last-label">LAST SLEEP</div>
-      <div class="last-value" id="lastSleepValue">No sleep logged yet</div>
-      <div class="last-detail" id="lastSleepDetail">Your latest sleep duration will show up here.</div>
-    </div>
-  </section>
-
   <section class="card sleep-card" aria-label="Baby sleep tracker">
     <div class="section-top">
       <div class="section-title">Sleep tracker</div>
@@ -262,7 +249,7 @@
     <div class="sleep-timer">
       <div class="sleep-orb" aria-hidden="true">🌙</div>
       <div class="sleep-clock" id="sleepClock">00:00</div>
-      <div class="sleep-caption" id="sleepCaption">Ready to track the next nap</div>
+      <div class="sleep-caption" id="sleepCaption">No wake-up time recorded yet</div>
       <div class="sleep-start-row" id="sleepStartRow" hidden>
         <div class="sleep-adjustment-values" aria-live="polite" aria-atomic="true">
           <div class="sleep-adjustment-value">
@@ -802,7 +789,7 @@
     $('leftBtn').querySelector('.side-hint').textContent = state.active === 'left' ? 'Currently feeding' : (left ? 'Tap to switch / resume' : 'Tap to start');
     $('rightBtn').querySelector('.side-hint').textContent = state.active === 'right' ? 'Currently feeding' : (right ? 'Tap to switch / resume' : 'Tap to start');
     $('statusPill').textContent = state.active ? `FEEDING · ${state.active.toUpperCase()}` : (totalElapsed() ? 'TIMER PAUSED' : 'READY WHEN YOU ARE');
-    $('clockCaption').textContent = state.active ? `On the ${state.active} side · tap the other side to switch` : (totalElapsed() ? 'Paused · pick a side to continue' : 'Choose a side to begin');
+    renderFeedCaption();
     $('finishBtn').disabled = totalElapsed() === 0;
     $('finishBtn').style.opacity = totalElapsed() === 0 ? '.55' : '1';
     renderLast(); renderHistory(); renderSleep(); renderSleepHistory();
@@ -811,6 +798,63 @@
       if (second !== lastTimelineRenderSecond) { lastTimelineRenderSecond = second; renderTimeline(); }
     }
   }
+  function elapsedAgeLabel(milliseconds) {
+    const totalMinutes = Math.floor(Math.max(0, Number(milliseconds) || 0) / 60000);
+    if (totalMinutes < 1) return 'less than 1 min';
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours && minutes) return `${hours} hr ${minutes} min`;
+    if (hours) return `${hours} hr`;
+    return `${minutes} min`;
+  }
+
+  function renderFeedCaption() {
+    const caption = $('clockCaption');
+    if (state.active) {
+      caption.textContent = `On the ${state.active} side · tap the other side to switch`;
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    if (totalElapsed() > 0) {
+      caption.textContent = 'Paused · pick a side to continue';
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    if (!state.history.length) {
+      caption.textContent = 'Choose a side to begin';
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    const latest = state.history.reduce((a, b) => feedStartTimestamp(a) >= feedStartTimestamp(b) ? a : b);
+    const startedAt = feedStartTimestamp(latest);
+    if (!Number.isFinite(startedAt) || startedAt <= 0) {
+      caption.textContent = 'Choose a side to begin';
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    caption.textContent = `Last feed started · ${elapsedAgeLabel(Date.now() - startedAt)} ago`;
+    caption.classList.add('elapsed-state');
+  }
+
+  function renderAwakeCaption() {
+    const caption = $('sleepCaption');
+    if (state.activeSleepStart) return;
+    if (!state.sleepHistory.length) {
+      caption.textContent = 'No wake-up time recorded yet';
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    const latest = state.sleepHistory.reduce((a, b) => Number(a.endedAt) >= Number(b.endedAt) ? a : b);
+    const wokeAt = Number(latest.endedAt);
+    if (!Number.isFinite(wokeAt) || wokeAt <= 0) {
+      caption.textContent = 'No wake-up time recorded yet';
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    caption.textContent = `Awake for ${elapsedAgeLabel(Date.now() - wokeAt)}`;
+    caption.classList.add('elapsed-state');
+  }
+
   function renderLast() {
     // Highlight the most recently used side directly in its tile. If imported
     // data does not identify a side (for example, Side=both), neither tile is highlighted.
@@ -898,9 +942,12 @@
     const elapsed = sleeping ? Math.max(0, now - displayStart) : 0;
     $('sleepClock').textContent = sleeping ? fmt(elapsed) : '00:00';
     $('sleepStatusPill').textContent = sleeping ? 'BABY IS SLEEPING' : 'BABY IS AWAKE';
-    $('sleepCaption').textContent = sleeping
-      ? 'Adjust the start time below if you began tracking late.'
-      : 'Ready to track the next nap';
+    if (sleeping) {
+      $('sleepCaption').textContent = 'Adjust the start time below if you began tracking late.';
+      $('sleepCaption').classList.remove('elapsed-state');
+    } else {
+      renderAwakeCaption();
+    }
     $('sleepStartRow').hidden = !sleeping;
     if (sleeping) {
       $('sleepStartValue').textContent = sleepStartLabel(displayStart);
@@ -916,14 +963,6 @@
     }
     $('sleepToggleBtn').textContent = sleeping ? '☀️ Wake up & save sleep' : '🌙 Start sleep';
     $('sleepToggleBtn').classList.toggle('waking', sleeping);
-    if (!state.sleepHistory.length) {
-      $('lastSleepValue').textContent = 'No sleep logged yet';
-      $('lastSleepDetail').textContent = sleeping ? 'A sleep session is currently in progress.' : 'Your latest sleep duration will show up here.';
-      return;
-    }
-    const latest = state.sleepHistory.reduce((a, b) => a.endedAt > b.endedAt ? a : b);
-    $('lastSleepValue').textContent = humanDuration(latest.durationMs);
-    $('lastSleepDetail').textContent = `Last sleep · ${relativeTime(latest.endedAt)}`;
   }
   function renderSleepHistory() {
     const list = $('sleepHistoryList');
@@ -1392,7 +1431,14 @@
       state.lastSide = newest.lastSide; state.lastSideAt = newest.endedAt;
     }
     render();
-    setInterval(() => { if (state.active || state.activeSleepStart) render(); }, 250);
+    setInterval(() => {
+      if (state.active || state.activeSleepStart) {
+        render();
+      } else {
+        renderFeedCaption();
+        renderAwakeCaption();
+      }
+    }, 1000);
   });
 })();
 </script>
