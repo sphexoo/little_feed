@@ -36,8 +36,11 @@
   .clock { font-variant-numeric:tabular-nums; font-size:53px; letter-spacing:-2.5px; font-weight:650; line-height:1.05; }
   .clock-caption { color:var(--muted); font-size:12px; margin-top:8px; }
   .side-buttons { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .side-tile { min-width:0; border:1.5px solid var(--line); background:#fff; border-radius:20px; padding:0 8px 9px; transition:border-color .12s, background .12s; }
+  .side-tile { min-width:0; border:1.5px solid var(--line); background:#fff; border-radius:20px; padding:0 8px 9px; transition:border-color .12s, background .12s, box-shadow .12s; }
   .side-tile.active { border-color:var(--sage); background:var(--sage-light); }
+  .side-tile.last-used { border-color:#a7c29f; background:var(--feed-tint-strong); }
+  .side-tile.active.last-used { border-color:var(--sage-dark); background:#e1ecde; box-shadow:inset 0 0 0 1px rgba(82,113,93,.12); }
+  .side-tile.last-used .side-icon { background:#d4e3d0; }
   .side-btn { display:block; width:100%; min-height:99px; border:0; border-radius:17px; background:transparent; padding:14px 4px 6px; text-align:left; color:var(--ink); transition:transform .12s; }
   .side-btn:active, .primary:active { transform:scale(.98); }
   .side-btn.active { background:transparent; }
@@ -49,7 +52,9 @@
   .side-name { font-size:14px; font-weight:750; }
   .side-icon { width:30px; height:30px; display:grid; place-items:center; border-radius:11px; background:#f5eee7; font-size:16px; }
   .side-btn.active .side-icon { background:#d4e2d4; }
-  .side-time { margin-top:10px; font-size:21px; font-weight:700; letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
+  .last-side-badge { display:flex; align-items:center; width:max-content; max-width:100%; min-height:17px; margin-top:5px; padding:3px 6px; border-radius:999px; background:#d7e6d2; color:#42694a; font-size:8px; line-height:11px; letter-spacing:.65px; font-weight:850; visibility:hidden; }
+  .side-tile.last-used .last-side-badge { visibility:visible; }
+  .side-time { margin-top:5px; font-size:21px; font-weight:700; letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
   .side-hint { color:var(--muted); font-size:11px; margin-top:2px; }
   .actions { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; margin-top:14px; align-items:center; }
   .actions-secondary { display:flex; align-items:center; gap:8px; }
@@ -57,7 +62,6 @@
   .primary { background:var(--sage-dark); color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(82,113,93,.15); }
   .secondary { background:#fff; border:1px solid var(--line); border-radius:16px; padding:0 17px; min-height:52px; color:var(--ink); font-weight:700; }
   .last-card { margin-top:14px; display:flex; align-items:center; gap:13px; padding:16px; box-shadow:none; }
-  .feed-last-card { background:var(--feed-tint-strong); border-color:#dce7d8; }
   .sleep-last-card { background:var(--sleep-tint-strong); border-color:#e5dced; }
   .last-icon { flex:0 0 42px; height:42px; border-radius:15px; display:grid; place-items:center; background:#f6e8dd; font-size:20px; }
   .last-label { color:var(--muted); font-size:11px; margin-bottom:3px; }
@@ -188,15 +192,6 @@
   </nav>
 
   <section class="tab-panel" id="trackPanel" role="tabpanel" aria-labelledby="trackTabBtn">
-  <section class="card last-card feed-last-card" aria-live="polite">
-    <div class="last-icon">🍼</div>
-    <div>
-      <div class="last-label">LAST FED ON</div>
-      <div class="last-value" id="lastSide">No feeds logged yet</div>
-      <div class="last-detail" id="lastDetail">Your last side will show up here.</div>
-    </div>
-  </section>
-
   <section class="card timer-card" aria-label="Breastfeeding timer">
     <div class="section-top">
       <div class="section-title">Feeding timer</div>
@@ -212,6 +207,7 @@
       <div class="side-tile" id="leftTile">
         <button class="side-btn" id="leftBtn" type="button" aria-label="Start left breast">
           <div class="side-row"><span class="side-name">Left side</span><span class="side-icon">🌿</span></div>
+          <span class="last-side-badge" id="leftLastSideLabel" aria-hidden="true">LAST FED</span>
           <div class="side-time" id="leftTime">00:00</div><div class="side-hint">Tap to start</div>
         </button>
         <div class="minute-controls" aria-label="Adjust left-side feeding time">
@@ -222,6 +218,7 @@
       <div class="side-tile" id="rightTile">
         <button class="side-btn" id="rightBtn" type="button" aria-label="Start right breast">
           <div class="side-row"><span class="side-name">Right side</span><span class="side-icon">🌼</span></div>
+          <span class="last-side-badge" id="rightLastSideLabel" aria-hidden="true">LAST FED</span>
           <div class="side-time" id="rightTime">00:00</div><div class="side-hint">Tap to start</div>
         </button>
         <div class="minute-controls" aria-label="Adjust right-side feeding time">
@@ -815,18 +812,21 @@
     }
   }
   function renderLast() {
-    if (!state.history.length) {
-      $('lastSide').textContent = 'No feeds logged yet';
-      $('lastDetail').textContent = 'Your last side will show up here.';
-      return;
+    // Highlight the most recently used side directly in its tile. If imported
+    // data does not identify a side (for example, Side=both), neither tile is highlighted.
+    for (const side of ['left', 'right']) {
+      const isLastSide = state.lastSide === side;
+      const tile = $(side === 'left' ? 'leftTile' : 'rightTile');
+      const button = $(side === 'left' ? 'leftBtn' : 'rightBtn');
+      const badge = $(side === 'left' ? 'leftLastSideLabel' : 'rightLastSideLabel');
+      const hint = button.querySelector('.side-hint');
+      tile.classList.toggle('last-used', isLastSide);
+      badge.setAttribute('aria-hidden', String(!isLastSide));
+      button.setAttribute('aria-label', `${capitalize(side)} breast${isLastSide ? ', last fed side' : ''}${state.active === side ? ', currently feeding' : ''}`);
+      if (isLastSide && state.lastSideAt) {
+        hint.textContent = `Last fed · ${relativeTime(state.lastSideAt)}`;
+      }
     }
-    if (!state.lastSide) {
-      $('lastSide').textContent = 'Last side not specified';
-      $('lastDetail').textContent = state.lastSideAt ? `Most recent feed · ${relativeTime(state.lastSideAt)}` : 'The imported data does not identify the last side.';
-      return;
-    }
-    $('lastSide').textContent = `${capitalize(state.lastSide)} side`;
-    $('lastDetail').textContent = state.lastSideAt ? `Last feed · ${relativeTime(state.lastSideAt)}` : 'Last recorded feeding side';
   }
   function feedStartTimestamp(item) {
     const startedAt = Number(item.startedAt);
