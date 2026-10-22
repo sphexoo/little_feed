@@ -1209,7 +1209,7 @@
   function trendWindow(days, now) {
     const todayStart = startOfLocalDay(now);
     const start = shiftCalendarDays(todayStart, -(days - 1));
-    return {start: start.getTime(), end: now.getTime(), previousStart: shiftCalendarDays(start, -days).getTime(), previousEnd: shiftCalendarDays(now, -days).getTime()};
+    return {start: start.getTime(), end: now.getTime(), previousStart: shiftCalendarDays(start, -days).getTime(), previousEnd: shiftCalendarDays(now, -days).getTime(), days};
   }
   function trendFeedRecords(now) {
     const records = state.history.map(item => {
@@ -1257,6 +1257,8 @@
     const sleepEpisodeMs = sleepDurations.reduce((sum, duration) => sum + duration, 0);
     return {
       feedCount, feedMs, avgFeedMs: feedCount ? feedMs / feedCount : null,
+      avgFeedsPerDay: feedCount / Math.max(1, Number(window.days) || 1),
+      avgFeedMsPerDay: feedMs / Math.max(1, Number(window.days) || 1),
       leftMs, rightMs, knownSideMs, leftPercent:knownSideMs ? leftMs / knownSideMs * 100 : null,
       sleepCount:sleepEpisodes.length, sleepMs:overlappingSleepMs,
       avgSleepMs:sleepEpisodes.length ? sleepEpisodeMs / sleepEpisodes.length : null,
@@ -1282,6 +1284,13 @@
     if (current === null || current === undefined || !Number.isFinite(current)) return 'Not enough recorded data';
     if (previous === null || previous === undefined || !Number.isFinite(previous)) return 'No previous data';
     if (kind === 'count') return signedCountDelta(current, previous, noun);
+    if (kind === 'perday') {
+      const delta = current - previous;
+      if (Math.abs(delta) < 0.05) return 'About the same daily average as previous period';
+      const sign = delta > 0 ? '+' : '−';
+      const percent = previous > 0 ? ` · ${delta > 0 ? '+' : '−'}${Math.round(Math.abs(delta) / previous * 100)}%` : '';
+      return `${sign}${Math.abs(delta).toFixed(1)} per day${percent} vs previous period`;
+    }
     if (kind === 'duration') return signedDurationDelta(current, previous);
     if (kind === 'percent') {
       if (Math.abs(current - previous) < 0.5) return 'About the same as previous period';
@@ -1303,7 +1312,7 @@
     const now = new Date();
     const days = selectedTrendDays;
     const currentWindow = trendWindow(days, now);
-    const previousWindow = {start:currentWindow.previousStart, end:currentWindow.previousEnd};
+    const previousWindow = {start:currentWindow.previousStart, end:currentWindow.previousEnd, days};
     const current = calculateTrendStats(currentWindow, now.getTime());
     const previous = calculateTrendStats(previousWindow, currentWindow.previousEnd);
     if (days === 1) {
@@ -1317,8 +1326,8 @@
     const splitDetail = leftPercent === null ? 'No side-specific times recorded' : `${Math.round(leftPercent)}% left · ${Math.round(rightPercent)}% right`;
     const splitBar = leftPercent === null ? '' : `<div class="side-split-track" aria-label="${Math.round(leftPercent)} percent left, ${Math.round(rightPercent)} percent right"><span class="side-split-left" style="width:${Math.max(0, Math.min(100,leftPercent))}%"></span><span class="side-split-right" style="width:${Math.max(0, Math.min(100,rightPercent))}%"></span></div>`;
     const feedHtml = [
-      trendMetric('Feeding sessions', String(current.feedCount), metricDelta(current.feedCount, previous.feedCount, 'count', 'feeds'), 'feed'),
-      trendMetric('Total feeding time', humanDuration(current.feedMs), metricDelta(current.feedMs, previous.feedMs, 'duration'), 'feed', 'Combined recorded side time'),
+      trendMetric('Average feeding sessions per day', current.avgFeedsPerDay.toFixed(1), metricDelta(current.avgFeedsPerDay, previous.avgFeedsPerDay, 'perday'), 'feed', `Daily average across ${days} day${days === 1 ? '' : 's'}`),
+      trendMetric('Average feeding time per day', humanDuration(current.avgFeedMsPerDay), metricDelta(current.avgFeedMsPerDay, previous.avgFeedMsPerDay, 'duration'), 'feed', `Daily average across ${days} day${days === 1 ? '' : 's'} · recorded feeding time`),
       trendMetric('Average feed length', current.avgFeedMs === null ? '—' : humanDuration(current.avgFeedMs), metricDelta(current.avgFeedMs, previous.avgFeedMs, 'duration'), 'feed', current.avgFeedMs === null ? 'No feeds in this period' : 'Per feeding session'),
       trendMetric('Left / right balance', leftValue, metricDelta(current.leftPercent, previous.leftPercent, 'percent'), 'feed', splitDetail, splitBar)
     ].join('');
