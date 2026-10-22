@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f8f5f0">
 <title>Little Feed — Baby Feeding & Sleep Tracker</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%B1%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     --bg: #f8f5f0; --card: #fffdf9; --ink: #30332f; --muted: #85877f;
@@ -99,10 +100,16 @@
   .legend-swatch { display:inline-block; border-radius:4px; width:15px; }
   .legend-swatch.sleep { height:12px; background:var(--sleep-accent-mid); }
   .legend-swatch.feed { height:8px; background:#638f70; }
-  .timeline-scroll { display:block; width:100%; max-width:100%; overflow-x:auto; overflow-y:hidden; border-radius:0; background:#fffdfa; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:auto; scrollbar-color:#c9c2b7 #f1eee8; }
-  .timeline-scroll::-webkit-scrollbar { height:10px; }
-  .timeline-scroll::-webkit-scrollbar-track { background:#f1eee8; border-radius:99px; }
-  .timeline-scroll::-webkit-scrollbar-thumb { background:#c9c2b7; border:2px solid #f1eee8; border-radius:99px; }
+  /* Keep the browser's native horizontal scrollbar available on desktop and touch devices. */
+  .timeline-scroll { display:block; width:100%; max-width:100%; overflow-x:scroll; overflow-y:hidden; border-radius:0; background:#fffdfa; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:auto; scrollbar-color:#8d887d #e9e5dd; scrollbar-gutter:stable; }
+  .timeline-scroll::-webkit-scrollbar { display:block; height:15px; -webkit-appearance:none; }
+  .timeline-scroll::-webkit-scrollbar-track { background:#e9e5dd; border-top:1px solid #d8d2c8; border-bottom:1px solid #d8d2c8; }
+  .timeline-scroll::-webkit-scrollbar-thumb { background:#8d887d; border:3px solid #e9e5dd; border-radius:99px; min-width:34px; }
+  .timeline-scroll::-webkit-scrollbar-thumb:hover { background:#6f6a60; }
+  @media (hover:hover) and (pointer:fine) {
+    .timeline-scroll { overflow-x:scroll; scrollbar-width:auto; }
+    .timeline-scroll::-webkit-scrollbar { height:16px; }
+  }
   .timeline-content { display:flex; align-items:stretch; width:max-content; min-width:100%; }
   .time-axis { position:sticky; left:0; z-index:5; flex:0 0 32px; width:32px; background:#fffdfa; box-shadow:3px 0 6px rgba(67,61,49,.05); }
   .time-axis-spacer { height:37px; border-bottom:1px solid #e8e2d9; }
