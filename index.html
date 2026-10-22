@@ -19,7 +19,7 @@
   .app { width: min(100%, 520px); min-height: 100dvh; margin: 0 auto; padding: max(22px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); }
   header { display:flex; justify-content:space-between; align-items:center; margin: 6px 2px 24px; }
   .brand { display:flex; align-items:center; gap:11px; }
-  .logo { width:43px; height:43px; border-radius:16px; display:grid; place-items:center; background:#e4ebe2; font-size:23px; }
+  .logo { width:43px; height:43px; border-radius:16px; display:grid; place-items:center; background:#eee9e1; font-size:31px; line-height:1; }
   h1 { font-size:21px; letter-spacing:-.7px; margin:0; font-weight:750; }
   .subtitle { color:var(--muted); font-size:12px; margin-top:2px; }
   .header-tools { display:flex; align-items:center; gap:7px; }
@@ -59,8 +59,8 @@
   .side-tile.active .minute-btn { background:#f8fbf7; border-color:#d5e2d5; color:var(--sage-dark); }
   .side-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
   .side-name { font-size:14px; font-weight:750; }
-  .side-icon { width:30px; height:30px; display:grid; place-items:center; border-radius:11px; background:#f5eee7; font-size:16px; }
-  .side-btn.active .side-icon { background:#d4e2d4; }
+  .side-icon { width:30px; height:30px; display:grid; place-items:center; border-radius:11px; background:#f5eee7; color:var(--sage-dark); }
+  .side-btn.active .side-icon { background:#d4e2d4; color:var(--sage-dark); }
   .last-side-badge { display:flex; align-items:center; width:max-content; max-width:100%; min-height:17px; margin-top:5px; padding:3px 6px; border-radius:999px; background:#d7e6d2; color:#42694a; font-size:8px; line-height:11px; letter-spacing:.65px; font-weight:850; visibility:hidden; }
   .side-tile.last-used .last-side-badge { visibility:visible; }
   .side-time { margin-top:5px; font-size:21px; font-weight:700; letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
@@ -220,7 +220,7 @@
     <div class="side-buttons">
       <div class="side-tile" id="leftTile">
         <button class="side-btn" id="leftBtn" type="button" aria-label="Start left breast">
-          <div class="side-row"><span class="side-name">Left side</span><span class="side-icon">🌿</span></div>
+          <div class="side-row"><span class="side-name">Left side</span><span class="side-icon">🐾</span></div>
           <span class="last-side-badge" id="leftLastSideLabel" aria-hidden="true">LAST FED</span>
           <div class="side-time" id="leftTime">00:00</div><div class="side-hint">Tap to start</div>
         </button>
@@ -231,7 +231,7 @@
       </div>
       <div class="side-tile" id="rightTile">
         <button class="side-btn" id="rightBtn" type="button" aria-label="Start right breast">
-          <div class="side-row"><span class="side-name">Right side</span><span class="side-icon">🌼</span></div>
+          <div class="side-row"><span class="side-name">Right side</span><span class="side-icon">🐾</span></div>
           <span class="last-side-badge" id="rightLastSideLabel" aria-hidden="true">LAST FED</span>
           <div class="side-time" id="rightTime">00:00</div><div class="side-hint">Tap to start</div>
         </button>
