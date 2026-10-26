@@ -434,9 +434,9 @@
       <button class="trend-period-button" id="trendPeriod7Btn" type="button" role="tab" data-trend-days="7" aria-selected="false" tabindex="-1">7 days</button>
       <button class="trend-period-button" id="trendPeriod14Btn" type="button" role="tab" data-trend-days="14" aria-selected="false" tabindex="-1">14 days</button>
     </nav>
-    <div class="trend-window-caption" id="trendWindowCaption">Today so far · compared with yesterday at this time</div>
+    <div class="trend-window-caption" id="trendWindowCaption">Yesterday (full day) · compared with the day before yesterday</div>
     <div id="trendsContent" aria-live="polite" aria-atomic="false"></div>
-    <p class="trend-footnote">Sessions are grouped by their start time. Sleep time includes any part of a sleep session that overlaps the selected period. Left/right percentages use only recorded side-specific feeding times; imported feeds without a side split are excluded from that calculation. Trends compare with the equivalent period immediately before this one.</p>
+    <p class="trend-footnote">Sessions are grouped by their start time. All trend periods include complete calendar days only and exclude today. Sleep time is clipped at midnight boundaries; night stretches are attributed to their start day. Left/right percentages use only recorded side-specific feeding times; imported feeds without a side split are excluded from that calculation. Trends compare with the equivalent period immediately before this one.</p>
   </section>
 
   <section class="card data-card" aria-label="Import and export data">
@@ -1606,9 +1606,13 @@
     return shifted;
   }
   function trendWindow(days, now) {
+    // Trends always use complete local calendar days and exclude today.
+    // The end is exclusive: 1 day = yesterday 00:00 up to today 00:00.
     const todayStart = startOfLocalDay(now);
-    const start = shiftCalendarDays(todayStart, -(days - 1));
-    return {start: start.getTime(), end: now.getTime(), previousStart: shiftCalendarDays(start, -days).getTime(), previousEnd: shiftCalendarDays(now, -days).getTime(), days};
+    const end = todayStart.getTime();
+    const start = shiftCalendarDays(todayStart, -days).getTime();
+    const previousStart = shiftCalendarDays(todayStart, -days * 2).getTime();
+    return {start, end, previousStart, previousEnd:start, days};
   }
   function trendFeedRecords(now) {
     const records = state.history.map(item => {
@@ -1639,7 +1643,7 @@
     return records.filter(item => Number.isFinite(item.trendStart) && item.trendStart > 0 && Number.isFinite(item.trendEnd) && item.trendEnd >= item.trendStart);
   }
   function calculateTrendStats(window, now) {
-    const feeds = trendFeedRecords(now).filter(item => item.trendStart >= window.start && item.trendStart <= window.end);
+    const feeds = trendFeedRecords(now).filter(item => item.trendStart >= window.start && item.trendStart < window.end);
     const feedCount = feeds.length;
     const feedMs = feeds.reduce((sum, item) => sum + Math.max(0, Number(item.trendTotal) || 0), 0);
     const leftMs = feeds.reduce((sum, item) => sum + Math.max(0, Number(item.leftMs) || 0), 0);
@@ -1648,29 +1652,30 @@
 
     const sleeps = trendSleepRecords(now);
     const dayCount = Math.max(1, Number(window.days) || 1);
-    const sleepEpisodes = sleeps.filter(item => item.trendStart >= window.start && item.trendStart <= window.end);
+    // Attribute session counts to the local calendar day on which each session starts.
+    const sleepEpisodes = sleeps.filter(item => item.trendStart >= window.start && item.trendStart < window.end);
+    // For total sleep, clip every interval to midnight boundaries of the selected window.
+    // This splits an overnight stretch across days and excludes all sleep after today's midnight.
     const overlappingSleepMs = sleeps.reduce((sum, item) => {
       const overlap = Math.max(0, Math.min(item.trendEnd, window.end) - Math.max(item.trendStart, window.start));
       return sum + overlap;
     }, 0);
-    // A night stretch is any sleep session whose local start and end dates differ.
-    // Include a night stretch if any part of it overlaps the selected window.
-    const overlappingSleeps = sleeps.filter(item =>
-      Math.min(item.trendEnd, window.end) > Math.max(item.trendStart, window.start)
-    );
-    const nightSleeps = overlappingSleeps.filter(item =>
-      !isSameDay(new Date(item.trendStart), new Date(item.trendEnd))
-    );
-    const nightStretchMs = nightSleeps.map(item => Math.max(0, item.trendEnd - item.trendStart));
-    const avgNightStretchMs = nightStretchMs.length
-      ? nightStretchMs.reduce((sum, duration) => sum + duration, 0) / nightStretchMs.length
-      : null;
-    // Daytime sleep means any sleep session that starts and ends on the same local date.
-    // Sum only the portion overlapping the window, then average it over all calendar days.
-    const daySleepMs = overlappingSleeps.reduce((sum, item) => {
+
+    // A night stretch is an individual sleep session whose start and end are on different
+    // local dates. Attribute it to its start day, sum the full stretches, then divide by
+    // the number of selected full days (rather than averaging only nights that exist).
+    const nightSleepMs = sleepEpisodes.reduce((sum, item) => {
+      if (item.ongoing || isSameDay(new Date(item.trendStart), new Date(item.trendEnd))) return sum;
+      return sum + Math.max(0, item.trendEnd - item.trendStart);
+    }, 0);
+
+    // Daytime sleep includes only sessions that begin and end on the same local date.
+    // Sum those sessions, then divide by the full number of selected days.
+    const daySleepMs = sleepEpisodes.reduce((sum, item) => {
       if (!isSameDay(new Date(item.trendStart), new Date(item.trendEnd))) return sum;
       return sum + Math.max(0, Math.min(item.trendEnd, window.end) - Math.max(item.trendStart, window.start));
     }, 0);
+
     return {
       feedCount, feedMs, avgFeedMs: feedCount ? feedMs / feedCount : null,
       avgFeedsPerDay: feedCount / dayCount,
@@ -1680,7 +1685,7 @@
       avgSleepSessionsPerDay:sleepEpisodes.length / dayCount,
       sleepMs:overlappingSleepMs,
       avgSleepMsPerDay:overlappingSleepMs / dayCount,
-      avgNightStretchMs,
+      avgNightStretchMs:nightSleepMs / dayCount,
       avgDaySleepMsPerDay:daySleepMs / dayCount
     };
   }
@@ -1742,9 +1747,9 @@
     const current = calculateTrendStats(currentWindow, now.getTime());
     const previous = calculateTrendStats(previousWindow, currentWindow.previousEnd);
     if (days === 1) {
-      $('trendWindowCaption').textContent = `Today so far · compared with yesterday up to ${new Date(currentWindow.previousEnd).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`;
+      $('trendWindowCaption').textContent = 'Yesterday (full day) · compared with the day before yesterday';
     } else {
-      $('trendWindowCaption').textContent = `Last ${days} calendar days through now · compared with the previous ${days}-day period`;
+      $('trendWindowCaption').textContent = `Last ${days} complete days through yesterday · compared with the preceding ${days} complete days`;
     }
     const leftPercent = current.leftPercent;
     const rightPercent = leftPercent === null ? null : 100 - leftPercent;
@@ -1760,7 +1765,7 @@
     const sleepHtml = [
       trendMetric('Average sleep sessions per day', current.avgSleepSessionsPerDay.toFixed(1), metricDelta(current.avgSleepSessionsPerDay, previous.avgSleepSessionsPerDay, 'perday'), 'sleep', `Daily average across ${days} day${days === 1 ? '' : 's'} · counted by session start`),
       trendMetric('Average sleep time per day', humanDuration(current.avgSleepMsPerDay), metricDelta(current.avgSleepMsPerDay, previous.avgSleepMsPerDay, 'durationPerDay'), 'sleep', `Daily average across ${days} day${days === 1 ? '' : 's'} · includes sleep overlapping the period`),
-      trendMetric('Average night sleep stretch', current.avgNightStretchMs === null ? '—' : humanDuration(current.avgNightStretchMs), metricDelta(current.avgNightStretchMs, previous.avgNightStretchMs, 'duration'), 'sleep', current.avgNightStretchMs === null ? 'No sleep stretch spanning midnight in this period' : 'Average duration of sleep sessions that span midnight'),
+      trendMetric('Average night sleep stretch', humanDuration(current.avgNightStretchMs), metricDelta(current.avgNightStretchMs, previous.avgNightStretchMs, 'durationPerDay'), 'sleep', `Total duration of overnight sessions attributed to their start day, divided by ${days} day${days === 1 ? '' : 's'}`),
       trendMetric('Average daytime sleep per day', humanDuration(current.avgDaySleepMsPerDay), metricDelta(current.avgDaySleepMsPerDay, previous.avgDaySleepMsPerDay, 'durationPerDay'), 'sleep', `Average daily sum of sleep sessions that do not span midnight · across ${days} day${days === 1 ? '' : 's'}`)
     ].join('');
     $('trendsContent').innerHTML = `
