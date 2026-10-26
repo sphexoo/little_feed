@@ -1664,10 +1664,30 @@
     // A night stretch is an individual sleep session whose start and end are on different
     // local dates. Attribute it to its start day, sum the full stretches, then divide by
     // the number of selected full days (rather than averaging only nights that exist).
-    const nightSleepMs = sleepEpisodes.reduce((sum, item) => {
-      if (item.ongoing || isSameDay(new Date(item.trendStart), new Date(item.trendEnd))) return sum;
-      return sum + Math.max(0, item.trendEnd - item.trendStart);
-    }, 0);
+    const nightEpisodes = sleepEpisodes.filter(item =>
+      !item.ongoing && !isSameDay(new Date(item.trendStart), new Date(item.trendEnd))
+    );
+    const nightSleepMs = nightEpisodes.reduce((sum, item) =>
+      sum + Math.max(0, item.trendEnd - item.trendStart), 0);
+    // Average clock times use only completed overnight sessions. Use a circular mean
+    // so sessions around midnight (e.g. 23:45 and 00:15) average correctly.
+    const averageClockMinute = (items, timestampField) => {
+      if (!items.length) return null;
+      let sinSum = 0, cosSum = 0;
+      for (const item of items) {
+        const date = new Date(item[timestampField]);
+        const minute = date.getHours() * 60 + date.getMinutes();
+        const angle = minute / 1440 * Math.PI * 2;
+        sinSum += Math.sin(angle);
+        cosSum += Math.cos(angle);
+      }
+      if (Math.abs(sinSum) < 1e-9 && Math.abs(cosSum) < 1e-9) return null;
+      let minute = Math.atan2(sinSum, cosSum) / (Math.PI * 2) * 1440;
+      if (minute < 0) minute += 1440;
+      return Math.round(minute) % 1440;
+    };
+    const avgNightFallAsleepMinute = averageClockMinute(nightEpisodes, 'trendStart');
+    const avgNightWakeupMinute = averageClockMinute(nightEpisodes, 'trendEnd');
 
     // Daytime sleep includes only sessions that begin and end on the same local date.
     // Sum those sessions, then divide by the full number of selected days.
@@ -1686,6 +1706,8 @@
       sleepMs:overlappingSleepMs,
       avgSleepMsPerDay:overlappingSleepMs / dayCount,
       avgNightStretchMs:nightSleepMs / dayCount,
+      avgNightFallAsleepMinute,
+      avgNightWakeupMinute,
       avgDaySleepMsPerDay:daySleepMs / dayCount
     };
   }
@@ -1703,6 +1725,26 @@
     const sign = delta > 0 ? '+' : '−';
     const percent = previous > 0 ? ` · ${delta > 0 ? '+' : '−'}${Math.round(Math.abs(delta) / previous * 100)}%` : '';
     return `${sign}${humanDuration(Math.abs(delta))}${percent} vs previous period`;
+  }
+  function formatClockMinute(minute) {
+    if (minute === null || minute === undefined || !Number.isFinite(minute)) return '—';
+    const normalized = ((Math.round(minute) % 1440) + 1440) % 1440;
+    return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
+  }
+  function signedClockTimeDelta(current, previous) {
+    if (current === null || previous === null || !Number.isFinite(current) || !Number.isFinite(previous)) {
+      return current === null ? 'No overnight sleep recorded in this period' : 'No previous overnight sleep data';
+    }
+    let delta = current - previous;
+    if (delta > 720) delta -= 1440;
+    if (delta < -720) delta += 1440;
+    if (Math.abs(delta) < 2) return 'About the same time as previous period';
+    const direction = delta > 0 ? 'later' : 'earlier';
+    const minutes = Math.abs(Math.round(delta));
+    const amount = minutes >= 60
+      ? `${Math.floor(minutes / 60)} hr${minutes % 60 ? ` ${minutes % 60} min` : ''}`
+      : `${minutes} min`;
+    return `${amount} ${direction} vs previous period`;
   }
   function metricDelta(current, previous, kind, noun) {
     if (current === null || current === undefined || !Number.isFinite(current)) return 'Not enough recorded data';
@@ -1766,6 +1808,8 @@
       trendMetric('Average sleep sessions per day', current.avgSleepSessionsPerDay.toFixed(1), metricDelta(current.avgSleepSessionsPerDay, previous.avgSleepSessionsPerDay, 'perday'), 'sleep', `Daily average across ${days} day${days === 1 ? '' : 's'} · counted by session start`),
       trendMetric('Average sleep time per day', humanDuration(current.avgSleepMsPerDay), metricDelta(current.avgSleepMsPerDay, previous.avgSleepMsPerDay, 'durationPerDay'), 'sleep', `Daily average across ${days} day${days === 1 ? '' : 's'} · includes sleep overlapping the period`),
       trendMetric('Average night sleep stretch', humanDuration(current.avgNightStretchMs), metricDelta(current.avgNightStretchMs, previous.avgNightStretchMs, 'durationPerDay'), 'sleep', `Total duration of overnight sessions attributed to their start day, divided by ${days} day${days === 1 ? '' : 's'}`),
+      trendMetric('Average time falling asleep', formatClockMinute(current.avgNightFallAsleepMinute), signedClockTimeDelta(current.avgNightFallAsleepMinute, previous.avgNightFallAsleepMinute), 'sleep', 'Average start time of completed overnight sleep sessions'),
+      trendMetric('Average wake-up time', formatClockMinute(current.avgNightWakeupMinute), signedClockTimeDelta(current.avgNightWakeupMinute, previous.avgNightWakeupMinute), 'sleep', 'Average end time of the same overnight sleep sessions'),
       trendMetric('Average daytime sleep per day', humanDuration(current.avgDaySleepMsPerDay), metricDelta(current.avgDaySleepMsPerDay, previous.avgDaySleepMsPerDay, 'durationPerDay'), 'sleep', `Average daily sum of sleep sessions that do not span midnight · across ${days} day${days === 1 ? '' : 's'}`)
     ].join('');
     $('trendsContent').innerHTML = `
