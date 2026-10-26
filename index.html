@@ -157,7 +157,10 @@
   .time-label.first { transform:none; }
   .time-label.last { transform:translateY(-100%); }
   .timeline-days { display:flex; align-items:stretch; gap:1px; padding-right:2px; }
-  .timeline-day { flex:0 0 46px; width:46px; }
+  .timeline-day { flex:0 0 46px; width:46px; display:block; margin:0; padding:0; border:0; border-radius:0; appearance:none; -webkit-appearance:none; background:transparent; color:inherit; font:inherit; text-align:left; cursor:pointer; }
+  .timeline-day:hover .timeline-date { background:#eff4ee; color:#52715d; }
+  .timeline-day:focus-visible { outline:2px solid #52715d; outline-offset:-2px; position:relative; z-index:6; }
+  .timeline-day:focus-visible .timeline-date { color:#52715d; background:#eff4ee; }
   .timeline-date { height:37px; padding:5px 1px 4px; text-align:center; border-bottom:1px solid #e8e2d9; color:var(--muted); font-size:9px; line-height:1.1; white-space:nowrap; }
   .timeline-date strong { display:block; color:var(--ink); font-size:10px; margin-bottom:2px; }
   .timeline-day.today-column .timeline-date { color:#52715d; background:#eff4ee; border-radius:7px 7px 0 0; }
@@ -196,9 +199,19 @@
   .history-modal-content .history-collapse { margin:0; }
   .history-modal-content .history-head { margin:4px 2px 14px; }
   .history-modal-content .history-list { padding-bottom:4px; }
+  .history-month-nav { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:8px; margin:0 1px 12px; padding:9px; border:1px solid #e9e3d9; background:#f8f6f0; border-radius:15px; }
+  .history-month-nav[hidden] { display:none !important; }
+  .history-month-label { min-width:0; text-align:center; color:var(--ink); font-size:12px; font-weight:800; }
+  .history-month-label small { display:block; color:var(--muted); font-size:10px; font-weight:600; margin-top:3px; }
+  .month-nav-btn { border:1px solid #e6e0d6; background:#fffdfa; color:var(--sage-dark); border-radius:10px; padding:8px 9px; min-height:36px; font-size:11px; font-weight:750; white-space:nowrap; }
+  .month-nav-btn:disabled { opacity:.35; cursor:default; }
+  .month-nav-btn:focus-visible { outline:2px solid var(--sage); outline-offset:2px; }
   .history-modal-content .history-item, .history-modal-content .growth-item { flex-wrap:wrap; }
   .history-modal-content .history-main, .history-modal-content .growth-entry-main { flex:1 1 120px; }
   .history-modal-content .record-actions { margin-left:auto; }
+  .timeline-history-start { font-variant-numeric:tabular-nums; }
+  .timeline-history-kind { display:inline-flex; align-items:center; gap:4px; margin-bottom:3px; color:var(--sage-dark); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; }
+  .timeline-history-empty { padding:18px 14px; border:1px dashed #ded8cd; border-radius:16px; color:var(--muted); font-size:12px; line-height:1.5; text-align:center; background:#faf8f3; }
   @media (min-width:520px) { .history-modal { max-height:88dvh; padding:15px 18px 18px; } }
   .editor-backdrop { position:fixed; inset:0; z-index:100; background:rgba(37,38,34,.38); display:flex; align-items:flex-end; justify-content:center; padding:16px 12px max(12px, env(safe-area-inset-bottom)); }
   .editor-backdrop[hidden] { display:none !important; }
@@ -407,7 +420,7 @@
         </div>
       </div>
       <div class="timeline-empty" id="timelineEmpty" hidden>No sleep or feeding sessions are recorded for this period yet. Start tracking a few sessions and they'll appear here.</div>
-      <p class="timeline-footnote">Blue blocks show sleep; green feeding blocks overlay the same column. Overnight sessions continue into the next day. Outlined blocks are still in progress.</p>
+      <p class="timeline-footnote">Blue blocks show sleep; green feeding blocks overlay the same column. Overnight sessions continue into the next day. Outlined blocks are still in progress. Tap a day column to open all sessions that overlap that day, ordered by start time.</p>
     </div>
   </section>
 
@@ -443,7 +456,7 @@
   <div class="footnote">Made with love for the little moments ✨<br>Your data stays on this device; it is not synced to the cloud.</div>
 </main>
 <div class="history-backdrop" id="historyBackdrop" hidden>
-  <section class="history-modal" role="dialog" aria-modal="true" aria-label="Feeding and sleep history">
+  <section class="history-modal" role="dialog" aria-modal="true" aria-label="Little Feed history entries">
     <div class="history-modal-top">
       <button class="history-modal-close" id="historyModalCloseBtn" type="button" aria-label="Close history">×</button>
     </div>
@@ -452,19 +465,28 @@
         <div class="history-head">
           <h3>Feeding history</h3><span class="count" id="historyCount">0 feeds</span>
         </div>
+        <div class="history-month-nav" id="feedHistoryMonthNav" aria-live="polite" hidden></div>
         <section class="history-list" id="historyList" aria-live="polite"></section>
       </div>
       <div class="history-collapse" id="sleepHistoryPanel" hidden>
         <div class="history-head">
           <h3>Sleep history</h3><span class="count" id="sleepHistoryCount">0 sessions</span>
         </div>
+        <div class="history-month-nav" id="sleepHistoryMonthNav" aria-live="polite" hidden></div>
         <section class="history-list" id="sleepHistoryList" aria-live="polite"></section>
       </div>
       <div class="history-collapse" id="growthHistoryPanel" hidden>
         <div class="history-head">
           <h3>Growth history</h3><span class="count" id="growthCount">0 entries</span>
         </div>
+        <div class="history-month-nav" id="growthHistoryMonthNav" aria-live="polite" hidden></div>
         <section class="history-list growth-list" id="growthList" aria-live="polite"></section>
+      </div>
+      <div class="history-collapse" id="timelineDayHistoryPanel" hidden>
+        <div class="history-head">
+          <h3 id="timelineDayHistoryTitle">Timeline entries</h3><span class="count" id="timelineDayHistoryCount">0 entries</span>
+        </div>
+        <section class="history-list" id="timelineDayHistoryList" aria-live="polite"></section>
       </div>
     </div>
   </section>
@@ -514,6 +536,7 @@
   let lastTimelineRenderSecond = -1;
   let editorContext = null;
   let sleepStartPreview = null;
+  let selectedTimelineDayStart = null;
 
   const DB_NAME = 'LittleFeedDatabase';
   const DB_VERSION = 1;
@@ -1107,14 +1130,61 @@
     const duration = Number(item.totalMs);
     return Number.isFinite(endedAt) && Number.isFinite(duration) ? endedAt - duration : endedAt;
   }
+  const historyMonthSelections = { feed: null, sleep: null, growth: null };
+  function historyMonthKey(timestamp) {
+    const date = new Date(Number(timestamp));
+    if (!Number.isFinite(date.getTime())) return '';
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  }
+  function historyMonthLabel(key) {
+    const [year, month] = key.split('-').map(Number);
+    return new Date(year, month - 1, 1).toLocaleDateString([], { month: 'long', year: 'numeric' });
+  }
+  function selectHistoryMonth(type, records, timestampOf) {
+    const navIds = { feed: 'feedHistoryMonthNav', sleep: 'sleepHistoryMonthNav', growth: 'growthHistoryMonthNav' };
+    const nav = $(navIds[type]);
+    const valid = records.map(item => ({ item, key: historyMonthKey(timestampOf(item)) })).filter(row => row.key);
+    const months = [...new Set(valid.map(row => row.key))].sort((a,b) => b.localeCompare(a));
+    if (!months.length) {
+      historyMonthSelections[type] = null;
+      nav.hidden = true;
+      nav.innerHTML = '';
+      return [];
+    }
+    if (!historyMonthSelections[type] || !months.includes(historyMonthSelections[type])) historyMonthSelections[type] = months[0];
+    const selected = historyMonthSelections[type];
+    const index = months.indexOf(selected);
+    const count = valid.filter(row => row.key === selected).length;
+    nav.hidden = false;
+    nav.innerHTML = `<button class="month-nav-btn" type="button" data-month-nav="${type}" data-direction="older" ${index >= months.length - 1 ? 'disabled' : ''} aria-label="Show older month">‹ Older</button><div class="history-month-label">${historyMonthLabel(selected)}<small>${count} ${count === 1 ? 'entry' : 'entries'} · ${index + 1} of ${months.length} months</small></div><button class="month-nav-btn" type="button" data-month-nav="${type}" data-direction="newer" ${index <= 0 ? 'disabled' : ''} aria-label="Show newer month">Newer ›</button>`;
+    return valid.filter(row => row.key === selected).map(row => row.item);
+  }
+  function moveHistoryMonth(type, direction) {
+    const config = {
+      feed: { records: state.history, timestampOf: feedStartTimestamp },
+      sleep: { records: state.sleepHistory, timestampOf: item => item.endedAt },
+      growth: { records: state.growthHistory, timestampOf: item => item.timestamp }
+    }[type];
+    if (!config) return;
+    const months = [...new Set(config.records.map(item => historyMonthKey(config.timestampOf(item))).filter(Boolean))].sort((a,b) => b.localeCompare(a));
+    const index = months.indexOf(historyMonthSelections[type]);
+    const next = index + (direction === 'older' ? 1 : -1);
+    if (next >= 0 && next < months.length) {
+      historyMonthSelections[type] = months[next];
+      render();
+      $('historyModalContent').scrollTop = 0;
+    }
+  }
   function renderHistory() {
     const list = $('historyList');
     $('historyCount').textContent = `${state.history.length} ${state.history.length === 1 ? 'feed' : 'feeds'}`;
     if (!state.history.length) {
+      $('feedHistoryMonthNav').hidden = true;
       list.innerHTML = '<div class="card empty"><div class="empty-icon">🌙</div><strong>Your feeding story starts here</strong><br>When you finish a feed, it will appear here.</div>';
       return;
     }
-    list.innerHTML = [...state.history].sort((a,b) => feedStartTimestamp(b) - feedStartTimestamp(a)).slice(0, 30).map(item => {
+    const monthItems = selectHistoryMonth('feed', state.history, feedStartTimestamp);
+    list.innerHTML = monthItems.sort((a,b) => feedStartTimestamp(b) - feedStartTimestamp(a)).map(item => {
       const date = new Date(feedStartTimestamp(item));
       const dateText = isSameDay(date, new Date()) ? `Today, ${date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}` :
         date.toLocaleDateString([], {month:'short', day:'numeric'}) + ` · ` + date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
@@ -1196,10 +1266,12 @@
     const list = $('sleepHistoryList');
     $('sleepHistoryCount').textContent = `${state.sleepHistory.length} ${state.sleepHistory.length === 1 ? 'session' : 'sessions'}`;
     if (!state.sleepHistory.length) {
+      $('sleepHistoryMonthNav').hidden = true;
       list.innerHTML = '<div class="card empty"><div class="empty-icon">🌙</div><strong>No sleep sessions yet</strong><br>When your baby wakes up, the session will be saved here.</div>';
       return;
     }
-    list.innerHTML = [...state.sleepHistory].sort((a,b) => Number(b.endedAt)-Number(a.endedAt)).slice(0, 30).map(item => {
+    const monthItems = selectHistoryMonth('sleep', state.sleepHistory, item => item.endedAt);
+    list.innerHTML = monthItems.sort((a,b) => Number(b.endedAt)-Number(a.endedAt)).map(item => {
       const start = new Date(item.startedAt), end = new Date(item.endedAt);
       const sameDay = isSameDay(start, end);
       const dateText = isSameDay(end, new Date()) ? `Today · ${end.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}` :
@@ -1232,10 +1304,12 @@
     const records = [...state.growthHistory].sort((a,b) => Number(b.timestamp)-Number(a.timestamp));
     $('growthCount').textContent = `${records.length} ${records.length === 1 ? 'entry' : 'entries'}`;
     if (!records.length) {
+      $('growthHistoryMonthNav').hidden = true;
       list.innerHTML = '<div class="empty" style="padding:17px 10px">No growth measurements yet. Add weight, height, or head circumference above.</div>';
       return;
     }
-    list.innerHTML = records.map(item => {
+    const monthItems = selectHistoryMonth('growth', records, item => item.timestamp);
+    list.innerHTML = monthItems.map(item => {
       const values = [
         item.weight != null ? `Weight ${formatGrowthValue(item,'weight')}` : '',
         item.height != null ? `Height ${formatGrowthValue(item,'height')}` : '',
@@ -1391,10 +1465,10 @@
       const daynum = dayStart.toLocaleDateString([], {month:'numeric',day:'numeric'});
       const fullDate = dayStart.toLocaleDateString([], {weekday:'long',month:'long',day:'numeric',year:'numeric'});
       const safeFullDate = fullDate.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return `<div class="timeline-day${isToday ? ' today-column' : ''}" aria-label="${safeFullDate}">
-        <div class="timeline-date" title="${safeFullDate}"><strong>${isToday ? 'Today' : weekday}</strong>${daynum}</div>
-        <div class="timeline-plot" aria-label="${safeFullDate}: ${dayEvents.length} sessions">${plotBlocks}</div>
-      </div>`;
+      return `<button type="button" class="timeline-day${isToday ? ' today-column' : ''}" data-timeline-day="${dayStartMs}" aria-label="${safeFullDate}, ${dayEvents.length} sessions. Open entries for this day" title="Open entries for ${safeFullDate}">
+        <div class="timeline-date"><strong>${isToday ? 'Today' : weekday}</strong>${daynum}</div>
+        <div class="timeline-plot" aria-hidden="true">${plotBlocks}</div>
+      </button>`;
     }).join('');
 
     host.innerHTML = rows;
@@ -1415,6 +1489,98 @@
       // Preserve the user's horizontal position while active timers refresh the drawing.
       scroller.scrollLeft = oldScrollLeft;
     }
+  }
+
+  function timelineEntriesForDay(dayStartMs) {
+    const dayStart = Number(dayStartMs);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    const startLimit = dayStart;
+    const endLimit = dayEnd.getTime();
+    const entries = [];
+    const add = entry => {
+      if (Number.isFinite(entry.start) && Number.isFinite(entry.end) && entry.end > entry.start && entry.end > startLimit && entry.start < endLimit) entries.push(entry);
+    };
+    state.sleepHistory.forEach(item => add({kind:'sleep', id:item.id, item, start:Number(item.startedAt), end:Number(item.endedAt)}));
+    state.history.forEach(item => add({kind:'feed', id:item.id, item, start:Number(feedStartTimestamp(item)), end:Number(item.endedAt)}));
+    if (state.activeSleepStart) add({kind:'active-sleep', start:Number(state.activeSleepStart), end:Date.now(), ongoing:true});
+    if (state.active && state.startedAt) add({kind:'active-feed', start:Number(state.startedAt), end:Date.now(), ongoing:true});
+    return entries.sort((a,b) => a.start-b.start || a.end-b.end || a.kind.localeCompare(b.kind));
+  }
+  function timelineEntryDateTime(timestamp) {
+    const date = new Date(Number(timestamp));
+    if (!Number.isFinite(date.getTime())) return 'Unknown time';
+    return `${date.toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'})} · ${date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
+  }
+  function renderTimelineColumnHistory() {
+    if (selectedTimelineDayStart === null) return;
+    const date = new Date(Number(selectedTimelineDayStart));
+    if (!Number.isFinite(date.getTime())) return;
+    const dateLabel = date.toLocaleDateString([], {weekday:'long',month:'long',day:'numeric',year:'numeric'});
+    const list = $('timelineDayHistoryList');
+    const entries = timelineEntriesForDay(selectedTimelineDayStart);
+    $('timelineDayHistoryTitle').textContent = dateLabel;
+    $('timelineDayHistoryCount').textContent = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
+    if (!entries.length) {
+      list.innerHTML = '<div class="timeline-history-empty">No feeding or sleep sessions overlap this day.</div>';
+      return;
+    }
+    list.innerHTML = entries.map(entry => {
+      const isFeed = entry.kind === 'feed' || entry.kind === 'active-feed';
+      const isActive = entry.kind === 'active-feed' || entry.kind === 'active-sleep';
+      const isSleep = !isFeed;
+      const item = entry.item || {};
+      const start = new Date(entry.start), end = new Date(entry.end);
+      const typeLabel = isFeed ? 'Feeding' : 'Sleep';
+      const icon = isFeed ? '🍼' : '🌙';
+      const range = `${timelineEntryDateTime(entry.start)} – ${isActive ? 'In progress' : timelineEntryDateTime(entry.end)}`;
+      const crossingMidnight = !isSameDay(start, end);
+      let details = range;
+      if (crossingMidnight && !isActive) details += ' · overnight';
+      let durationMs;
+      if (entry.kind === 'feed') durationMs = Math.max(0, Number(item.totalMs) || (entry.end - entry.start));
+      else if (entry.kind === 'sleep') durationMs = Math.max(0, Number(item.durationMs) || (entry.end - entry.start));
+      else if (entry.kind === 'active-feed') durationMs = totalElapsed();
+      else durationMs = Math.max(0, entry.end - entry.start);
+      if (isFeed && !isActive) {
+        const sides = item.importedAggregate && item.importedSide === 'both'
+          ? 'Both sides · combined duration'
+          : [Number(item.leftMs)>0 ? `Left ${fmt(item.leftMs)}` : '', Number(item.rightMs)>0 ? `Right ${fmt(item.rightMs)}` : ''].filter(Boolean).join(' · ');
+        if (sides) details += `<br>${safeAttr(sides)}`;
+      }
+      if (isFeed && entry.kind === 'active-feed') details += `<br>${capitalize(state.active)} side · running`;
+      if (isSleep && isActive) details += '<br>Sleep in progress';
+      const editButton = entry.kind === 'feed'
+        ? `<button class="edit-record" type="button" data-edit-feed="${safeAttr(entry.id)}">Edit</button>`
+        : entry.kind === 'sleep'
+          ? `<button class="edit-record" type="button" data-edit-sleep="${safeAttr(entry.id)}">Edit</button>`
+          : `<button class="edit-record" type="button" data-edit-timeline-active="${entry.kind === 'active-feed' ? 'feed' : 'sleep'}">Adjust</button>`;
+      const deleteButton = entry.kind === 'feed'
+        ? `<button class="delete" type="button" data-delete="${safeAttr(entry.id)}" aria-label="Delete feed">Delete</button>`
+        : entry.kind === 'sleep'
+          ? `<button class="delete" type="button" data-sleep-delete="${safeAttr(entry.id)}" aria-label="Delete sleep record">Delete</button>`
+          : '';
+      return `<article class="card history-item timeline-history-item">
+        <div class="history-mark${isSleep ? ' sleep-history-mark' : ''}">${icon}</div>
+        <div class="history-main"><div class="timeline-history-kind">${typeLabel}${entry.ongoing ? ' · In progress' : ''}</div><div class="history-date timeline-history-start">${timelineEntryDateTime(entry.start)}</div><div class="history-meta">${details}</div></div>
+        <div class="history-duration">${humanDuration(durationMs)}<small>${isFeed ? 'feeding' : 'asleep'}</small></div>
+        <div class="record-actions">${editButton}${deleteButton}</div>
+      </article>`;
+    }).join('');
+  }
+  function openTimelineDayHistory(dayStartMs, sourceButton) {
+    selectedTimelineDayStart = Number(dayStartMs);
+    lastHistoryToggle = null;
+    ['feedingHistoryPanel','sleepHistoryPanel','growthHistoryPanel'].forEach(id => { $(id).hidden = true; });
+    $('timelineDayHistoryPanel').hidden = false;
+    ['feedHistoryToggle','sleepHistoryToggle','growthHistoryToggle'].forEach(id => { $(id).setAttribute('aria-expanded', 'false'); });
+    renderTimelineColumnHistory();
+    $('historyBackdrop').hidden = false;
+    document.body.style.overflow = 'hidden';
+    $('historyModalCloseBtn').focus();
+  }
+  function refreshTimelineColumnHistoryIfOpen() {
+    if (selectedTimelineDayStart !== null && !$('historyBackdrop').hidden && !$('timelineDayHistoryPanel').hidden) renderTimelineColumnHistory();
   }
 
   function maybeLoadEarlierTimeline() {
@@ -1875,6 +2041,7 @@
     button.addEventListener('click', () => adjustLiveFeedSide(button.dataset.adjustSide, Number(button.dataset.adjustMinutes)));
   });
   $('editorForm').addEventListener('submit', saveEditor);
+  $('editorForm').addEventListener('submit', () => { if ($('editorBackdrop').hidden) refreshTimelineColumnHistoryIfOpen(); });
   $('editorCloseBtn').addEventListener('click', closeEditor);
   $('editorCancelBtn').addEventListener('click', closeEditor);
   $('editorBackdrop').addEventListener('click', e => { if (e.target === $('editorBackdrop')) closeEditor(); });
@@ -1973,18 +2140,52 @@
     });
   });
   $('timelineScroller').addEventListener('scroll', maybeLoadEarlierTimeline, {passive:true});
+  $('weekDiagram').addEventListener('click', event => {
+    const dayButton = event.target.closest('[data-timeline-day]');
+    if (!dayButton) return;
+    openTimelineDayHistory(dayButton.dataset.timelineDay, dayButton);
+  });
+  $('timelineDayHistoryList').addEventListener('click', event => {
+    const editFeed = event.target.closest('[data-edit-feed]');
+    if (editFeed) { openEditor('feed-record', editFeed.dataset.editFeed); return; }
+    const editSleep = event.target.closest('[data-edit-sleep]');
+    if (editSleep) { openEditor('sleep-record', editSleep.dataset.editSleep); return; }
+    const editActive = event.target.closest('[data-edit-timeline-active]');
+    if (editActive) { openEditor(editActive.dataset.editTimelineActive === 'feed' ? 'active-feed' : 'active-sleep'); return; }
+    const feedDelete = event.target.closest('[data-delete]');
+    if (feedDelete) {
+      const item = state.history.find(x => String(x.id) === String(feedDelete.dataset.delete));
+      if (!item || !confirm('Delete this feeding record?')) return;
+      state.history = state.history.filter(x => x.id !== item.id);
+      recalculateLastFeed(); persistExtended(); render(); renderTimelineColumnHistory(); showToast('Feed removed'); return;
+    }
+    const sleepDelete = event.target.closest('[data-sleep-delete]');
+    if (sleepDelete) {
+      const item = state.sleepHistory.find(x => String(x.id) === String(sleepDelete.dataset.sleepDelete));
+      if (!item || !confirm('Delete this sleep record?')) return;
+      state.sleepHistory = state.sleepHistory.filter(x => x.id !== item.id);
+      persistExtended(); render(); renderTimelineColumnHistory(); showToast('Sleep record removed');
+    }
+  });
   function closeHistoryOverlay() {
+    const restoreTimelineDay = selectedTimelineDayStart;
     $('historyBackdrop').hidden = true;
-    ['feedingHistoryPanel','sleepHistoryPanel','growthHistoryPanel'].forEach(id => { $(id).hidden = true; });
+    ['feedingHistoryPanel','sleepHistoryPanel','growthHistoryPanel','timelineDayHistoryPanel'].forEach(id => { $(id).hidden = true; });
     ['feedHistoryToggle','sleepHistoryToggle','growthHistoryToggle'].forEach(id => { $(id).setAttribute('aria-expanded', 'false'); });
+    selectedTimelineDayStart = null;
     document.body.style.overflow = '';
-    if (lastHistoryToggle) lastHistoryToggle.focus();
+    if (lastHistoryToggle && lastHistoryToggle.isConnected) lastHistoryToggle.focus();
+    else if (restoreTimelineDay !== null) {
+      const dayButton = document.querySelector(`[data-timeline-day="${restoreTimelineDay}"]`);
+      if (dayButton) dayButton.focus();
+    }
   }
   function wireHistoryToggle(buttonId, panelId) {
     const button = $(buttonId);
     button.addEventListener('click', () => {
       lastHistoryToggle = button;
-      ['feedingHistoryPanel','sleepHistoryPanel','growthHistoryPanel'].forEach(id => { $(id).hidden = id !== panelId; });
+      selectedTimelineDayStart = null;
+      ['feedingHistoryPanel','sleepHistoryPanel','growthHistoryPanel','timelineDayHistoryPanel'].forEach(id => { $(id).hidden = id !== panelId; });
       ['feedHistoryToggle','sleepHistoryToggle','growthHistoryToggle'].forEach(id => { $(id).setAttribute('aria-expanded', String($(id).id === buttonId)); });
       $('historyBackdrop').hidden = false;
       document.body.style.overflow = 'hidden';
@@ -1994,6 +2195,12 @@
   wireHistoryToggle('feedHistoryToggle', 'feedingHistoryPanel');
   wireHistoryToggle('sleepHistoryToggle', 'sleepHistoryPanel');
   wireHistoryToggle('growthHistoryToggle', 'growthHistoryPanel');
+  ['feedHistoryMonthNav','sleepHistoryMonthNav','growthHistoryMonthNav'].forEach(navId => {
+    $(navId).addEventListener('click', event => {
+      const button = event.target.closest('[data-month-nav]');
+      if (button && !button.disabled) moveHistoryMonth(button.dataset.monthNav, button.dataset.direction);
+    });
+  });
   $('historyModalCloseBtn').addEventListener('click', closeHistoryOverlay);
   $('historyBackdrop').addEventListener('click', e => { if (e.target === $('historyBackdrop')) closeHistoryOverlay(); });
 
