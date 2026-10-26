@@ -210,6 +210,12 @@
   .history-modal-content .history-main, .history-modal-content .growth-entry-main { flex:1 1 120px; }
   .history-modal-content .record-actions { margin-left:auto; }
   .timeline-history-start { font-variant-numeric:tabular-nums; }
+  /* Subtle type-specific tints make timeline-day popup entries easy to scan. */
+  .timeline-history-item.feed-entry { background:var(--feed-tint-strong); border-color:#dfe9dc; }
+  .timeline-history-item.sleep-entry { background:var(--sleep-tint-strong); border-color:var(--sleep-accent-border); }
+  .timeline-history-item.feed-entry .history-mark { background:#dce9d8; color:var(--sage-dark); }
+  .timeline-history-item.sleep-entry .history-mark { background:var(--sleep-accent-light); color:var(--sleep-accent-dark); }
+  .timeline-history-item.sleep-entry .timeline-history-kind { color:var(--sleep-accent-dark); }
   .timeline-history-kind { display:inline-flex; align-items:center; gap:4px; margin-bottom:3px; color:var(--sage-dark); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.5px; }
   .timeline-history-empty { padding:18px 14px; border:1px dashed #ded8cd; border-radius:16px; color:var(--muted); font-size:12px; line-height:1.5; text-align:center; background:#faf8f3; }
   @media (min-width:520px) { .history-modal { max-height:88dvh; padding:15px 18px 18px; } }
@@ -1560,7 +1566,7 @@
         : entry.kind === 'sleep'
           ? `<button class="delete" type="button" data-sleep-delete="${safeAttr(entry.id)}" aria-label="Delete sleep record">Delete</button>`
           : '';
-      return `<article class="card history-item timeline-history-item">
+      return `<article class="card history-item timeline-history-item ${isFeed ? 'feed-entry' : 'sleep-entry'}">
         <div class="history-mark${isSleep ? ' sleep-history-mark' : ''}">${icon}</div>
         <div class="history-main"><div class="timeline-history-kind">${typeLabel}${entry.ongoing ? ' · In progress' : ''}</div><div class="history-date timeline-history-start">${timelineEntryDateTime(entry.start)}</div><div class="history-meta">${details}</div></div>
         <div class="history-duration">${humanDuration(durationMs)}<small>${isFeed ? 'feeding' : 'asleep'}</small></div>
