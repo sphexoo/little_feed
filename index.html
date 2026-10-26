@@ -1811,12 +1811,12 @@
       trendMetric('Left / right balance', leftValue, metricDelta(current.leftPercent, previous.leftPercent, 'percent'), 'feed', splitDetail, splitBar)
     ].join('');
     const sleepHtml = [
-      trendMetric('Average sleep sessions per day', current.avgSleepSessionsPerDay.toFixed(1), metricDelta(current.avgSleepSessionsPerDay, previous.avgSleepSessionsPerDay, 'perday'), 'sleep', `Daily average across ${days} day${days === 1 ? '' : 's'} · counted by session start`),
-      trendMetric('Average sleep time per day', humanDuration(current.avgSleepMsPerDay), metricDelta(current.avgSleepMsPerDay, previous.avgSleepMsPerDay, 'durationPerDay'), 'sleep', `Daily average across ${days} day${days === 1 ? '' : 's'} · includes sleep overlapping the period`),
-      trendMetric('Average night sleep stretch', humanDuration(current.avgNightStretchMs), metricDelta(current.avgNightStretchMs, previous.avgNightStretchMs, 'durationPerDay'), 'sleep', `Total duration of overnight sessions attributed to their start day, divided by ${days} day${days === 1 ? '' : 's'}`),
-      trendMetric('Average time falling asleep', formatClockMinute(current.avgNightFallAsleepMinute), signedClockTimeDelta(current.avgNightFallAsleepMinute, previous.avgNightFallAsleepMinute), 'sleep', 'Average start time of completed overnight sleep sessions'),
-      trendMetric('Average wake-up time', formatClockMinute(current.avgNightWakeupMinute), signedClockTimeDelta(current.avgNightWakeupMinute, previous.avgNightWakeupMinute), 'sleep', 'Average end time of the same overnight sleep sessions'),
-      trendMetric('Average daytime sleep per day', humanDuration(current.avgDaySleepMsPerDay), metricDelta(current.avgDaySleepMsPerDay, previous.avgDaySleepMsPerDay, 'durationPerDay'), 'sleep', `Average daily sum of sleep sessions that do not span midnight · across ${days} day${days === 1 ? '' : 's'}`)
+      trendMetric('Average wake-up time', formatClockMinute(current.avgNightWakeupMinute), signedClockTimeDelta(current.avgNightWakeupMinute, previous.avgNightWakeupMinute), 'sleep'),
+      trendMetric('Average time falling asleep', formatClockMinute(current.avgNightFallAsleepMinute), signedClockTimeDelta(current.avgNightFallAsleepMinute, previous.avgNightFallAsleepMinute), 'sleep'),
+      trendMetric('Average sleep sessions per day', current.avgSleepSessionsPerDay.toFixed(1), metricDelta(current.avgSleepSessionsPerDay, previous.avgSleepSessionsPerDay, 'perday'), 'sleep'),
+      trendMetric('Average sleep time per day', humanDuration(current.avgSleepMsPerDay), metricDelta(current.avgSleepMsPerDay, previous.avgSleepMsPerDay, 'durationPerDay'), 'sleep'),
+      trendMetric('Average night sleep stretch', humanDuration(current.avgNightStretchMs), metricDelta(current.avgNightStretchMs, previous.avgNightStretchMs, 'durationPerDay'), 'sleep'),
+      trendMetric('Average daytime sleep per day', humanDuration(current.avgDaySleepMsPerDay), metricDelta(current.avgDaySleepMsPerDay, previous.avgDaySleepMsPerDay, 'durationPerDay'), 'sleep')
     ].join('');
     $('trendsContent').innerHTML = `
       <section class="trend-group" aria-labelledby="feedingTrendHeading">
