@@ -1660,6 +1660,7 @@
       avgFeedMsPerDay: feedMs / Math.max(1, Number(window.days) || 1),
       leftMs, rightMs, knownSideMs, leftPercent:knownSideMs ? leftMs / knownSideMs * 100 : null,
       sleepCount:sleepEpisodes.length, sleepMs:overlappingSleepMs,
+      avgSleepMsPerDay:overlappingSleepMs / Math.max(1, Number(window.days) || 1),
       avgSleepMs:sleepEpisodes.length ? sleepEpisodeMs / sleepEpisodes.length : null,
       longestSleepMs:sleepDurations.length ? Math.max(...sleepDurations) : null
     };
@@ -1691,6 +1692,13 @@
       return `${sign}${Math.abs(delta).toFixed(1)} per day${percent} vs previous period`;
     }
     if (kind === 'duration') return signedDurationDelta(current, previous);
+    if (kind === 'durationPerDay') {
+      const delta = current - previous;
+      if (Math.round(delta / 60000) === 0) return 'About the same daily average as previous period';
+      const sign = delta > 0 ? '+' : '−';
+      const percent = previous > 0 ? ` · ${delta > 0 ? '+' : '−'}${Math.round(Math.abs(delta) / previous * 100)}%` : '';
+      return `${sign}${humanDuration(Math.abs(delta))} per day${percent} vs previous period`;
+    }
     if (kind === 'percent') {
       if (Math.abs(current - previous) < 0.5) return 'About the same as previous period';
       const delta = current - previous;
@@ -1732,7 +1740,7 @@
     ].join('');
     const sleepHtml = [
       trendMetric('Sleep sessions', String(current.sleepCount), metricDelta(current.sleepCount, previous.sleepCount, 'count', 'sessions'), 'sleep'),
-      trendMetric('Total time asleep', humanDuration(current.sleepMs), metricDelta(current.sleepMs, previous.sleepMs, 'duration'), 'sleep', 'Sleep overlapping this period'),
+      trendMetric('Average sleep time per day', humanDuration(current.avgSleepMsPerDay), metricDelta(current.avgSleepMsPerDay, previous.avgSleepMsPerDay, 'durationPerDay'), 'sleep', `Daily average across ${days} day${days === 1 ? '' : 's'} · includes sleep overlapping the period`),
       trendMetric('Average sleep stretch', current.avgSleepMs === null ? '—' : humanDuration(current.avgSleepMs), metricDelta(current.avgSleepMs, previous.avgSleepMs, 'duration'), 'sleep', current.avgSleepMs === null ? 'No sleep sessions started in period' : 'Per session started in period'),
       trendMetric('Longest sleep stretch', current.longestSleepMs === null ? '—' : humanDuration(current.longestSleepMs), metricDelta(current.longestSleepMs, previous.longestSleepMs, 'duration'), 'sleep', current.longestSleepMs === null ? 'No sleep sessions started in period' : 'Longest session started in period')
     ].join('');
