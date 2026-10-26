@@ -24,10 +24,17 @@
   .subtitle { color:var(--muted); font-size:12px; margin-top:2px; }
   .header-tools { display:flex; align-items:center; gap:7px; }
   .today { font-size:12px; color:var(--muted); background:#fffdf9; border:1px solid var(--line); padding:8px 11px; border-radius:99px; white-space:nowrap; }
-  .refresh-button { display:grid; place-items:center; width:36px; height:36px; flex:0 0 36px; border:1px solid var(--line); border-radius:50%; background:#fffdf9; color:var(--sage-dark); font-size:22px; line-height:1; padding:0; }
-  .refresh-button:hover { background:var(--sage-light); }
-  .refresh-button:active { transform:rotate(35deg); }
+  .header-menu { position:relative; flex:0 0 auto; }
+  .refresh-button { display:grid; place-items:center; width:36px; height:36px; flex:0 0 36px; border:1px solid var(--line); border-radius:50%; background:#fffdf9; color:var(--sage-dark); font-size:25px; line-height:1; padding:0 0 4px; }
+  .refresh-button:hover, .refresh-button[aria-expanded="true"] { background:var(--sage-light); }
+  .refresh-button:active { transform:scale(.96); }
   .refresh-button:focus-visible { outline:2px solid var(--sage); outline-offset:2px; }
+  .header-menu-popover { position:absolute; top:calc(100% + 8px); right:0; z-index:120; width:174px; padding:6px; border:1px solid var(--line); border-radius:15px; background:var(--card); box-shadow:0 12px 32px rgba(40,38,32,.16); }
+  .header-menu-popover[hidden] { display:none !important; }
+  .header-menu-item { display:flex; align-items:center; gap:10px; width:100%; min-height:42px; padding:10px 11px; border:0; border-radius:10px; background:transparent; color:var(--ink); text-align:left; font-size:12px; font-weight:700; white-space:nowrap; }
+  .header-menu-item:hover, .header-menu-item:focus-visible { outline:none; background:var(--sage-light); }
+  .header-menu-icon { display:inline-grid; place-items:center; width:18px; color:var(--sage-dark); font-size:15px; }
+  .header-menu-separator { height:1px; margin:4px 5px; background:var(--line); }
   h2 { font-size:26px; line-height:1.15; letter-spacing:-1px; margin:7px 0 0; }
   .card { background:var(--card); border:1px solid rgba(225,219,208,.7); border-radius:26px; box-shadow:var(--shadow); }
   .timer-card { margin-top:14px; padding:22px 18px 18px; background:var(--feed-tint); border-color:#dfe9dc; }
@@ -297,7 +304,15 @@
     </div>
     <div class="header-tools">
       <div class="today" id="todayLabel">Today</div>
-      <button class="refresh-button" id="refreshBtn" type="button" aria-label="Refresh page" title="Refresh page">↻</button>
+      <div class="header-menu" id="headerMenu">
+        <button class="refresh-button" id="refreshBtn" type="button" aria-label="Open menu" title="Menu" aria-haspopup="menu" aria-expanded="false" aria-controls="headerMenuPopover">⋯</button>
+        <div class="header-menu-popover" id="headerMenuPopover" role="menu" aria-label="App menu" hidden>
+          <button class="header-menu-item" id="menuRefreshAction" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↻</span>Update page</button>
+          <div class="header-menu-separator" role="separator"></div>
+          <button class="header-menu-item" id="importCsvBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↑</span>Import CSV</button>
+          <button class="header-menu-item" id="exportCsvBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↓</span>Export CSV</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -445,18 +460,7 @@
     <p class="trend-footnote">Sessions are grouped by their start time. All trend periods include complete calendar days only and exclude today. Sleep time is clipped at midnight boundaries; night stretches are attributed to their start day. Left/right percentages use only recorded side-specific feeding times; imported feeds without a side split are excluded from that calculation. Trends compare with the equivalent period immediately before this one.</p>
   </section>
 
-  <section class="card data-card" aria-label="Import and export data">
-    <div class="section-top">
-      <div class="section-title">Data &amp; backups</div>
-      <div class="live">CSV</div>
-    </div>
-    <p class="data-help">Import or export using the 36-column CSV format. Supports <strong>breast</strong>, <strong>sleep</strong>, and <strong>growth</strong> records; other entry types are ignored. Unused columns are left blank.</p>
-    <div class="data-actions">
-      <button class="secondary" id="exportCsvBtn" type="button">↓ Export CSV</button>
-      <button class="primary" id="importCsvBtn" type="button">↑ Import CSV</button>
-    </div>
-    <input id="importCsvFile" type="file" accept=".csv,text/csv" hidden>
-  </section>
+  <input id="importCsvFile" type="file" accept=".csv,text/csv" hidden>
 
   <div class="storage-status" id="storageStatus" role="status" aria-live="polite">Opening secure local storage…</div>
   <div class="footnote">Made with love for the little moments ✨<br>Your data stays on this device; it is not synced to the cloud.</div>
@@ -2127,7 +2131,7 @@
   $('editorCloseBtn').addEventListener('click', closeEditor);
   $('editorCancelBtn').addEventListener('click', closeEditor);
   $('editorBackdrop').addEventListener('click', e => { if (e.target === $('editorBackdrop')) closeEditor(); });
-  document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('editorBackdrop').hidden) closeEditor(); else if (!$('growthChartBackdrop').hidden) closeGrowthChart(); else if (!$('historyBackdrop').hidden) closeHistoryOverlay(); });
+  document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('editorBackdrop').hidden) closeEditor(); else if (!$('growthChartBackdrop').hidden) closeGrowthChart(); else if (!$('historyBackdrop').hidden) closeHistoryOverlay(); else closeHeaderMenu(); });
 
   $('growthAddForm').addEventListener('submit', event => {
     event.preventDefault();
@@ -2175,8 +2179,30 @@
     });
   });
 
-  $('exportCsvBtn').addEventListener('click', exportCsv);
-  $('importCsvBtn').addEventListener('click', () => $('importCsvFile').click());
+  function closeHeaderMenu() {
+    $('headerMenuPopover').hidden = true;
+    $('refreshBtn').setAttribute('aria-expanded', 'false');
+  }
+  $('refreshBtn').addEventListener('click', () => {
+    const shouldOpen = $('headerMenuPopover').hidden;
+    $('headerMenuPopover').hidden = !shouldOpen;
+    $('refreshBtn').setAttribute('aria-expanded', String(shouldOpen));
+  });
+  $('menuRefreshAction').addEventListener('click', () => {
+    closeHeaderMenu();
+    window.location.reload();
+  });
+  $('exportCsvBtn').addEventListener('click', () => {
+    closeHeaderMenu();
+    exportCsv();
+  });
+  $('importCsvBtn').addEventListener('click', () => {
+    closeHeaderMenu();
+    $('importCsvFile').click();
+  });
+  document.addEventListener('click', event => {
+    if (!event.target.closest('#headerMenu')) closeHeaderMenu();
+  });
   $('importCsvFile').addEventListener('change', async event => {
     const file = event.target.files && event.target.files[0];
     // Reset the chooser so the same file can be selected again after corrections.
@@ -2184,7 +2210,6 @@
     if (file) await importCsvFile(file);
   });
 
-  $('refreshBtn').addEventListener('click', () => window.location.reload());
   const mainTabs = [
     {name:'track', id:'trackTabBtn'},
     {name:'timeline', id:'timelineTabBtn'},
