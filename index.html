@@ -1,0 +1,1465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f8f5f0">
+<title>Little Feed — Baby Feeding & Sleep Tracker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦁</text></svg>">
+<link rel="apple-touch-icon" href="lion-apple-favicon.png">
+<style>
+  :root {
+    --bg: #f8f5f0; --card: #fffdf9; --ink: #30332f; --muted: #85877f;
+    --sage: #789783; --sage-dark: #52715d; --sage-light: #e7eee7;
+    --peach: #f2d9ca; --feed-tint: #f3f7f1; --feed-tint-strong: #edf4eb; --sleep-tint: #eff7fc; --sleep-tint-strong: #e2f1fa; --sleep-accent: #4d84ab; --sleep-accent-dark: #2e6287; --sleep-accent-light: #dceefa; --sleep-accent-mid: #9dc8e5; --sleep-accent-border: #c7e0ef; --line: #ece7df; --shadow: 0 10px 30px rgba(67, 61, 49, .06);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .app { width: min(100%, 520px); min-height: 100dvh; margin: 0 auto; padding: max(22px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); }
+  header { display:flex; justify-content:space-between; align-items:center; margin: 6px 2px 24px; }
+  .brand { display:flex; align-items:center; gap:11px; }
+  .logo { width:43px; height:43px; border-radius:16px; display:grid; place-items:center; background:#e4ebe2; font-size:23px; }
+  h1 { font-size:21px; letter-spacing:-.7px; margin:0; font-weight:750; }
+  .subtitle { color:var(--muted); font-size:12px; margin-top:2px; }
+  .header-tools { display:flex; align-items:center; gap:7px; }
+  .today { font-size:12px; color:var(--muted); background:#fffdf9; border:1px solid var(--line); padding:8px 11px; border-radius:99px; white-space:nowrap; }
+  .refresh-button { display:grid; place-items:center; width:36px; height:36px; flex:0 0 36px; border:1px solid var(--line); border-radius:50%; background:#fffdf9; color:var(--sage-dark); font-size:22px; line-height:1; padding:0; }
+  .refresh-button:hover { background:var(--sage-light); }
+  .refresh-button:active { transform:rotate(35deg); }
+  .refresh-button:focus-visible { outline:2px solid var(--sage); outline-offset:2px; }
+  h2 { font-size:26px; line-height:1.15; letter-spacing:-1px; margin:7px 0 0; }
+  .card { background:var(--card); border:1px solid rgba(225,219,208,.7); border-radius:26px; box-shadow:var(--shadow); }
+  .timer-card { margin-top:14px; padding:22px 18px 18px; background:var(--feed-tint); border-color:#dfe9dc; }
+  .section-top { display:flex; justify-content:space-between; align-items:center; }
+  .section-actions { display:flex; align-items:center; gap:7px; }
+  .history-toggle { width:32px; height:32px; flex:0 0 32px; display:grid; place-items:center; border:1px solid var(--line); border-radius:11px; background:#fff; color:var(--muted); padding:0; }
+  .history-chevron { display:block; font-size:20px; line-height:1; transform:translateY(-2px); transition:transform .18s ease; }
+  .history-toggle[aria-expanded="true"] .history-chevron { transform:rotate(180deg) translateY(2px); }
+  .history-toggle:focus-visible { outline:2px solid var(--sage); outline-offset:2px; }
+  .section-title { font-size:14px; font-weight:750; }
+  .live { color:var(--sage-dark); background:var(--sage-light); border-radius:99px; padding:6px 9px; font-size:10px; font-weight:750; letter-spacing:.5px; }
+  .timer { text-align:center; padding:24px 0 20px; }
+  .clock { font-variant-numeric:tabular-nums; font-size:53px; letter-spacing:-2.5px; font-weight:650; line-height:1.05; }
+  .clock-caption { color:var(--muted); font-size:12px; margin-top:8px; }
+  .clock-caption.elapsed-state, .sleep-caption.elapsed-state { display:inline-block; max-width:100%; padding:7px 11px; border-radius:11px; font-size:12px; line-height:1.35; font-weight:750; }
+  .clock-caption.elapsed-state { color:var(--sage-dark); background:#e2ecde; }
+  .side-buttons { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .side-tile { min-width:0; border:1.5px solid var(--line); background:#fff; border-radius:20px; padding:0 8px 9px; transition:border-color .12s, background .12s, box-shadow .12s; }
+  .side-tile.active { border-color:var(--sage); background:var(--sage-light); }
+  .side-tile.last-used { border-color:#a7c29f; background:var(--feed-tint-strong); }
+  .side-tile.active.last-used { border-color:var(--sage-dark); background:#e1ecde; box-shadow:inset 0 0 0 1px rgba(82,113,93,.12); }
+  .side-tile.last-used .side-icon { background:#d4e3d0; }
+  .side-btn { display:block; width:100%; min-height:99px; border:0; border-radius:17px; background:transparent; padding:14px 4px 6px; text-align:left; color:var(--ink); transition:transform .12s; }
+  .side-btn:active, .primary:active { transform:scale(.98); }
+  .side-btn.active { background:transparent; }
+  .minute-controls { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .minute-btn { min-width:0; min-height:34px; border:1px solid var(--line); border-radius:11px; background:#fffdf9; color:var(--ink); padding:7px 2px; font-size:11px; font-weight:750; touch-action:manipulation; }
+  .minute-btn:active { transform:scale(.97); }
+  .side-tile.active .minute-btn { background:#f8fbf7; border-color:#d5e2d5; color:var(--sage-dark); }
+  .side-row { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .side-name { font-size:14px; font-weight:750; }
+  .side-icon { width:30px; height:30px; display:grid; place-items:center; border-radius:11px; background:#f5eee7; font-size:16px; }
+  .side-btn.active .side-icon { background:#d4e2d4; }
+  .last-side-badge { display:flex; align-items:center; width:max-content; max-width:100%; min-height:17px; margin-top:5px; padding:3px 6px; border-radius:999px; background:#d7e6d2; color:#42694a; font-size:8px; line-height:11px; letter-spacing:.65px; font-weight:850; visibility:hidden; }
+  .side-tile.last-used .last-side-badge { visibility:visible; }
+  .side-time { margin-top:5px; font-size:21px; font-weight:700; letter-spacing:-.5px; font-variant-numeric:tabular-nums; }
+  .side-hint { color:var(--muted); font-size:11px; margin-top:2px; }
+  .actions { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; margin-top:14px; align-items:center; }
+  .actions-secondary { display:flex; align-items:center; gap:8px; }
+  .actions .history-toggle, .sleep-actions .history-toggle { width:44px; height:44px; flex-basis:44px; }
+  .primary { background:var(--sage-dark); color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(82,113,93,.15); }
+  .secondary { background:#fff; border:1px solid var(--line); border-radius:16px; padding:0 17px; min-height:52px; color:var(--ink); font-weight:700; }
+  .sleep-card { margin-top:14px; padding:22px 18px 18px; background:var(--sleep-tint); border-color:var(--sleep-accent-border); }
+  .sleep-card .live { color:var(--sleep-accent-dark); background:var(--sleep-accent-light); }
+  .sleep-timer { text-align:center; padding:22px 0 18px; }
+  .sleep-clock { font-variant-numeric:tabular-nums; font-size:47px; letter-spacing:-2px; font-weight:650; line-height:1.05; }
+  .sleep-caption { color:var(--muted); font-size:12px; margin-top:8px; }
+  .sleep-caption.elapsed-state { color:var(--sleep-accent-dark); background:var(--sleep-accent-light); }
+  .sleep-start-row { display:block; margin:16px auto 0; max-width:420px; text-align:left; }
+  .sleep-start-row[hidden] { display:none !important; }
+  .sleep-adjustment-values { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; margin-bottom:8px; }
+  .sleep-adjustment-value { display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .sleep-adjustment-value:last-child { text-align:right; align-items:flex-end; }
+  .sleep-adjust-label { color:var(--sleep-accent-dark); font-size:11px; font-weight:750; }
+  .sleep-adjustment-value strong { color:#244c68; font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; }
+  #sleepStartSlider { display:block; width:100%; min-height:28px; margin:4px 0 0; padding:0; accent-color:var(--sleep-accent); cursor:pointer; touch-action:pan-y; }
+  #sleepStartSlider:focus-visible { outline:2px solid var(--sleep-accent-mid); outline-offset:3px; border-radius:8px; }
+  .sleep-slider-labels { display:flex; justify-content:space-between; color:var(--muted); font-size:10px; margin-top:0; }
+  .sleep-actions { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; }
+  .sleep-button { width:100%; background:var(--sleep-accent); color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(77,132,171,.18); }
+  .sleep-button.waking { background:var(--sleep-accent-dark); box-shadow:0 5px 12px rgba(46,98,135,.16); }
+  .sleep-history-mark { background:var(--sleep-accent-light); }
+  .tab-nav { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:5px; margin:0 0 18px; background:#eee9e1; border-radius:17px; }
+  .tab-button { border:0; border-radius:13px; min-height:43px; padding:10px 9px; color:var(--muted); background:transparent; font-size:12px; font-weight:750; }
+  .tab-button[aria-selected="true"] { background:var(--card); color:var(--ink); box-shadow:0 2px 8px rgba(67,61,49,.07); }
+  .tab-panel[hidden] { display:none !important; }
+  /* The History chart bleeds to the viewport edges and keeps the native scrollbar below it. */
+  #timelinePanel { width:100vw; max-width:100vw; margin-left:calc(50% - 50vw); }
+  .timeline-card { padding:18px 0 16px; border-radius:0; border-left:0; border-right:0; box-shadow:none; }
+  .timeline-heading, .diagram-legend, .timeline-summary, .timeline-empty, .timeline-footnote { margin-left:12px; margin-right:12px; }
+  .timeline-heading { margin-bottom:10px; }
+  .timeline-heading h3 { font-size:18px; letter-spacing:-.45px; margin:0; }
+  .timeline-summary { color:var(--muted); font-size:9px; font-weight:750; letter-spacing:.7px; margin-top:9px; margin-bottom:7px; text-transform:uppercase; }
+  .diagram-legend { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:8px; font-size:10px; color:var(--muted); }
+  .legend-item { display:flex; align-items:center; gap:5px; }
+  .legend-swatch { display:inline-block; border-radius:4px; width:15px; }
+  .legend-swatch.sleep { height:12px; background:var(--sleep-accent-mid); }
+  .legend-swatch.feed { height:8px; background:#638f70; }
+  /* Keep the browser's native horizontal scrollbar available on desktop and touch devices. */
+  .timeline-scroll { display:block; width:100%; max-width:100%; overflow-x:scroll; overflow-y:hidden; border-radius:0; background:#fffdfa; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:auto; scrollbar-color:#8d887d #e9e5dd; scrollbar-gutter:stable; }
+  .timeline-scroll::-webkit-scrollbar { display:block; height:15px; -webkit-appearance:none; }
+  .timeline-scroll::-webkit-scrollbar-track { background:#e9e5dd; border-top:1px solid #d8d2c8; border-bottom:1px solid #d8d2c8; }
+  .timeline-scroll::-webkit-scrollbar-thumb { background:#8d887d; border:3px solid #e9e5dd; border-radius:99px; min-width:34px; }
+  .timeline-scroll::-webkit-scrollbar-thumb:hover { background:#6f6a60; }
+  @media (hover:hover) and (pointer:fine) {
+    .timeline-scroll { overflow-x:scroll; scrollbar-width:auto; }
+    .timeline-scroll::-webkit-scrollbar { height:16px; }
+  }
+  .timeline-content { display:flex; align-items:stretch; width:max-content; min-width:100%; }
+  .time-axis { position:sticky; left:0; z-index:5; flex:0 0 32px; width:32px; background:#fffdfa; box-shadow:3px 0 6px rgba(67,61,49,.05); }
+  .time-axis-spacer { height:37px; border-bottom:1px solid #e8e2d9; }
+  .time-ruler { position:relative; height:480px; border-right:1px solid #e8e2d9; }
+  .time-label { position:absolute; left:0; width:29px; transform:translateY(-50%); padding-right:3px; text-align:right; color:#97958c; font-size:8px; line-height:1; font-variant-numeric:tabular-nums; background:#fffdfa; }
+  .time-label.first { transform:none; }
+  .time-label.last { transform:translateY(-100%); }
+  .timeline-days { display:flex; align-items:stretch; gap:1px; padding-right:2px; }
+  .timeline-day { flex:0 0 46px; width:46px; }
+  .timeline-date { height:37px; padding:5px 1px 4px; text-align:center; border-bottom:1px solid #e8e2d9; color:var(--muted); font-size:9px; line-height:1.1; white-space:nowrap; }
+  .timeline-date strong { display:block; color:var(--ink); font-size:10px; margin-bottom:2px; }
+  .timeline-day.today-column .timeline-date { color:#52715d; background:#eff4ee; border-radius:7px 7px 0 0; }
+  .timeline-day.today-column .timeline-date strong { color:#52715d; }
+  .timeline-plot { position:relative; height:480px; width:100%; overflow:hidden; border-radius:0 0 6px 6px; background-color:#faf8f3; background-image:linear-gradient(to bottom, rgba(137,133,123,.20) 1px, transparent 1px); background-size:100% 12.5%; }
+  .timeline-day:nth-child(even) .timeline-plot { background-color:#f7f4ee; }
+  .timeline-block { position:absolute; display:block; border:0; padding:0; min-height:3px; overflow:hidden; border-radius:4px; }
+  .timeline-block.sleep { left:11%; width:78%; background:var(--sleep-accent-mid); box-shadow:inset 0 0 0 1px rgba(46,98,135,.16); z-index:1; }
+  .timeline-block.feed { left:18%; width:64%; min-width:5px; background:#638f70; box-shadow:inset 0 0 0 1px rgba(38,86,49,.2); border-radius:3px; z-index:3; }
+  .timeline-block.ongoing { outline:2px dashed rgba(68,64,59,.52); outline-offset:-2px; }
+  .timeline-empty { margin-top:14px; padding:13px 14px; background:#f8f5f0; border-radius:15px; font-size:11px; line-height:1.45; color:var(--muted); }
+  .timeline-footnote { margin:14px 2px 0; font-size:10px; line-height:1.45; color:#a3a197; }
+  .history-head { display:flex; align-items:center; justify-content:space-between; margin:27px 2px 12px; }
+  .history-collapse .history-head { margin:12px 2px 10px; }
+  .history-head h3 { margin:0; font-size:18px; letter-spacing:-.5px; }
+  .count { color:var(--muted); font-size:12px; }
+  .history-list { display:flex; flex-direction:column; gap:9px; }
+  .history-item { padding:15px 16px; display:flex; align-items:center; gap:12px; box-shadow:none; border-radius:20px; }
+  .history-mark { width:40px; height:40px; flex:0 0 40px; display:grid; place-items:center; border-radius:14px; background:var(--sage-light); font-size:18px; }
+  .history-main { flex:1; min-width:0; }
+  .history-date { font-size:13px; font-weight:750; }
+  .history-meta { color:var(--muted); font-size:11px; margin-top:4px; }
+  .history-duration { text-align:right; font-size:14px; font-weight:750; white-space:nowrap; }
+  .history-duration small { display:block; color:var(--muted); font-size:10px; font-weight:500; margin-top:3px; }
+  .record-actions { display:flex; align-items:center; gap:5px; margin-left:auto; }
+  .edit-record { background:#f4f1ea; border:1px solid #ebe5db; color:#66675f; border-radius:10px; padding:7px 9px; font-size:11px; font-weight:750; }
+  .delete { background:transparent; border:0; color:#a5a49d; font-size:19px; padding:6px 0 6px 4px; }
+  .editor-backdrop { position:fixed; inset:0; z-index:100; background:rgba(37,38,34,.38); display:flex; align-items:flex-end; justify-content:center; padding:16px 12px max(12px, env(safe-area-inset-bottom)); }
+  .editor-backdrop[hidden] { display:none !important; }
+  .editor-panel { width:min(100%, 490px); max-height:90dvh; overflow:auto; background:var(--card); border-radius:26px; padding:22px 20px 18px; box-shadow:0 24px 70px rgba(30,30,24,.2); }
+  .editor-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:18px; }
+  .editor-kicker { color:var(--sage-dark); text-transform:uppercase; letter-spacing:1.4px; font-size:10px; font-weight:800; margin-bottom:5px; }
+  .editor-title { font-size:23px; letter-spacing:-.7px; margin:0; }
+  .editor-close { border:0; background:#f0ece4; color:#68685f; border-radius:12px; width:36px; height:36px; font-size:22px; }
+  .editor-fields { display:grid; grid-template-columns:1fr 1fr; gap:13px 10px; }
+  .editor-field { display:flex; flex-direction:column; gap:7px; min-width:0; }
+  .editor-field.full { grid-column:1 / -1; }
+  .editor-field label { font-size:11px; color:#77776e; font-weight:750; }
+  .editor-field input, .editor-field select { width:100%; min-width:0; min-height:45px; background:#fff; border:1px solid #e8e2d9; border-radius:12px; padding:10px; color:var(--ink); font:inherit; font-size:13px; }
+  .editor-help { font-size:11px; color:var(--muted); line-height:1.45; margin:13px 1px 0; }
+  .editor-error { color:#a14d42; font-size:12px; margin:10px 1px 0; }
+  .editor-actions { display:grid; grid-template-columns:1fr 1.2fr; gap:9px; margin-top:20px; }
+  .editor-actions button { min-height:48px; border-radius:14px; font-weight:750; }
+  .editor-cancel { border:1px solid var(--line); background:white; color:var(--ink); }
+  .editor-save { border:0; background:var(--sage-dark); color:#fff; }
+  @media (min-width:520px) { .editor-backdrop { align-items:center; } }
+  .empty { text-align:center; padding:27px 18px; color:var(--muted); font-size:13px; line-height:1.5; box-shadow:none; }
+  .empty-icon { font-size:27px; margin-bottom:8px; }
+  .data-card { margin-top:18px; padding:18px; box-shadow:none; }
+  .data-help { margin:10px 0 14px; color:var(--muted); font-size:11px; line-height:1.5; }
+  .data-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .data-actions button { min-width:0; padding:12px 8px; font-size:12px; }
+  .data-actions .secondary { border-radius:14px; }
+  .data-actions .primary { border-radius:14px; }
+  .storage-status { text-align:center; max-width:420px; margin:18px auto -12px; color:#8e8c82; font-size:10px; line-height:1.45; }
+  .storage-status.warning { color:#9b5b3f; }
+  .footnote { text-align:center; font-size:10px; color:#a3a197; padding:22px 10px 4px; }
+  .toast { position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); left:50%; transform:translate(-50%, 15px); opacity:0; pointer-events:none; background:#30332f; color:#fff; padding:11px 16px; border-radius:99px; font-size:12px; transition:.2s; white-space:nowrap; box-shadow:var(--shadow); }
+  .toast.show { opacity:1; transform:translate(-50%, 0); }
+  @media (min-width: 520px) { body { padding:18px 0; } .app { min-height:calc(100dvh - 36px); border-radius:30px; } }
+</style>
+</head>
+<body>
+<main class="app" id="appRoot">
+  <header>
+    <div class="brand">
+      <div class="logo" aria-hidden="true">🦁</div>
+      <div><h1>little feed</h1><div class="subtitle">your little one's feeding journal</div></div>
+    </div>
+    <div class="header-tools">
+      <div class="today" id="todayLabel">Today</div>
+      <button class="refresh-button" id="refreshBtn" type="button" aria-label="Refresh page" title="Refresh page">↻</button>
+    </div>
+  </header>
+
+  <nav class="tab-nav" role="tablist" aria-label="App views">
+    <button class="tab-button" id="trackTabBtn" type="button" role="tab" aria-controls="trackPanel" aria-selected="true">♡ Track</button>
+    <button class="tab-button" id="timelineTabBtn" type="button" role="tab" aria-controls="timelinePanel" aria-selected="false">▥ History</button>
+  </nav>
+
+  <section class="tab-panel" id="trackPanel" role="tabpanel" aria-labelledby="trackTabBtn">
+  <section class="card timer-card" aria-label="Breastfeeding timer">
+    <div class="section-top">
+      <div class="section-title">Feeding timer</div>
+      <div class="section-actions">
+        <div class="live" id="statusPill">READY WHEN YOU ARE</div>
+      </div>
+    </div>
+    <div class="timer">
+      <div class="clock" id="mainClock">00:00</div>
+      <div class="clock-caption" id="clockCaption">Choose a side to begin</div>
+    </div>
+    <div class="side-buttons">
+      <div class="side-tile" id="leftTile">
+        <button class="side-btn" id="leftBtn" type="button" aria-label="Start left breast">
+          <div class="side-row"><span class="side-name">Left side</span><span class="side-icon">🌿</span></div>
+          <span class="last-side-badge" id="leftLastSideLabel" aria-hidden="true">LAST FED</span>
+          <div class="side-time" id="leftTime">00:00</div><div class="side-hint">Tap to start</div>
+        </button>
+        <div class="minute-controls" aria-label="Adjust left-side feeding time">
+          <button class="minute-btn" type="button" data-adjust-side="left" data-adjust-minutes="-1" aria-label="Subtract one minute from left side">−1 min</button>
+          <button class="minute-btn" type="button" data-adjust-side="left" data-adjust-minutes="1" aria-label="Add one minute to left side">+1 min</button>
+        </div>
+      </div>
+      <div class="side-tile" id="rightTile">
+        <button class="side-btn" id="rightBtn" type="button" aria-label="Start right breast">
+          <div class="side-row"><span class="side-name">Right side</span><span class="side-icon">🌼</span></div>
+          <span class="last-side-badge" id="rightLastSideLabel" aria-hidden="true">LAST FED</span>
+          <div class="side-time" id="rightTime">00:00</div><div class="side-hint">Tap to start</div>
+        </button>
+        <div class="minute-controls" aria-label="Adjust right-side feeding time">
+          <button class="minute-btn" type="button" data-adjust-side="right" data-adjust-minutes="-1" aria-label="Subtract one minute from right side">−1 min</button>
+          <button class="minute-btn" type="button" data-adjust-side="right" data-adjust-minutes="1" aria-label="Add one minute to right side">+1 min</button>
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="finishBtn" type="button">Finish & save feed</button>
+      <div class="actions-secondary">
+        <button class="secondary" id="resetBtn" type="button">Reset</button>
+        <button class="history-toggle" id="feedHistoryToggle" type="button" aria-expanded="false" aria-controls="feedingHistoryPanel" aria-label="Show feeding history" title="Show feeding history"><span class="history-chevron" aria-hidden="true">⌄</span></button>
+      </div>
+    </div>
+  </section>
+
+  <div class="history-collapse" id="feedingHistoryPanel" hidden>
+    <div class="history-head">
+      <h3>Feeding history</h3><span class="count" id="historyCount">0 feeds</span>
+    </div>
+    <section class="history-list" id="historyList" aria-live="polite"></section>
+  </div>
+
+  <section class="card sleep-card" aria-label="Baby sleep tracker">
+    <div class="section-top">
+      <div class="section-title">Sleep tracker</div>
+      <div class="section-actions">
+        <div class="live" id="sleepStatusPill">BABY IS AWAKE</div>
+      </div>
+    </div>
+    <div class="sleep-timer">
+      <div class="sleep-orb" aria-hidden="true">🌙</div>
+      <div class="sleep-clock" id="sleepClock">00:00</div>
+      <div class="sleep-caption" id="sleepCaption">No wake-up time recorded yet</div>
+      <div class="sleep-start-row" id="sleepStartRow" hidden>
+        <div class="sleep-adjustment-values" aria-live="polite" aria-atomic="true">
+          <div class="sleep-adjustment-value">
+            <span class="sleep-adjust-label">Fell asleep at</span>
+            <strong id="sleepStartValue">—</strong>
+          </div>
+          <div class="sleep-adjustment-value">
+            <span class="sleep-adjust-label">Current sleep</span>
+            <strong id="sleepDurationValue">00 min</strong>
+          </div>
+        </div>
+        <input id="sleepStartSlider" type="range" min="0" max="1000" step="1" value="0" aria-label="Adjust sleep start time; move right to set an earlier start">
+        <div class="sleep-slider-labels"><span>Now</span><span id="sleepSliderMaxLabel">5 hours ago</span></div>
+      </div>
+    </div>
+    <div class="sleep-actions">
+      <button class="sleep-button" id="sleepToggleBtn" type="button">🌙 Start sleep</button>
+      <button class="history-toggle" id="sleepHistoryToggle" type="button" aria-expanded="false" aria-controls="sleepHistoryPanel" aria-label="Show sleep history" title="Show sleep history"><span class="history-chevron" aria-hidden="true">⌄</span></button>
+    </div>
+  </section>
+
+  <div class="history-collapse" id="sleepHistoryPanel" hidden>
+    <div class="history-head">
+      <h3>Sleep history</h3><span class="count" id="sleepHistoryCount">0 sessions</span>
+    </div>
+    <section class="history-list" id="sleepHistoryList" aria-live="polite"></section>
+  </div>
+
+
+  </section>
+
+  <section class="tab-panel" id="timelinePanel" role="tabpanel" aria-labelledby="timelineTabBtn" hidden>
+    <div class="card timeline-card">
+      <div class="timeline-heading">
+        <h3>Sleep &amp; feeding timeline</h3>
+      </div>
+      <div class="diagram-legend" aria-label="Diagram legend">
+        <span class="legend-item"><i class="legend-swatch sleep"></i> Sleep interval</span>
+        <span class="legend-item"><i class="legend-swatch feed"></i> Feeding session</span>
+      </div>
+      <div class="timeline-summary" id="timelineSummary">Last 4 weeks</div>
+      <div class="timeline-scroll" id="timelineScroller" tabindex="0" aria-label="Scrollable baby sleep and feeding timeline. Older days are to the left and today is on the right.">
+        <div class="timeline-content" id="timelineContent">
+          <div class="time-axis" id="timeAxis" aria-hidden="true"></div>
+          <div class="timeline-days" id="weekDiagram" aria-label="Daily sleep and feeding timeline"></div>
+        </div>
+      </div>
+      <div class="timeline-empty" id="timelineEmpty" hidden>No sleep or feeding sessions are recorded for this period yet. Start tracking a few sessions and they'll appear here.</div>
+      <p class="timeline-footnote">Blue blocks show sleep; green feeding blocks overlay the same column. Overnight sessions continue into the next day. Outlined blocks are still in progress.</p>
+    </div>
+  </section>
+
+  <section class="card data-card" aria-label="Import and export data">
+    <div class="section-top">
+      <div class="section-title">Data &amp; backups</div>
+      <div class="live">CSV</div>
+    </div>
+    <p class="data-help">Import or export using the 36-column CSV format. Only <strong>breast</strong> and <strong>sleep</strong> records are handled; other entry types are ignored. Unused columns are left blank.</p>
+    <div class="data-actions">
+      <button class="secondary" id="exportCsvBtn" type="button">↓ Export CSV</button>
+      <button class="primary" id="importCsvBtn" type="button">↑ Import CSV</button>
+    </div>
+    <input id="importCsvFile" type="file" accept=".csv,text/csv" hidden>
+  </section>
+
+  <div class="storage-status" id="storageStatus" role="status" aria-live="polite">Opening secure local storage…</div>
+  <div class="footnote">Made with love for the little moments ✨<br>Your data stays on this device; it is not synced to the cloud.</div>
+</main>
+<div class="editor-backdrop" id="editorBackdrop" hidden>
+  <section class="editor-panel" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+    <div class="editor-top">
+      <div><div class="editor-kicker">Little Feed · Quick edit</div><h2 class="editor-title" id="editorTitle">Edit record</h2></div>
+      <button class="editor-close" id="editorCloseBtn" type="button" aria-label="Close editor">×</button>
+    </div>
+    <form id="editorForm">
+      <div class="editor-fields" id="editorFields"></div>
+      <p class="editor-help" id="editorHelp"></p>
+      <p class="editor-error" id="editorError" role="alert"></p>
+      <div class="editor-actions"><button class="editor-cancel" id="editorCancelBtn" type="button">Cancel</button><button class="editor-save" type="submit">Save changes</button></div>
+    </form>
+  </section>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+(() => {
+  // Application configuration and in-memory state.
+  const $ = id => document.getElementById(id);
+  const state = {
+    history: [], leftMs: 0, rightMs: 0, active: null,
+    startedAt: null, segmentStartedAt: null, lastSide: null,
+    sleepHistory: [], activeSleepStart: null,
+    timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false
+  };
+  let toastTimer = null;
+  let lastTimelineRenderSecond = -1;
+  let editorContext = null;
+  let sleepStartPreview = null;
+
+  const DB_NAME = 'LittleFeedDatabase';
+  const DB_VERSION = 1;
+  const DB_STORE = 'appRecords';
+  const DB_RECORD_ID = 'appState';
+  const CSV_HEADERS = [
+    'Type','Timestamp','Date','Time','End Timestamp','Duration (min)','Amount','Unit','Side',
+    'Diaper Type','Rash','Food','Allergen Tags','Medication','Dose','Vaccine','Vaccine Site',
+    'Vaccine Lot','Vaccine Place','Temperature','Temp Unit','Temp Method','Weight','Weight Unit',
+    'Height','Height Unit','Head Circ','Head Circ Unit','Severity','Quality','Drink Type',
+    'Milestone','Category','Label','Notes','Source'
+  ];
+  let db = null;
+  let saveChain = Promise.resolve();
+
+  // CSV import/export: only the 'breast' and 'sleep' types are supported.
+  function csvEscape(value) {
+    const text = String(value ?? '');
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  }
+
+  function csvParse(text) {
+    // Small RFC-4180-compatible parser: handles BOM, quoted commas, escaped quotes and newlines.
+    const input = String(text ?? '').replace(/^\uFEFF/, '');
+    const rows = [];
+    let row = [], field = '', quoted = false;
+    for (let i = 0; i < input.length; i++) {
+      const ch = input[i];
+      if (quoted) {
+        if (ch === '"' && input[i + 1] === '"') { field += '"'; i++; }
+        else if (ch === '"') quoted = false;
+        else field += ch;
+      } else if (ch === '"' && field.length === 0) {
+        quoted = true;
+      } else if (ch === ',') {
+        row.push(field); field = '';
+      } else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && input[i + 1] === '\n') i++;
+        row.push(field); rows.push(row); row = []; field = '';
+      } else {
+        field += ch;
+      }
+    }
+    if (field.length || row.length) { row.push(field); rows.push(row); }
+    return rows.filter((r, index) => !(r.length === 1 && r[0] === '' && index === rows.length - 1));
+  }
+
+  function localOffsetIso(timestamp) {
+    const d = new Date(Number(timestamp));
+    if (!Number.isFinite(d.getTime())) return '';
+    const pad = n => String(n).padStart(2, '0');
+    const offset = -d.getTimezoneOffset();
+    const sign = offset >= 0 ? '+' : '-';
+    const abs = Math.abs(offset);
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${pad(Math.floor(abs/60))}:${pad(abs%60)}`;
+  }
+
+  function csvDate(timestamp) {
+    const d = new Date(Number(timestamp));
+    if (!Number.isFinite(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function csvTime(timestamp) {
+    const d = new Date(Number(timestamp));
+    return Number.isFinite(d.getTime()) ? d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '';
+  }
+
+  function newCsvRow(type, startAt, endAt, durationMs, side = '') {
+    const row = Array(CSV_HEADERS.length).fill('');
+    row[0] = type;
+    row[1] = localOffsetIso(startAt);
+    row[2] = csvDate(startAt);
+    row[3] = csvTime(startAt);
+    row[4] = endAt == null ? '' : localOffsetIso(endAt);
+    row[5] = durationMs == null ? '' : String(Math.max(0, Math.round(Number(durationMs) / 60000)));
+    row[8] = side || '';
+    // Source and all unrelated scheme columns intentionally remain blank.
+    return row;
+  }
+
+  function getFeedSide(item) {
+    if (item.importedAggregate && item.importedSide) return item.importedSide;
+    if (Number(item.leftMs) > 0 && Number(item.rightMs) > 0) return 'both';
+    if (Number(item.leftMs) > 0) return 'left';
+    if (Number(item.rightMs) > 0) return 'right';
+    return item.importedSide || '';
+  }
+
+  function exportCsv() {
+    const rows = [CSV_HEADERS];
+    const records = [];
+    for (const item of state.history) {
+      const start = Number(item.startedAt || (Number(item.endedAt) - Number(item.totalMs || 0)));
+      const end = Number(item.endedAt);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+      records.push({start, row:newCsvRow('breast', start, end, Number(item.totalMs) || Number(item.leftMs || 0) + Number(item.rightMs || 0), getFeedSide(item))});
+    }
+    for (const item of state.sleepHistory) {
+      const start = Number(item.startedAt), end = Number(item.endedAt);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
+      records.push({start, row:newCsvRow('sleep', start, end, Number(item.durationMs) || end - start)});
+    }
+    // An in-progress sleep is represented the same way as the sample scheme: a start timestamp and blank end/duration.
+    if (state.activeSleepStart) {
+      const start = Number(state.activeSleepStart);
+      if (Number.isFinite(start)) records.push({start, row:newCsvRow('sleep', start, null, null)});
+    }
+    records.sort((a,b) => a.start - b.start);
+    for (const item of records) rows.push(item.row);
+    const csv = '\uFEFF' + rows.map(row => row.map(csvEscape).join(',')).join('\r\n') + '\r\n';
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `little-feed-${csvDate(Date.now())}.csv`;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast(`Exported ${records.length} breast/sleep records`);
+  }
+
+  function parseCsvTimestamp(value, dateValue = '', timeValue = '') {
+    const raw = String(value ?? '').trim();
+    if (raw) {
+      const parsed = Date.parse(raw);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    const date = String(dateValue ?? '').trim();
+    const time = String(timeValue ?? '').trim();
+    const dateMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(date);
+    if (!dateMatch) return NaN;
+    let hour = 0, minute = 0, second = 0;
+    if (time) {
+      const timeMatch = /^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)?$/i.exec(time);
+      if (!timeMatch) return NaN;
+      hour = Number(timeMatch[1]); minute = Number(timeMatch[2]); second = Number(timeMatch[3] || 0);
+      const ampm = (timeMatch[4] || '').toUpperCase();
+      if (ampm) {
+        if (hour < 1 || hour > 12) return NaN;
+        hour = hour % 12 + (ampm === 'PM' ? 12 : 0);
+      }
+      if (hour > 23 || minute > 59 || second > 59) return NaN;
+    }
+    return new Date(Number(dateMatch[1]), Number(dateMatch[2])-1, Number(dateMatch[3]), hour, minute, second, 0).getTime();
+  }
+
+  function sameSession(a, b) {
+    return Math.abs(Number(a.startedAt) - Number(b.startedAt)) < 1500 && Math.abs(Number(a.endedAt) - Number(b.endedAt)) < 1500;
+  }
+
+  async function importCsvFile(file) {
+    if (!file) return;
+    let rows;
+    try { rows = csvParse(await file.text()); }
+    catch (_) { alert('Could not read this CSV file.'); return; }
+    if (rows.length < 2) { alert('This CSV does not contain any data rows.'); return; }
+    const headers = rows[0].map(h => String(h || '').replace(/^\uFEFF/, '').trim().toLowerCase());
+    const col = name => headers.indexOf(name.toLowerCase());
+    if (col('type') < 0 || (col('timestamp') < 0 && col('date') < 0)) {
+      alert('This file does not look like a compatible CSV: the Type and Timestamp/Date columns are required.');
+      return;
+    }
+    const value = (row, name) => { const i = col(name); return i < 0 ? '' : String(row[i] ?? '').trim(); };
+    const pendingFeeds = [], pendingSleeps = [];
+    const openFeeds = [], openSleeps = [];
+    let unsupported = 0, invalid = 0;
+    const now = Date.now();
+
+    for (const row of rows.slice(1)) {
+      if (!row.length || row.every(cell => String(cell ?? '').trim() === '')) continue;
+      const type = value(row, 'Type').toLowerCase();
+      if (type !== 'breast' && type !== 'sleep') { unsupported++; continue; }
+      const start = parseCsvTimestamp(value(row, 'Timestamp'), value(row, 'Date'), value(row, 'Time'));
+      if (!Number.isFinite(start) || start > now) { invalid++; continue; }
+      const rawEnd = value(row, 'End Timestamp');
+      const rawDuration = value(row, 'Duration (min)');
+      const durationNumber = rawDuration === '' ? NaN : Number(rawDuration);
+      const durationMs = Number.isFinite(durationNumber) && durationNumber >= 0 ? durationNumber * 60000 : NaN;
+      let end = rawEnd ? parseCsvTimestamp(rawEnd) : NaN;
+      if (!Number.isFinite(end) && Number.isFinite(durationMs) && durationMs > 0) end = start + durationMs;
+      const rawSide = value(row, 'Side').toLowerCase();
+      const side = ['left','right','both'].includes(rawSide) ? rawSide : (rawSide === 'l' ? 'left' : rawSide === 'r' ? 'right' : '');
+
+      if (Number.isFinite(end) && end > start && end <= now + 60000) {
+        const elapsedMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : end - start;
+        if (type === 'sleep') {
+          pendingSleeps.push({
+            id: `import-sleep-${start}-${end}`, startedAt: start, endedAt: end,
+            durationMs: Math.max(0, elapsedMs)
+          });
+        } else {
+          let leftMs = 0, rightMs = 0, lastSide = null, importedAggregate = false;
+          if (side === 'left') { leftMs = elapsedMs; lastSide = 'left'; }
+          else if (side === 'right') { rightMs = elapsedMs; lastSide = 'right'; }
+          else if (side === 'both') {
+            // The interoperable CSV has one combined duration, not a left/right split.
+            // Keep it combined instead of inventing side-specific values.
+            importedAggregate = true;
+          }
+          pendingFeeds.push({
+            id: `import-breast-${start}-${end}`, startedAt: start, endedAt: end,
+            leftMs, rightMs, totalMs: Math.max(0, elapsedMs), lastSide, importedSide: side,
+            importedAggregate
+          });
+        }
+      } else if (!rawEnd && !rawDuration) {
+        if (type === 'sleep') openSleeps.push({start});
+        else if (side === 'left' || side === 'right') openFeeds.push({start, side});
+        else invalid++;
+      } else {
+        invalid++;
+      }
+    }
+
+    // Only the newest unclosed row can represent an active timer.
+    openSleeps.sort((a,b) => b.start - a.start);
+    openFeeds.sort((a,b) => b.start - a.start);
+    const incomingOpenSleep = openSleeps[0] || null;
+    const incomingOpenFeed = openFeeds[0] || null;
+    const candidateCount = pendingFeeds.length + pendingSleeps.length + (incomingOpenSleep ? 1 : 0) + (incomingOpenFeed ? 1 : 0);
+    if (!candidateCount) {
+      showToast('No valid breast or sleep records found');
+      alert(`No valid breast or sleep records were found. Unsupported rows ignored: ${unsupported}; invalid rows: ${invalid}.`);
+      return;
+    }
+    const approved = confirm(`Import ${pendingFeeds.length} feeding records and ${pendingSleeps.length} sleep sessions?\n\nExisting data will be kept. Exact duplicates will be skipped.\nUnsupported entry types (such as growth or diaper) will be ignored.\n${incomingOpenSleep ? 'The CSV also contains an active sleep timer. ' : ''}${incomingOpenFeed ? 'The CSV also contains an active feeding timer. ' : ''}`);
+    if (!approved) return;
+
+    let addedFeeds = 0, addedSleeps = 0, duplicates = 0;
+    for (const item of pendingFeeds) {
+      if (state.history.some(existing => sameSession(existing, item))) { duplicates++; continue; }
+      state.history.push(item); addedFeeds++;
+    }
+    for (const item of pendingSleeps) {
+      if (state.sleepHistory.some(existing => sameSession(existing, item))) { duplicates++; continue; }
+      state.sleepHistory.push(item); addedSleeps++;
+    }
+    if (incomingOpenSleep) {
+      if (!state.activeSleepStart) state.activeSleepStart = incomingOpenSleep.start;
+      else duplicates++;
+    }
+    if (incomingOpenFeed) {
+      if (!state.startedAt && !state.active && !state.leftMs && !state.rightMs) {
+        const elapsedMs = Math.max(0, now - incomingOpenFeed.start);
+        state.leftMs = incomingOpenFeed.side === 'left' ? elapsedMs : 0;
+        state.rightMs = incomingOpenFeed.side === 'right' ? elapsedMs : 0;
+        state.active = incomingOpenFeed.side;
+        state.startedAt = incomingOpenFeed.start;
+        state.segmentStartedAt = now;
+      } else duplicates++;
+    }
+    state.history.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
+    state.sleepHistory.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
+    recalculateLastFeed();
+    persistExtended();
+    await saveChain;
+    render();
+    const details = `Imported ${addedFeeds} feeding and ${addedSleeps} sleep records${duplicates ? `; ${duplicates} duplicate/active record(s) skipped` : ''}${unsupported ? `; ${unsupported} unsupported row(s) ignored` : ''}${invalid ? `; ${invalid} invalid row(s) skipped` : ''}.`;
+    showToast(`Imported ${addedFeeds + addedSleeps} records`);
+    alert(details);
+  }
+
+  // IndexedDB persistence. All app state is stored as one versioned snapshot.
+  function openDatabase() {
+    return new Promise((resolve, reject) => {
+      if (!('indexedDB' in window) || !window.indexedDB) {
+        reject(new Error('IndexedDB is not available in this browser context.'));
+        return;
+      }
+      let request;
+      try { request = window.indexedDB.open(DB_NAME, DB_VERSION); }
+      catch (error) { reject(error); return; }
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains(DB_STORE)) {
+          database.createObjectStore(DB_STORE, { keyPath: 'id' });
+        }
+      };
+      request.onsuccess = () => {
+        const database = request.result;
+        database.onversionchange = () => database.close();
+        resolve(database);
+      };
+      request.onerror = () => reject(request.error || new Error('Could not open IndexedDB.'));
+      request.onblocked = () => reject(new Error('IndexedDB is blocked by another open app tab. Close other Little Feed tabs and try again.'));
+    });
+  }
+
+  function readDatabaseState() {
+    return new Promise((resolve, reject) => {
+      let transaction;
+      try { transaction = db.transaction(DB_STORE, 'readonly'); }
+      catch (error) { reject(error); return; }
+      const request = transaction.objectStore(DB_STORE).get(DB_RECORD_ID);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error || new Error('Could not read saved data.'));
+      transaction.onabort = () => reject(transaction.error || new Error('Reading saved data was interrupted.'));
+    });
+  }
+
+  function writeDatabaseState(snapshot) {
+    return new Promise((resolve, reject) => {
+      let transaction;
+      try { transaction = db.transaction(DB_STORE, 'readwrite'); }
+      catch (error) { reject(error); return; }
+      transaction.objectStore(DB_STORE).put({ ...snapshot, id: DB_RECORD_ID, savedAt: Date.now() });
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error('Could not save data to IndexedDB.'));
+      transaction.onabort = () => reject(transaction.error || new Error('Saving data was interrupted.'));
+    });
+  }
+
+  function applySavedState(saved) {
+    if (!saved || typeof saved !== 'object') return;
+    state.history = Array.isArray(saved.history) ? saved.history : [];
+    state.lastSide = saved.lastSide || null;
+    state.lastSideAt = Number(saved.lastSideAt) || null;
+    state.sleepHistory = Array.isArray(saved.sleepHistory) ? saved.sleepHistory : [];
+    state.activeSleepStart = Number(saved.activeSleepStart) || null;
+    if (saved.activeFeed && typeof saved.activeFeed === 'object') {
+      state.leftMs = Math.max(0, Number(saved.activeFeed.leftMs) || 0);
+      state.rightMs = Math.max(0, Number(saved.activeFeed.rightMs) || 0);
+      state.active = ['left', 'right'].includes(saved.activeFeed.active) ? saved.activeFeed.active : null;
+      state.startedAt = Number(saved.activeFeed.startedAt) || null;
+      state.segmentStartedAt = Number(saved.activeFeed.segmentStartedAt) || null;
+    }
+  }
+
+  function persistedStateSnapshot() {
+    return {
+      history: state.history.map(item => ({ ...item })),
+      lastSide: state.lastSide,
+      lastSideAt: state.lastSideAt,
+      sleepHistory: state.sleepHistory.map(item => ({ ...item })),
+      activeSleepStart: state.activeSleepStart,
+      activeFeed: (state.startedAt || state.leftMs || state.rightMs || state.active) ? {
+        leftMs: state.leftMs, rightMs: state.rightMs, active: state.active,
+        startedAt: state.startedAt, segmentStartedAt: state.segmentStartedAt
+      } : null
+    };
+  }
+
+  function setStorageStatus(message, warning = false) {
+    const el = $('storageStatus');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.toggle('warning', warning);
+  }
+
+  async function initializeStorage() {
+    try {
+      db = await openDatabase();
+      const saved = await readDatabaseState();
+      if (saved) applySavedState(saved);
+
+      let persistent = false;
+      try {
+        if (navigator.storage?.persisted) persistent = await navigator.storage.persisted();
+        if (!persistent && navigator.storage?.persist) persistent = await navigator.storage.persist();
+      } catch (_) {
+        // Persistent-storage requests are optional; IndexedDB still works without a grant.
+      }
+
+      setStorageStatus(persistent
+        ? 'Saved on this device with IndexedDB · persistent storage enabled'
+        : 'Saved on this device with IndexedDB · browser storage can still be cleared');
+    } catch (error) {
+      db = null;
+      setStorageStatus('IndexedDB is unavailable here. Changes may not persist; open this app in a regular Safari tab or add it to your Home Screen.', true);
+      console.warn('Little Feed storage initialization failed:', error);
+    }
+  }
+
+  // Timer calculations and presentation.
+  function fmt(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return h ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}` : `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  }
+  function elapsed(side) {
+    return (side === 'left' ? state.leftMs : state.rightMs) +
+      (state.active === side && state.segmentStartedAt ? Date.now() - state.segmentStartedAt : 0);
+  }
+  function totalElapsed() { return elapsed('left') + elapsed('right'); }
+  function setSide(side) {
+    const now = Date.now();
+    if (state.active && state.segmentStartedAt) {
+      const duration = now - state.segmentStartedAt;
+      if (state.active === 'left') state.leftMs += duration;
+      else state.rightMs += duration;
+    }
+    if (state.active === side) {
+      state.active = null; state.segmentStartedAt = null;
+      showToast('Timer paused');
+    } else {
+      state.active = side; state.segmentStartedAt = now;
+      if (!state.startedAt) state.startedAt = now;
+    }
+    persistExtended();
+    render();
+  }
+  function adjustLiveFeedSide(side, deltaMinutes) {
+    const deltaMs = deltaMinutes * 60000;
+    const now = Date.now();
+    const currentElapsed = elapsed(side);
+    if (deltaMs < 0 && currentElapsed < Math.abs(deltaMs)) {
+      showToast('That side cannot go below 00:00');
+      return;
+    }
+
+    // Fold the currently running segment into its base value before changing it,
+    // then restart its clock so time is neither lost nor counted twice.
+    if (state.active === side && state.segmentStartedAt) {
+      const segmentMs = now - state.segmentStartedAt;
+      if (side === 'left') state.leftMs += segmentMs;
+      else state.rightMs += segmentMs;
+      state.segmentStartedAt = now;
+    }
+
+    if (side === 'left') state.leftMs = Math.max(0, state.leftMs + deltaMs);
+    else state.rightMs = Math.max(0, state.rightMs + deltaMs);
+
+    if (totalElapsed() > 0) state.startedAt = now - totalElapsed();
+    persistExtended();
+    render();
+    showToast(`${capitalize(side)} side ${deltaMinutes > 0 ? '+1' : '−1'} minute`);
+  }
+  // UI rendering. Renderers read state but do not mutate stored records.
+  function render() {
+    const left = elapsed('left'), right = elapsed('right');
+    $('leftTime').textContent = fmt(left); $('rightTime').textContent = fmt(right);
+    $('mainClock').textContent = fmt(totalElapsed());
+    $('leftBtn').classList.toggle('active', state.active === 'left');
+    $('rightBtn').classList.toggle('active', state.active === 'right');
+    $('leftTile').classList.toggle('active', state.active === 'left');
+    $('rightTile').classList.toggle('active', state.active === 'right');
+    $('leftBtn').querySelector('.side-hint').textContent = state.active === 'left' ? 'Currently feeding' : (left ? 'Tap to switch / resume' : 'Tap to start');
+    $('rightBtn').querySelector('.side-hint').textContent = state.active === 'right' ? 'Currently feeding' : (right ? 'Tap to switch / resume' : 'Tap to start');
+    $('statusPill').textContent = state.active ? `FEEDING · ${state.active.toUpperCase()}` : (totalElapsed() ? 'TIMER PAUSED' : 'READY WHEN YOU ARE');
+    renderFeedCaption();
+    $('finishBtn').disabled = totalElapsed() === 0;
+    $('finishBtn').style.opacity = totalElapsed() === 0 ? '.55' : '1';
+    renderLast(); renderHistory(); renderSleep(); renderSleepHistory();
+    if (!$('timelinePanel').hidden) {
+      const second = Math.floor(Date.now() / 1000);
+      if (second !== lastTimelineRenderSecond) { lastTimelineRenderSecond = second; renderTimeline(); }
+    }
+  }
+  function elapsedAgeLabel(milliseconds) {
+    const totalMinutes = Math.floor(Math.max(0, Number(milliseconds) || 0) / 60000);
+    if (totalMinutes < 1) return 'less than 1 min';
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (hours && minutes) return `${hours} hr ${minutes} min`;
+    if (hours) return `${hours} hr`;
+    return `${minutes} min`;
+  }
+
+  function renderFeedCaption() {
+    const caption = $('clockCaption');
+    if (state.active) {
+      caption.textContent = `On the ${state.active} side · tap the other side to switch`;
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    if (totalElapsed() > 0) {
+      caption.textContent = 'Paused · pick a side to continue';
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    if (!state.history.length) {
+      caption.textContent = 'Choose a side to begin';
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    const latest = state.history.reduce((a, b) => feedStartTimestamp(a) >= feedStartTimestamp(b) ? a : b);
+    const startedAt = feedStartTimestamp(latest);
+    if (!Number.isFinite(startedAt) || startedAt <= 0) {
+      caption.textContent = 'Choose a side to begin';
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    caption.textContent = `Last feed started · ${elapsedAgeLabel(Date.now() - startedAt)} ago`;
+    caption.classList.add('elapsed-state');
+  }
+
+  function renderAwakeCaption() {
+    const caption = $('sleepCaption');
+    if (state.activeSleepStart) return;
+    if (!state.sleepHistory.length) {
+      caption.textContent = 'No wake-up time recorded yet';
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    const latest = state.sleepHistory.reduce((a, b) => Number(a.endedAt) >= Number(b.endedAt) ? a : b);
+    const wokeAt = Number(latest.endedAt);
+    if (!Number.isFinite(wokeAt) || wokeAt <= 0) {
+      caption.textContent = 'No wake-up time recorded yet';
+      caption.classList.remove('elapsed-state');
+      return;
+    }
+    caption.textContent = `Awake for ${elapsedAgeLabel(Date.now() - wokeAt)}`;
+    caption.classList.add('elapsed-state');
+  }
+
+  function renderLast() {
+    // Highlight the most recently used side directly in its tile. If imported
+    // data does not identify a side (for example, Side=both), neither tile is highlighted.
+    for (const side of ['left', 'right']) {
+      const isLastSide = state.lastSide === side;
+      const tile = $(side === 'left' ? 'leftTile' : 'rightTile');
+      const button = $(side === 'left' ? 'leftBtn' : 'rightBtn');
+      const badge = $(side === 'left' ? 'leftLastSideLabel' : 'rightLastSideLabel');
+      const hint = button.querySelector('.side-hint');
+      tile.classList.toggle('last-used', isLastSide);
+      badge.setAttribute('aria-hidden', String(!isLastSide));
+      button.setAttribute('aria-label', `${capitalize(side)} breast${isLastSide ? ', last fed side' : ''}${state.active === side ? ', currently feeding' : ''}`);
+      if (isLastSide && state.lastSideAt) {
+        hint.textContent = `Last fed · ${relativeTime(state.lastSideAt)}`;
+      }
+    }
+  }
+  function feedStartTimestamp(item) {
+    const startedAt = Number(item.startedAt);
+    if (item.startedAt != null && Number.isFinite(startedAt) && startedAt > 0) return startedAt;
+    const endedAt = Number(item.endedAt);
+    const duration = Number(item.totalMs);
+    return Number.isFinite(endedAt) && Number.isFinite(duration) ? endedAt - duration : endedAt;
+  }
+  function renderHistory() {
+    const list = $('historyList');
+    $('historyCount').textContent = `${state.history.length} ${state.history.length === 1 ? 'feed' : 'feeds'}`;
+    if (!state.history.length) {
+      list.innerHTML = '<div class="card empty"><div class="empty-icon">🌙</div><strong>Your feeding story starts here</strong><br>When you finish a feed, it will appear here.</div>';
+      return;
+    }
+    list.innerHTML = [...state.history].sort((a,b) => feedStartTimestamp(b) - feedStartTimestamp(a)).slice(0, 30).map(item => {
+      const date = new Date(feedStartTimestamp(item));
+      const dateText = isSameDay(date, new Date()) ? `Today, ${date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}` :
+        date.toLocaleDateString([], {month:'short', day:'numeric'}) + ` · ` + date.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+      const parts = [];
+      if (item.importedAggregate && item.importedSide === 'both') {
+        parts.push(`Both sides · ${fmt(item.totalMs)} combined`);
+      } else {
+        if (item.leftMs > 0) parts.push(`Left ${fmt(item.leftMs)}`);
+        if (item.rightMs > 0) parts.push(`Right ${fmt(item.rightMs)}`);
+      }
+      const last = item.lastSide ? `${capitalize(item.lastSide)} was last` : (item.importedSide === 'both' ? 'Last side not specified in CSV' : 'Side not recorded');
+      return `<article class="card history-item">
+        <div class="history-mark">🍼</div>
+        <div class="history-main"><div class="history-date">${dateText}</div><div class="history-meta">${parts.join(' · ') || 'Duration not recorded'}<br>${last}</div></div>
+        <div class="history-duration">${fmt(item.totalMs)}<small>total</small></div>
+        <div class="record-actions"><button class="edit-record" type="button" data-edit-feed="${item.id}">Edit</button><button class="delete" type="button" aria-label="Delete feed" data-delete="${item.id}">×</button></div>
+      </article>`;
+    }).join('');
+  }
+  function humanDuration(ms) {
+    const totalMinutes = Math.max(0, Math.round(ms / 60000));
+    const hours = Math.floor(totalMinutes / 60), minutes = totalMinutes % 60;
+    if (hours && minutes) return `${hours} hr ${minutes} min`;
+    if (hours) return `${hours} hr`;
+    return `${minutes} min`;
+  }
+  function sleepStartLabel(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const time = date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hourCycle:'h23'});
+    if (isSameDay(date, now)) return `Today, ${time}`;
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (isSameDay(date, yesterday)) return `Yesterday, ${time}`;
+    return `${date.toLocaleDateString([], {month:'short', day:'numeric'})}, ${time}`;
+  }
+  // Non-linear sleep adjustment: a fine range near "Now", with larger steps further back.
+  // The slider's position (0–1000) maps quadratically to a maximum of five hours.
+  const SLEEP_SLIDER_MAX_MINUTES = 5 * 60;
+  const SLEEP_SLIDER_STEPS = 1000;
+  function sleepSliderMinutesFromPosition(position) {
+    const ratio = Math.max(0, Math.min(1, Number(position) / SLEEP_SLIDER_STEPS));
+    return Math.round(SLEEP_SLIDER_MAX_MINUTES * ratio * ratio);
+  }
+  function sleepSliderPositionFromMinutes(minutes) {
+    const ratio = Math.max(0, Math.min(1, Number(minutes) / SLEEP_SLIDER_MAX_MINUTES));
+    return Math.round(Math.sqrt(ratio) * SLEEP_SLIDER_STEPS);
+  }
+  function renderSleep() {
+    const sleeping = !!state.activeSleepStart;
+    const now = Date.now();
+    const displayStart = sleeping ? (sleepStartPreview ?? Number(state.activeSleepStart)) : null;
+    const elapsed = sleeping ? Math.max(0, now - displayStart) : 0;
+    $('sleepClock').textContent = sleeping ? fmt(elapsed) : '00:00';
+    $('sleepStatusPill').textContent = sleeping ? 'BABY IS SLEEPING' : 'BABY IS AWAKE';
+    if (sleeping) {
+      $('sleepCaption').textContent = 'Adjust the start time below if you began tracking late.';
+      $('sleepCaption').classList.remove('elapsed-state');
+    } else {
+      renderAwakeCaption();
+    }
+    $('sleepStartRow').hidden = !sleeping;
+    if (sleeping) {
+      $('sleepStartValue').textContent = sleepStartLabel(displayStart);
+      $('sleepDurationValue').textContent = humanDuration(elapsed);
+      const slider = $('sleepStartSlider');
+      $('sleepSliderMaxLabel').textContent = '5 hours ago';
+      // While a user is dragging, don't move the thumb under their finger.
+      if (sleepStartPreview === null && document.activeElement !== slider) {
+        const minutesAgo = Math.max(0, Math.round((now - Number(state.activeSleepStart)) / 60000));
+        slider.max = String(SLEEP_SLIDER_STEPS);
+        slider.value = String(sleepSliderPositionFromMinutes(minutesAgo));
+      }
+    }
+    $('sleepToggleBtn').textContent = sleeping ? '☀️ Wake up & save sleep' : '🌙 Start sleep';
+    $('sleepToggleBtn').classList.toggle('waking', sleeping);
+  }
+  function renderSleepHistory() {
+    const list = $('sleepHistoryList');
+    $('sleepHistoryCount').textContent = `${state.sleepHistory.length} ${state.sleepHistory.length === 1 ? 'session' : 'sessions'}`;
+    if (!state.sleepHistory.length) {
+      list.innerHTML = '<div class="card empty"><div class="empty-icon">🌙</div><strong>No sleep sessions yet</strong><br>When your baby wakes up, the session will be saved here.</div>';
+      return;
+    }
+    list.innerHTML = [...state.sleepHistory].sort((a,b) => Number(b.endedAt)-Number(a.endedAt)).slice(0, 30).map(item => {
+      const start = new Date(item.startedAt), end = new Date(item.endedAt);
+      const sameDay = isSameDay(start, end);
+      const dateText = isSameDay(end, new Date()) ? `Today · ${end.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}` :
+        end.toLocaleDateString([], {month:'short', day:'numeric'}) + ` · ` + end.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+      const timeRange = `${start.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})} – ${end.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})}`;
+      return `<article class="card history-item">
+        <div class="history-mark sleep-history-mark">🌙</div>
+        <div class="history-main"><div class="history-date">${dateText}</div><div class="history-meta">${timeRange}${sameDay ? '' : ' · overnight'}</div></div>
+        <div class="history-duration">${humanDuration(item.durationMs)}<small>asleep</small></div>
+        <div class="record-actions"><button class="edit-record" type="button" data-edit-sleep="${item.id}">Edit</button><button class="delete" type="button" aria-label="Delete sleep record" data-sleep-delete="${item.id}">×</button></div>
+      </article>`;
+    }).join('');
+  }
+  // Timeline rendering and horizontal history expansion.
+  function renderTimeline() {
+    const host = $('weekDiagram');
+    const scroller = $('timelineScroller');
+    const axis = $('timeAxis');
+    if (!host || !scroller || !axis) return;
+    const oldScrollLeft = scroller.scrollLeft;
+    const wasInitialized = state.timelineInitialized;
+    const now = Date.now();
+    const today = new Date(); today.setHours(0,0,0,0);
+    const days = [];
+    for (let i = state.timelineDaysCount - 1; i >= 0; i--) {
+      const start = new Date(today); start.setDate(today.getDate() - i);
+      const end = new Date(start); end.setDate(start.getDate() + 1);
+      days.push({start, end});
+    }
+
+    const events = [];
+    state.sleepHistory.forEach(item => {
+      const start = Number(item.startedAt), end = Number(item.endedAt);
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start)
+        events.push({type:'sleep', start, end, label:'Sleep', id:item.id});
+    });
+    if (state.activeSleepStart) {
+      events.push({type:'sleep', start:Number(state.activeSleepStart), end:now, label:'Sleep in progress', ongoing:true});
+    }
+    state.history.forEach(item => {
+      const end = Number(item.endedAt);
+      const start = Number(item.startedAt || (end - Number(item.totalMs || 0)));
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start)
+        events.push({type:'feed', start, end, label:`Feeding · ${capitalize(item.lastSide || 'side')} was last`, id:item.id});
+    });
+    if (state.active && state.startedAt) {
+      events.push({type:'feed', start:Number(state.startedAt), end:now, label:`Feeding in progress · ${capitalize(state.active)} side`, ongoing:true});
+    }
+
+    // Keep a fixed 24-hour vertical scale: midnight at the top, 24:00 at the bottom.
+    const timeLabels = [];
+    for (let hour = 0; hour <= 24; hour += 3) {
+      const top = hour / 24 * 100;
+      const cls = hour === 0 ? 'first' : (hour === 24 ? 'last' : '');
+      const label = hour === 24 ? '24' : String(hour).padStart(2, '0');
+      timeLabels.push(`<span class="time-label ${cls}" style="top:${top}%">${label}:00</span>`);
+    }
+    axis.innerHTML = `<div class="time-axis-spacer"></div><div class="time-ruler">${timeLabels.join('')}</div>`;
+
+    let sleepCount = 0, feedCount = 0;
+    const rows = days.map(({start:dayStart, end:dayEnd}) => {
+      const dayStartMs = dayStart.getTime(), dayEndMs = dayEnd.getTime();
+      const dayEvents = events.filter(e => e.end > dayStartMs && e.start < dayEndMs);
+      const plotBlocks = dayEvents.map(e => {
+        const segStart = Math.max(e.start, dayStartMs);
+        const segEnd = Math.min(e.end, dayEndMs);
+        if (segEnd <= segStart) return '';
+        const minuteAt = ts => {
+          const d = new Date(ts);
+          return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60 + d.getMilliseconds() / 60000;
+        };
+        const topPct = segStart <= dayStartMs ? 0 : minuteAt(segStart) / 1440 * 100;
+        const bottomPct = segEnd >= dayEndMs ? 100 : minuteAt(segEnd) / 1440 * 100;
+        const heightPct = Math.max(0, bottomPct - topPct);
+        const duration = segEnd - segStart;
+        const time = `${new Date(segStart).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}–${new Date(segEnd).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
+        const label = `${e.label}, ${time}, ${humanDuration(duration)}${e.ongoing ? ', ongoing' : ''}`;
+        if (e.type === 'sleep') sleepCount++; else feedCount++;
+        const title = label.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // Feed bars stay narrower than sleep blocks so simultaneous events remain visible.
+        const height = Math.max(e.type === 'sleep' ? 0.8 : 0.6, heightPct);
+        return `<span class="timeline-block ${e.type}${e.ongoing ? ' ongoing' : ''}" style="top:${topPct.toFixed(3)}%;height:${height.toFixed(3)}%" title="${title}" aria-label="${title}"></span>`;
+      }).join('');
+      const isToday = isSameDay(dayStart, today);
+      const weekday = dayStart.toLocaleDateString([], {weekday:'short'});
+      const daynum = dayStart.toLocaleDateString([], {month:'numeric',day:'numeric'});
+      const fullDate = dayStart.toLocaleDateString([], {weekday:'long',month:'long',day:'numeric',year:'numeric'});
+      const safeFullDate = fullDate.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return `<div class="timeline-day${isToday ? ' today-column' : ''}" aria-label="${safeFullDate}">
+        <div class="timeline-date" title="${safeFullDate}"><strong>${isToday ? 'Today' : weekday}</strong>${daynum}</div>
+        <div class="timeline-plot" aria-label="${safeFullDate}: ${dayEvents.length} sessions">${plotBlocks}</div>
+      </div>`;
+    }).join('');
+
+    host.innerHTML = rows;
+    const oldestDate = days[0].start;
+    const oldestEvent = events.reduce((min, e) => Math.min(min, e.start), Infinity);
+    const canLoadEarlier = Number.isFinite(oldestEvent) && oldestEvent < oldestDate.getTime();
+    scroller.dataset.canLoadEarlier = canLoadEarlier ? 'true' : 'false';
+    $('timelineSummary').textContent = `${state.timelineDaysCount} days · ${sleepCount} sleep blocks · ${feedCount} feed blocks`;
+    const hasPeriodData = events.some(e => e.end > days[0].start.getTime() && e.start < days[days.length-1].end.getTime());
+    $('timelineEmpty').hidden = hasPeriodData;
+
+    if (!wasInitialized) {
+      state.timelineInitialized = true;
+      requestAnimationFrame(() => {
+        scroller.scrollLeft = scroller.scrollWidth;
+      });
+    } else if (!state.extendingTimeline) {
+      // Preserve the user's horizontal position while active timers refresh the drawing.
+      scroller.scrollLeft = oldScrollLeft;
+    }
+  }
+
+  function maybeLoadEarlierTimeline() {
+    const scroller = $('timelineScroller');
+    if (!scroller || state.extendingTimeline || scroller.scrollLeft > 35) return;
+    if (scroller.dataset.canLoadEarlier !== 'true') return;
+    state.extendingTimeline = true;
+    const oldWidth = scroller.scrollWidth;
+    state.timelineDaysCount += 7;
+    renderTimeline();
+    const addedWidth = scroller.scrollWidth - oldWidth;
+    scroller.scrollLeft = Math.max(0, addedWidth);
+    state.extendingTimeline = false;
+  }
+
+  function activateTab(name) {
+    const track = name === 'track';
+    $('trackPanel').hidden = !track;
+    $('timelinePanel').hidden = track;
+    $('trackTabBtn').setAttribute('aria-selected', track ? 'true' : 'false');
+    $('timelineTabBtn').setAttribute('aria-selected', track ? 'false' : 'true');
+    $('trackTabBtn').tabIndex = track ? 0 : -1;
+    $('timelineTabBtn').tabIndex = track ? -1 : 0;
+    if (!track) { lastTimelineRenderSecond = Math.floor(Date.now() / 1000); renderTimeline(); }
+  }
+
+  // User actions for timers and record changes.
+  function toggleSleep() {
+    const now = Date.now();
+    if (!state.activeSleepStart) {
+      sleepStartPreview = null;
+      state.activeSleepStart = now;
+      persistExtended();
+      render();
+      showToast('Sleep timer started 🌙');
+      return;
+    }
+    const startedAt = sleepStartPreview ?? state.activeSleepStart;
+    sleepStartPreview = null;
+    const item = {
+      id: `${now}-${Math.random().toString(36).slice(2,7)}`,
+      startedAt,
+      endedAt: now,
+      durationMs: Math.max(0, now - startedAt)
+    };
+    state.sleepHistory.unshift(item);
+    state.activeSleepStart = null;
+    persistExtended();
+    render();
+    showToast('Sleep saved — hope you both got some rest 🤍');
+  }
+  function finish() {
+    const now = Date.now();
+    if (state.active && state.segmentStartedAt) {
+      const duration = now - state.segmentStartedAt;
+      if (state.active === 'left') state.leftMs += duration; else state.rightMs += duration;
+    }
+    const total = state.leftMs + state.rightMs;
+    if (!total) return;
+    const item = {id: `${now}-${Math.random().toString(36).slice(2,7)}`, startedAt: state.startedAt || now-total, endedAt: now,
+      leftMs: state.leftMs, rightMs: state.rightMs, totalMs: total,
+      lastSide: state.active || (state.rightMs > state.leftMs ? 'right' : 'left')};
+    state.history.unshift(item);
+    state.lastSide = item.lastSide; state.lastSideAt = now;
+    // Store the last-side timestamp along with the history.
+    state.active = null; state.segmentStartedAt = null; state.startedAt = null; state.leftMs = 0; state.rightMs = 0;
+    persistExtended(); render(); showToast('Feed saved — you’re doing great 🤍');
+  }
+  function persistExtended() {
+    if (!db) return;
+    const snapshot = persistedStateSnapshot();
+    saveChain = saveChain.then(() => writeDatabaseState(snapshot)).catch(error => {
+      console.warn('Little Feed could not save to IndexedDB:', error);
+      setStorageStatus('Could not save changes to IndexedDB. Keep this page open and check browser storage settings.', true);
+    });
+  }
+  function reset() {
+    if (totalElapsed() && !confirm('Reset this timer without saving the feed?')) return;
+    state.leftMs = 0; state.rightMs = 0; state.active = null; state.startedAt = null; state.segmentStartedAt = null;
+    persistExtended(); render(); showToast('Timer reset');
+  }
+  function showToast(msg) {
+    const el = $('toast'); el.textContent = msg; el.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2300);
+  }
+  function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : ''; }
+  function isSameDay(a,b) { return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+  function relativeTime(timestamp) {
+    const mins = Math.max(0, Math.floor((Date.now()-timestamp)/60000));
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min${mins===1?'':'s'} ago`;
+    const hours = Math.floor(mins/60);
+    if (hours < 24) return `${hours} hr${hours===1?'':'s'} ago`;
+    return new Date(timestamp).toLocaleDateString([], {month:'short',day:'numeric'});
+  }
+  // Shared helpers for the record editor.
+  function localDateTimeValue(timestamp) {
+    const n = Number(timestamp);
+    if (!Number.isFinite(n)) return '';
+    const date = new Date(n);
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
+  }
+  function safeAttr(value) {
+    return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function editField(label, name, type, value, options = {}) {
+    const full = options.full ? ' full' : '';
+    if (type === 'select') {
+      const opts = (options.choices || []).map(choice => `<option value="${safeAttr(choice.value)}"${String(value) === String(choice.value) ? ' selected' : ''}>${safeAttr(choice.label)}</option>`).join('');
+      return `<div class="editor-field${full}"><label for="${name}">${label}</label><select id="${name}" name="${name}">${opts}</select></div>`;
+    }
+    const min = options.min !== undefined ? ` min="${options.min}"` : '';
+    const max = options.max !== undefined ? ` max="${options.max}"` : '';
+    const step = options.step !== undefined ? ` step="${options.step}"` : (type === 'datetime-local' ? ' step="1"' : '');
+    return `<div class="editor-field${full}"><label for="${name}">${label}</label><input id="${name}" name="${name}" type="${type}" value="${safeAttr(value)}"${min}${max}${step} required></div>`;
+  }
+  function editMinutes(ms) {
+    return (Math.max(0, Number(ms) || 0) / 60000).toFixed(1);
+  }
+  function openEditor(type, id = null) {
+    const now = Date.now();
+    let fields = '', title = 'Edit record', help = '';
+    editorContext = {type, id};
+    if (type === 'active-feed') {
+      title = 'Adjust feeding timer';
+      fields = editField('Feed started at', 'startAt', 'datetime-local', localDateTimeValue(state.startedAt || (now - totalElapsed())), {full:true}) +
+        editField('Left side · minutes', 'leftMinutes', 'number', editMinutes(elapsed('left')), {min:0, step:0.1}) +
+        editField('Right side · minutes', 'rightMinutes', 'number', editMinutes(elapsed('right')), {min:0, step:0.1}) +
+        editField('Current timer state', 'activeSide', 'select', state.active || '', {full:true, choices:[{value:'',label:'Paused'},{value:'left',label:'Running · left side'},{value:'right',label:'Running · right side'}]});
+      help = 'Adjust the recorded minutes for each side and the feed start time. If a side is running, its timer will continue from the saved value after you close this editor.';
+    } else if (type === 'active-sleep') {
+      if (!state.activeSleepStart) return;
+      title = 'Adjust sleep timer';
+      fields = editField('Fell asleep at', 'startAt', 'datetime-local', localDateTimeValue(state.activeSleepStart), {full:true});
+      help = 'The sleep timer continues running from this start time. This is useful when you started tracking a little late.';
+    } else if (type === 'feed-record') {
+      const item = state.history.find(x => String(x.id) === String(id));
+      if (!item) return;
+      title = 'Edit feeding record';
+      fields = editField('Feed started at', 'startAt', 'datetime-local', localDateTimeValue(item.startedAt || (item.endedAt - item.totalMs)), {full:true}) +
+        editField('Feed ended at', 'endAt', 'datetime-local', localDateTimeValue(item.endedAt), {full:true}) +
+        (item.importedAggregate
+          ? editField('Combined duration · minutes', 'combinedMinutes', 'number', editMinutes(item.totalMs), {full:true, min:0, step:0.1})
+          : editField('Left side · minutes', 'leftMinutes', 'number', editMinutes(item.leftMs), {min:0, step:0.1}) +
+            editField('Right side · minutes', 'rightMinutes', 'number', editMinutes(item.rightMs), {min:0, step:0.1}) +
+            editField('Last side used', 'savedLastSide', 'select', item.lastSide || (item.rightMs > item.leftMs ? 'right' : 'left'), {full:true, choices:[{value:'left',label:'Left side'},{value:'right',label:'Right side'}]}));
+      help = item.importedAggregate
+        ? 'This CSV record says both sides were used but does not provide separate durations or which side was last. Edit the combined duration and times here; the missing side split will stay unspecified.'
+        : 'You can change the session times, each side’s duration, and which side was used last. Total feeding duration is recalculated from the two side durations.';
+    } else if (type === 'sleep-record') {
+      const item = state.sleepHistory.find(x => String(x.id) === String(id));
+      if (!item) return;
+      title = 'Edit sleep record';
+      fields = editField('Fell asleep at', 'startAt', 'datetime-local', localDateTimeValue(item.startedAt), {full:true}) +
+        editField('Woke up at', 'endAt', 'datetime-local', localDateTimeValue(item.endedAt), {full:true});
+      help = 'Sleep duration is calculated automatically from the start and wake-up times. Overnight sessions are supported.';
+    } else return;
+    $('editorTitle').textContent = title;
+    $('editorFields').innerHTML = fields;
+    $('editorHelp').textContent = help;
+    $('editorError').textContent = '';
+    $('editorBackdrop').hidden = false;
+    const firstField = $('editorFields').querySelector('input, select');
+    if (firstField) firstField.focus({preventScroll:true});
+  }
+  function closeEditor() {
+    $('editorBackdrop').hidden = true;
+    $('editorError').textContent = '';
+    editorContext = null;
+  }
+  function editorError(message) { $('editorError').textContent = message; }
+  function recalculateLastFeed() {
+    if (!state.history.length) {
+      state.lastSide = null;
+      state.lastSideAt = null;
+      return;
+    }
+    const newest = state.history.reduce((a, b) => Number(a.endedAt) >= Number(b.endedAt) ? a : b);
+    state.lastSide = newest.lastSide || null;
+    state.lastSideAt = Number(newest.endedAt) || null;
+  }
+  function positiveDurationInput(name) {
+    const value = Number($('editorForm').elements.namedItem(name).value);
+    return Number.isFinite(value) && value >= 0 ? Math.round(value * 60000) : null;
+  }
+  function saveEditor(event) {
+    event.preventDefault();
+    if (!editorContext) return;
+    const form = $('editorForm');
+    const input = name => form.elements.namedItem(name)?.value ?? '';
+    const parseDate = name => input(name) ? new Date(input(name)).getTime() : NaN;
+    const now = Date.now();
+    const startAt = parseDate('startAt');
+    const endAt = input('endAt') ? parseDate('endAt') : null;
+    if (!Number.isFinite(startAt) || startAt > now) {
+      editorError('Please enter a valid start time that is not in the future.');
+      return;
+    }
+
+    if (editorContext.type === 'active-feed') {
+      const leftMs = positiveDurationInput('leftMinutes');
+      const rightMs = positiveDurationInput('rightMinutes');
+      const activeSide = input('activeSide');
+      if (leftMs === null || rightMs === null) { editorError('Durations must be zero or a positive number of minutes.'); return; }
+      if (leftMs + rightMs === 0 && !activeSide) { editorError('Add some elapsed time or choose a side to keep the timer running.'); return; }
+      state.leftMs = leftMs;
+      state.rightMs = rightMs;
+      state.startedAt = startAt;
+      state.active = ['left', 'right'].includes(activeSide) ? activeSide : null;
+      state.segmentStartedAt = state.active ? now : null;
+      persistExtended(); closeEditor(); render(); showToast('Feeding timer updated'); return;
+    }
+    if (editorContext.type === 'active-sleep') {
+      state.activeSleepStart = startAt;
+      persistExtended(); closeEditor(); render(); showToast('Sleep timer updated'); return;
+    }
+    if (!Number.isFinite(endAt) || endAt <= startAt || endAt > now) {
+      editorError('Please make sure the end time is after the start time and not in the future.');
+      return;
+    }
+    if (editorContext.type === 'feed-record') {
+      const item = state.history.find(x => String(x.id) === String(editorContext.id));
+      if (!item) { closeEditor(); return; }
+      item.startedAt = startAt; item.endedAt = endAt;
+      if (item.importedAggregate) {
+        const combinedMs = positiveDurationInput('combinedMinutes');
+        if (combinedMs === null || combinedMs <= 0) {
+          editorError('Enter a combined duration greater than zero.'); return;
+        }
+        item.leftMs = 0; item.rightMs = 0; item.totalMs = combinedMs;
+        item.lastSide = null; item.importedSide = 'both'; item.importedAggregate = true;
+      } else {
+        const leftMs = positiveDurationInput('leftMinutes');
+        const rightMs = positiveDurationInput('rightMinutes');
+        const lastSide = input('savedLastSide');
+        if (leftMs === null || rightMs === null || leftMs + rightMs <= 0) {
+          editorError('Enter valid side durations. At least one side must have a duration greater than zero.'); return;
+        }
+        item.leftMs = leftMs; item.rightMs = rightMs; item.totalMs = leftMs + rightMs;
+        item.lastSide = ['left','right'].includes(lastSide) ? lastSide : 'left';
+        item.importedAggregate = false;
+        item.importedSide = leftMs > 0 && rightMs > 0 ? 'both' : (leftMs > 0 ? 'left' : 'right');
+      }
+      recalculateLastFeed();
+      persistExtended(); closeEditor(); render(); showToast('Feeding record updated'); return;
+    }
+    if (editorContext.type === 'sleep-record') {
+      const item = state.sleepHistory.find(x => String(x.id) === String(editorContext.id));
+      if (!item) { closeEditor(); return; }
+      item.startedAt = startAt; item.endedAt = endAt; item.durationMs = endAt - startAt;
+      persistExtended(); closeEditor(); render(); showToast('Sleep record updated');
+    }
+  }
+
+  // Event wiring and startup. Keep side effects here so app behavior is easy to find.
+  $('sleepStartSlider').addEventListener('input', () => {
+    if (!state.activeSleepStart) return;
+    const position = Number($('sleepStartSlider').value);
+    if (!Number.isFinite(position)) return;
+    const minutesAgo = sleepSliderMinutesFromPosition(position);
+    sleepStartPreview = Date.now() - minutesAgo * 60000;
+    // Update only the sleep display while dragging, so the slider stays responsive.
+    renderSleep();
+  });
+  $('sleepStartSlider').addEventListener('change', () => {
+    if (!state.activeSleepStart || sleepStartPreview === null) return;
+    state.activeSleepStart = sleepStartPreview;
+    sleepStartPreview = null;
+    persistExtended();
+    render();
+    showToast(`Sleep start updated to ${new Date(state.activeSleepStart).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hourCycle:'h23'})}`);
+  });
+  document.querySelectorAll('[data-adjust-side]').forEach(button => {
+    button.addEventListener('click', () => adjustLiveFeedSide(button.dataset.adjustSide, Number(button.dataset.adjustMinutes)));
+  });
+  $('editorForm').addEventListener('submit', saveEditor);
+  $('editorCloseBtn').addEventListener('click', closeEditor);
+  $('editorCancelBtn').addEventListener('click', closeEditor);
+  $('editorBackdrop').addEventListener('click', e => { if (e.target === $('editorBackdrop')) closeEditor(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('editorBackdrop').hidden) closeEditor(); });
+
+  $('exportCsvBtn').addEventListener('click', exportCsv);
+  $('importCsvBtn').addEventListener('click', () => $('importCsvFile').click());
+  $('importCsvFile').addEventListener('change', async event => {
+    const file = event.target.files && event.target.files[0];
+    // Reset the chooser so the same file can be selected again after corrections.
+    event.target.value = '';
+    if (file) await importCsvFile(file);
+  });
+
+  $('refreshBtn').addEventListener('click', () => window.location.reload());
+  $('trackTabBtn').addEventListener('click', () => activateTab('track'));
+  $('timelineTabBtn').addEventListener('click', () => activateTab('timeline'));
+  $('timelineScroller').addEventListener('scroll', maybeLoadEarlierTimeline, {passive:true});
+  $('trackTabBtn').addEventListener('keydown', e => { if (e.key === 'ArrowRight') { activateTab('timeline'); $('timelineTabBtn').focus(); } });
+  $('timelineTabBtn').addEventListener('keydown', e => { if (e.key === 'ArrowLeft') { activateTab('track'); $('trackTabBtn').focus(); } });
+  function wireHistoryToggle(buttonId, panelId, historyName) {
+    const button = $(buttonId);
+    const panel = $(panelId);
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      const nextExpanded = !expanded;
+      button.setAttribute('aria-expanded', String(nextExpanded));
+      button.setAttribute('aria-label', `${nextExpanded ? 'Hide' : 'Show'} ${historyName}`);
+      button.title = `${nextExpanded ? 'Hide' : 'Show'} ${historyName}`;
+      panel.hidden = !nextExpanded;
+    });
+  }
+  wireHistoryToggle('feedHistoryToggle', 'feedingHistoryPanel', 'feeding history');
+  wireHistoryToggle('sleepHistoryToggle', 'sleepHistoryPanel', 'sleep history');
+
+  $('leftBtn').addEventListener('click', () => setSide('left'));
+  $('rightBtn').addEventListener('click', () => setSide('right'));
+  $('finishBtn').addEventListener('click', finish);
+  $('resetBtn').addEventListener('click', reset);
+  $('sleepToggleBtn').addEventListener('click', toggleSleep);
+  $('sleepHistoryList').addEventListener('click', e => {
+    const editBtn = e.target.closest('[data-edit-sleep]');
+    if (editBtn) { openEditor('sleep-record', editBtn.dataset.editSleep); return; }
+    const btn = e.target.closest('[data-sleep-delete]');
+    if (!btn) return;
+    const item = state.sleepHistory.find(x => x.id === btn.dataset.sleepDelete);
+    if (!item || !confirm('Delete this sleep record?')) return;
+    state.sleepHistory = state.sleepHistory.filter(x => x.id !== item.id);
+    persistExtended(); render(); showToast('Sleep record removed');
+  });
+  $('historyList').addEventListener('click', e => {
+    const editBtn = e.target.closest('[data-edit-feed]');
+    if (editBtn) { openEditor('feed-record', editBtn.dataset.editFeed); return; }
+    const btn = e.target.closest('[data-delete]');
+    if (!btn) return;
+    const item = state.history.find(x => x.id === btn.dataset.delete);
+    if (!item || !confirm('Delete this feeding record?')) return;
+    state.history = state.history.filter(x => x.id !== item.id);
+    recalculateLastFeed();
+    persistExtended(); render(); showToast('Feed removed');
+  });
+  const now = new Date();
+  $('todayLabel').textContent = now.toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'});
+  const appRoot = $('appRoot');
+  if (appRoot) appRoot.inert = true; // Prevent an early tap from racing the asynchronous database load.
+  initializeStorage().then(() => {
+    if (appRoot) appRoot.inert = false;
+    if (!state.lastSide && state.history.length) {
+      const newest = state.history.reduce((a,b) => Number(a.endedAt) > Number(b.endedAt) ? a : b);
+      state.lastSide = newest.lastSide; state.lastSideAt = newest.endedAt;
+    }
+    render();
+    setInterval(() => {
+      if (state.active || state.activeSleepStart) {
+        render();
+      } else {
+        renderFeedCaption();
+        renderAwakeCaption();
+      }
+    }, 1000);
+  });
+})();
+</script>
+</body>
+</html>
