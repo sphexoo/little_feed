@@ -17,7 +17,9 @@
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .app { width: min(100%, 520px); min-height: 100dvh; margin: 0 auto; padding: max(22px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); }
-  header { display:flex; justify-content:space-between; align-items:center; margin: 6px 2px 24px; }
+  /* Keep the brand/header and view tabs together at the top while page content scrolls. */
+  .sticky-top { position:sticky; top:0; z-index:70; margin-top:calc(-1 * max(22px, env(safe-area-inset-top))); padding-top:max(22px, env(safe-area-inset-top)); padding-bottom:7px; background:var(--bg); box-shadow:0 8px 14px -14px rgba(48,51,47,.42); }
+  header { display:flex; justify-content:space-between; align-items:center; margin: 6px 2px 12px; }
   .brand { display:flex; align-items:center; gap:11px; }
   .logo { width:43px; height:43px; border-radius:16px; display:grid; place-items:center; background:#eee9e1; font-size:31px; line-height:1; }
   h1 { font-size:21px; letter-spacing:-.7px; margin:0; font-weight:750; }
@@ -96,7 +98,7 @@
   .sleep-button { width:100%; background:var(--sleep-accent); color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(77,132,171,.18); }
   .sleep-button.waking { background:var(--sleep-accent-dark); box-shadow:0 5px 12px rgba(46,98,135,.16); }
   .sleep-history-mark { background:var(--sleep-accent-light); }
-  .tab-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; padding:5px; margin:0 0 18px; background:#eee9e1; border-radius:17px; }
+  .tab-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; padding:5px; margin:0 0 4px; background:#eee9e1; border-radius:17px; }
   .tab-button { border:0; border-radius:13px; min-height:43px; padding:10px 9px; color:var(--muted); background:transparent; font-size:12px; font-weight:750; }
   .tab-button[aria-selected="true"] { background:var(--card); color:var(--ink); box-shadow:0 2px 8px rgba(67,61,49,.07); }
   .tab-panel[hidden] { display:none !important; }
@@ -297,6 +299,7 @@
 </head>
 <body>
 <main class="app" id="appRoot">
+  <div class="sticky-top">
   <header>
     <div class="brand">
       <div class="logo" aria-hidden="true">🦁</div>
@@ -321,6 +324,7 @@
     <button class="tab-button" id="timelineTabBtn" type="button" role="tab" aria-controls="timelinePanel" aria-selected="false" tabindex="-1">▥ History</button>
     <button class="tab-button" id="trendsTabBtn" type="button" role="tab" aria-controls="trendsPanel" aria-selected="false" tabindex="-1">↗ Trends</button>
   </nav>
+  </div>
 
   <section class="tab-panel" id="trackPanel" role="tabpanel" aria-labelledby="trackTabBtn">
   <section class="card timer-card" aria-label="Breastfeeding timer">
