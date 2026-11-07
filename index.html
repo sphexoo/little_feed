@@ -2410,16 +2410,16 @@
     layer.appendChild(ring);
     ring.animate(
       [{transform:'translate(-50%,-50%) scale(.25)',opacity:.95}, {transform:'translate(-50%,-50%) scale(8)',opacity:0}],
-      {duration:620,easing:'cubic-bezier(.12,.65,.28,1)',fill:'forwards'}
+      {duration:1400,easing:'cubic-bezier(.18,.5,.32,1)',fill:'forwards'}
     );
 
     const lionCount = 34;
     for (let i = 0; i < lionCount; i++) {
       const angle = (Math.PI * 2 * i / lionCount) + (Math.random() - .5) * .22;
-      const distance = 75 + Math.random() * 145;
+      const distance = 85 + Math.random() * 165;
       const dx = Math.cos(angle) * distance;
       const dy = Math.sin(angle) * distance;
-      const fall = 190 + Math.random() * 330;
+      const fall = 300 + Math.random() * 420;
       const spin = (Math.random() - .5) * 900;
       const lion = document.createElement('span');
       lion.className = 'lion-firework-lion';
@@ -2430,16 +2430,16 @@
       layer.appendChild(lion);
       const animation = lion.animate([
         {transform:'translate(-50%,-50%) scale(.18) rotate(0deg)',opacity:0,offset:0},
-        {transform:`translate(calc(-50% + ${dx.toFixed(1)}px), calc(-50% + ${dy.toFixed(1)}px)) scale(1.08) rotate(${(spin * .28).toFixed(1)}deg)`,opacity:1,offset:.22,easing:'cubic-bezier(.12,.72,.2,1)'},
+        {transform:`translate(calc(-50% + ${dx.toFixed(1)}px), calc(-50% + ${dy.toFixed(1)}px)) scale(1.08) rotate(${(spin * .28).toFixed(1)}deg)`,opacity:1,offset:.28,easing:'cubic-bezier(.18,.58,.28,1)'},
         {transform:`translate(calc(-50% + ${(dx * 1.12).toFixed(1)}px), calc(-50% + ${(dy + fall).toFixed(1)}px)) scale(.7) rotate(${spin.toFixed(1)}deg)`,opacity:0,offset:1}
-      ], {duration:1750 + Math.random() * 850,delay:Math.random() * 115,easing:'cubic-bezier(.28,.62,.42,1)',fill:'forwards'});
+      ], {duration:5200 + Math.random() * 1800,delay:Math.random() * 650,easing:'cubic-bezier(.24,.48,.34,1)',fill:'forwards'});
       animation.onfinish = () => lion.remove();
     }
     showToast('🦁 ROAR! Lion fireworks!');
     setTimeout(() => {
       layer.remove();
       lionBurstActive = false;
-    }, 3100);
+    }, 8500);
   }
   $('lionEasterEgg').addEventListener('click', () => {
     if (lionBurstActive) return;
