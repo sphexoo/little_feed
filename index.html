@@ -49,7 +49,6 @@
   .header-menu-item:hover, .header-menu-item:focus-visible { outline:none; background:var(--sage-light); }
   .header-menu-icon { display:inline-grid; place-items:center; width:18px; color:var(--sage-dark); font-size:15px; }
   .header-menu-separator { height:1px; margin:4px 5px; background:var(--line); }
-  #cloudSyncStatus { font-size:10px; line-height:1.35; overflow-wrap:anywhere; }
   h2 { font-size:26px; line-height:1.15; letter-spacing:-1px; margin:7px 0 0; }
   .card { background:var(--card); border:1px solid rgba(225,219,208,.7); border-radius:26px; box-shadow:var(--shadow); }
   .timer-card { margin-top:14px; padding:22px 18px 18px; background:var(--feed-tint); border-color:#dfe9dc; }
@@ -329,11 +328,6 @@
           <div class="header-menu-separator" role="separator"></div>
           <button class="header-menu-item" id="importCsvBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↑</span>Import CSV</button>
           <button class="header-menu-item" id="exportCsvBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↓</span>Export CSV</button>
-          <div class="header-menu-separator" role="separator"></div>
-          <button class="header-menu-item" id="cloudSetupBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">☁</span>Configure cloud sync</button>
-          <button class="header-menu-item" id="cloudSignInBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↗</span>Sign in with Google</button>
-          <button class="header-menu-item" id="cloudSyncNowBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇅</span>Sync now</button>
-          <div class="header-menu-item" id="cloudSyncStatus" role="status" style="font-weight:600;color:var(--muted);white-space:normal;min-height:30px">Cloud sync not configured</div>
         </div>
       </div>
     </div>
@@ -552,10 +546,6 @@
   </section>
 </div>
 <div class="toast" id="toast" role="status"></div>
-<!-- Firebase compat SDKs; configure the public web app settings in FIREBASE_CONFIG below. -->
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 (() => {
   // Application configuration and in-memory state.
@@ -1972,202 +1962,10 @@
     state.active = null; state.segmentStartedAt = null; state.startedAt = null; state.leftMs = 0; state.rightMs = 0;
     persistExtended(); render(); showToast('Feed saved — you’re doing great 🤍');
   }
-  // Firebase local-first family synchronization.
-  // Create a Firebase project, enable Google Authentication + Firestore, and paste
-  // the project's Web App config here. FIREBASE_CONFIG is public client config;
-  // access is enforced by Firestore Security Rules and the family membership docs.
-  const FIREBASE_CONFIG = {
-    apiKey: 'AIzaSyADJXRI2kj9mP1TShAlQ1IpYdIg_46ogk8',
-    authDomain: 'little-feed.firebaseapp.com',
-    projectId: 'little-feed',
-    appId: '1:423937258864:web:6408387e2feb89f8400bb5'
-  };
-  const FAMILY_ID = 'little-feed-family'; // Use the same family ID on every device.
-  const CLOUD_BASELINE_KEY = 'littleFeedCloudBaseline_v1';
-  let cloudApp = null, cloudAuth = null, cloudDb = null;
-  let cloudUser = null, cloudSyncBusy = false, cloudSyncQueued = false;
-  let cloudInitialMigrationDone = false;
-  const cloudDocId = (type, id) => `${type}__${String(id).replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-  function cloudConfigured() {
-    return !!(window.firebase && FIREBASE_CONFIG.apiKey && !FIREBASE_CONFIG.apiKey.includes('PASTE_') &&
-      FIREBASE_CONFIG.projectId && !FIREBASE_CONFIG.projectId.includes('PASTE_') &&
-      FIREBASE_CONFIG.appId && !FIREBASE_CONFIG.appId.includes('PASTE_'));
-  }
-  function setCloudStatus(message, warning = false) {
-    const el = $('cloudSyncStatus');
-    if (el) { el.textContent = message; el.style.color = warning ? '#a35b45' : 'var(--muted)'; }
-  }
-  function initializeFirebase() {
-    if (!cloudConfigured()) { setCloudStatus('Cloud sync not configured'); return false; }
-    if (cloudApp && cloudAuth && cloudDb) return true;
-    try {
-      cloudApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(FIREBASE_CONFIG);
-      cloudAuth = firebase.auth(); cloudDb = firebase.firestore();
-      cloudAuth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(err => console.warn('Firebase auth persistence:', err));
-      cloudAuth.onAuthStateChanged(user => {
-        cloudUser = user || null;
-        setCloudStatus(user ? `Signed in: ${user.email || user.uid}` : 'Not signed in · Google account required');
-        if (user) syncWithCloud().catch(err => { console.error(err); setCloudStatus(`Sync error: ${err.message}`, true); });
-      });
-      return true;
-    } catch (error) { setCloudStatus(`Firebase setup error: ${error.message}`, true); return false; }
-  }
-  async function cloudSignIn() {
-    if (!initializeFirebase()) { alert('First add your Firebase Web App configuration to FIREBASE_CONFIG in index.html. See the Firebase setup guide.'); return; }
-    try {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      await cloudAuth.signInWithPopup(provider);
-    } catch (error) {
-      console.error('Google sign-in failed:', error);
-      showToast(`Google sign-in failed: ${error.message}`);
-    }
-  }
-  function cloudLocalRecords(snapshot) {
-    const rows = [];
-    for (const item of snapshot.history || []) rows.push({ id: cloudDocId('feed', item.id), type: 'feed', payload: item });
-    for (const item of snapshot.sleepHistory || []) rows.push({ id: cloudDocId('sleep', item.id), type: 'sleep', payload: item });
-    for (const item of snapshot.growthHistory || []) rows.push({ id: cloudDocId('growth', item.id), type: 'growth', payload: item });
-    rows.push({ id: 'app_state', type: 'app_state', payload: {
-      lastSide: snapshot.lastSide || null, lastSideAt: snapshot.lastSideAt || null,
-      activeSleepStart: snapshot.activeSleepStart || null, activeFeed: snapshot.activeFeed || null
-    }});
-    return rows;
-  }
-  function cloudFingerprint(value) {
-    const stable = v => Array.isArray(v) ? v.map(stable) : (v && typeof v === 'object' ? Object.keys(v).sort().reduce((o,k)=>(o[k]=stable(v[k]),o),{}) : v);
-    return JSON.stringify(stable(value));
-  }
-  function readCloudBaseline() {
-    try { return JSON.parse(localStorage.getItem(CLOUD_BASELINE_KEY) || '{}'); } catch (_) { return {}; }
-  }
-  function writeCloudBaseline(value) {
-    try { localStorage.setItem(CLOUD_BASELINE_KEY, JSON.stringify(value)); } catch (error) { console.warn('Could not save sync baseline:', error); }
-  }
-  function cloudUpdatedAtMs(doc) {
-    const value = doc && doc.updatedAt;
-    return value && typeof value.toMillis === 'function' ? value.toMillis() : Number(value) || 0;
-  }
-  async function commitCloudOperations(operations) {
-    // Firestore batched writes are limited to 500 operations; use conservative chunks.
-    for (let i = 0; i < operations.length; i += 450) {
-      const batch = cloudDb.batch();
-      for (const operation of operations.slice(i, i + 450)) {
-        batch.set(operation.ref, operation.data);
-      }
-      await batch.commit();
-    }
-  }
-  function applyCloudRecords(records) {
-    const active = records.filter(doc => !doc.deleted);
-    state.history = active.filter(doc => doc.type === 'feed').map(doc => ({...doc.payload})).sort((a,b)=>feedStartTimestamp(b)-feedStartTimestamp(a));
-    state.sleepHistory = active.filter(doc => doc.type === 'sleep').map(doc => ({...doc.payload})).sort((a,b)=>Number(b.endedAt)-Number(a.endedAt));
-    state.growthHistory = active.filter(doc => doc.type === 'growth').map(doc => ({...doc.payload})).sort((a,b)=>Number(b.timestamp)-Number(a.timestamp));
-    const meta = active.find(doc => doc.type === 'app_state');
-    if (meta && meta.payload) {
-      state.lastSide = meta.payload.lastSide || null;
-      state.lastSideAt = Number(meta.payload.lastSideAt) || null;
-      state.activeSleepStart = Number(meta.payload.activeSleepStart) || null;
-      const feed = meta.payload.activeFeed;
-      state.leftMs = Math.max(0, Number(feed?.leftMs) || 0); state.rightMs = Math.max(0, Number(feed?.rightMs) || 0);
-      state.active = ['left','right'].includes(feed?.active) ? feed.active : null;
-      state.startedAt = Number(feed?.startedAt) || null; state.segmentStartedAt = Number(feed?.segmentStartedAt) || null;
-    }
-  }
-  async function syncWithCloud() {
-    if (!cloudDb || !cloudUser || cloudSyncBusy || !db) return;
-    cloudSyncBusy = true;
-    setCloudStatus('Synchronizing…');
-    try {
-      await saveChain;
-      const familyRef = cloudDb.collection('families').doc(FAMILY_ID);
-      const memberRef = familyRef.collection('members').doc(cloudUser.uid);
-      const memberSnap = await memberRef.get();
-      if (!memberSnap.exists || memberSnap.data().enabled !== true) {
-        await cloudAuth.signOut();
-        throw new Error('This Google account is not authorized for this family. Ask the family administrator to add your account.');
-      }
-      const initializedRef = familyRef.collection('meta').doc('initialized');
-      const initializedSnap = await initializedRef.get();
-      const recordsRef = familyRef.collection('records');
-      let remoteSnap = await recordsRef.get();
-      const remote = new Map(remoteSnap.docs.map(d => [d.id, {id:d.id, ...d.data()}]));
-      let localRows = cloudLocalRecords(persistedStateSnapshot());
-      let baseline = readCloudBaseline();
-      const now = Date.now();
-
-      // First family connection: the first device explicitly seeds the cloud.
-      // Subsequent devices download/merge the existing family data instead.
-      if (!initializedSnap.exists || initializedSnap.data().ready !== true) {
-        const seedOperations = localRows.map(row => ({ref:recordsRef.doc(row.id), data:{...row, deleted:false, updatedAt:firebase.firestore.FieldValue.serverTimestamp(), updatedBy:cloudUser.uid}}));
-        await commitCloudOperations(seedOperations);
-        await initializedRef.set({ready:true, initializedAt:firebase.firestore.FieldValue.serverTimestamp(), initializedBy:cloudUser.uid});
-        remoteSnap = await recordsRef.get();
-        const docs = remoteSnap.docs.map(d=>({id:d.id,...d.data()}));
-        applyCloudRecords(docs);
-        baseline = Object.fromEntries(docs.map(d=>[d.id,{fingerprint:cloudFingerprint(d.payload),updatedAt:cloudUpdatedAtMs(d),deleted:!!d.deleted}]));
-        writeCloudBaseline(baseline);
-        await writeDatabaseState(persistedStateSnapshot());
-        setCloudStatus(`Synced · ${cloudUser.email || 'family account'}`);
-        render();
-        return;
-      }
-
-      // Detect local edits/deletions against the last synchronized baseline.
-      const localMap = new Map(localRows.map(row=>[row.id,row]));
-      const writes = [];
-      for (const [id,row] of localMap) {
-        const old = baseline[id];
-        const fp = cloudFingerprint(row.payload);
-        if (!old || old.fingerprint !== fp || old.deleted) {
-          writes.push({id, type:row.type, payload:row.payload, deleted:false, updatedAtMs:now, updatedBy:cloudUser.uid});
-        }
-      }
-      for (const [id,old] of Object.entries(baseline)) {
-        if (!localMap.has(id) && !old.deleted) writes.push({id, type:id.split('__')[0], payload:null, deleted:true, updatedAtMs:now, updatedBy:cloudUser.uid});
-      }
-      // Apply local changes only when they are newer than the cloud version.
-      const writeOperations = [];
-      for (const change of writes) {
-        const cloud = remote.get(change.id);
-        const cloudTime = cloudUpdatedAtMs(cloud);
-        if (!cloud || change.updatedAtMs >= cloudTime) {
-          const {updatedAtMs, ...data} = change;
-          writeOperations.push({ref:recordsRef.doc(change.id), data:{...data, updatedAt:firebase.firestore.Timestamp.fromMillis(updatedAtMs)}});
-        }
-      }
-      if (writeOperations.length) await commitCloudOperations(writeOperations);
-
-      remoteSnap = await recordsRef.get();
-      const mergedDocs = remoteSnap.docs.map(d=>({id:d.id,...d.data()}));
-      applyCloudRecords(mergedDocs);
-      baseline = Object.fromEntries(mergedDocs.map(d=>[d.id,{fingerprint:cloudFingerprint(d.payload),updatedAt:cloudUpdatedAtMs(d),deleted:!!d.deleted}]));
-      writeCloudBaseline(baseline);
-      await writeDatabaseState(persistedStateSnapshot());
-      render();
-      setCloudStatus(`Synced · ${cloudUser.email || 'family account'}`);
-    } catch (error) {
-      console.error('Little Feed cloud sync failed:', error);
-      setCloudStatus(`Sync failed: ${error.message}`, true);
-      throw error;
-    } finally {
-      cloudSyncBusy = false;
-      if (cloudSyncQueued) { cloudSyncQueued = false; syncWithCloud().catch(()=>{}); }
-    }
-  }
-  function scheduleCloudSync() {
-    if (!cloudUser || !cloudDb) return;
-    if (cloudSyncBusy) { cloudSyncQueued = true; return; }
-    clearTimeout(scheduleCloudSync.timer);
-    scheduleCloudSync.timer = setTimeout(() => syncWithCloud().catch(()=>{}), 900);
-  }
-  window.addEventListener('online', () => { if (cloudUser) syncWithCloud().catch(()=>{}); });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && cloudUser) syncWithCloud().catch(()=>{}); });
-
   function persistExtended() {
     if (!db) return;
     const snapshot = persistedStateSnapshot();
-    saveChain = saveChain.then(() => writeDatabaseState(snapshot)).then(() => { if (!cloudSyncBusy) scheduleCloudSync(); }).catch(error => {
+    saveChain = saveChain.then(() => writeDatabaseState(snapshot)).catch(error => {
       console.warn('Little Feed could not save to IndexedDB:', error);
       setStorageStatus('Could not save changes to IndexedDB. Keep this page open and check browser storage settings.', true);
     });
@@ -2483,18 +2281,6 @@
     closeHeaderMenu();
     $('importCsvFile').click();
   });
-  $('cloudSetupBtn').addEventListener('click', () => {
-    closeHeaderMenu();
-    alert('To configure Firebase, edit FIREBASE_CONFIG and FAMILY_ID near the cloud synchronization code in index.html. Follow the included Firebase setup guide, then reload this page.');
-  });
-  $('cloudSignInBtn').addEventListener('click', () => { closeHeaderMenu(); cloudSignIn(); });
-  $('cloudSyncNowBtn').addEventListener('click', async () => {
-    closeHeaderMenu();
-    if (!cloudConfigured()) { alert('Firebase is not configured yet. Follow the Firebase setup guide and edit FIREBASE_CONFIG in index.html.'); return; }
-    if (!cloudUser) { await cloudSignIn(); return; }
-    try { await syncWithCloud(); showToast('Family data synchronized'); }
-    catch (error) { showToast(`Sync failed: ${error.message}`); }
-  });
   document.addEventListener('click', event => {
     if (!event.target.closest('#headerMenu')) closeHeaderMenu();
   });
@@ -2720,7 +2506,6 @@
       state.lastSide = newest.lastSide; state.lastSideAt = newest.endedAt;
     }
     render();
-    initializeFirebase();
     setInterval(() => {
       updateTimelineNowCursor();
       if (state.active || state.activeSleepStart) {
