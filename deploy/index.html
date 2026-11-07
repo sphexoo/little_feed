@@ -4,9 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#f8f5f0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Little Feed">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="icons/favicon-lion.png">
+<link rel="apple-touch-icon" href="icons/favicon-lion.png">
 <title>Little Feed — Baby Feeding & Sleep Tracker</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🦁</text></svg>">
-<link rel="apple-touch-icon" href="lion-apple-favicon.png">
 <style>
   :root {
     --bg: #f8f5f0; --card: #fffdf9; --ink: #30332f; --muted: #85877f;
@@ -2244,6 +2249,17 @@
     });
   });
 
+  // PWA installation: use Chrome's native prompt when available, otherwise explain its menu path.
+  let deferredInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    showToast('Little Feed is installed! 🦁');
+  });
+
   function closeHeaderMenu() {
     $('headerMenuPopover').hidden = true;
     $('refreshBtn').setAttribute('aria-expanded', 'false');
@@ -2256,6 +2272,22 @@
   $('menuRefreshAction').addEventListener('click', () => {
     closeHeaderMenu();
     window.location.reload();
+  });
+  $('menuInstallAction').addEventListener('click', async () => {
+    closeHeaderMenu();
+    if (!deferredInstallPrompt) {
+      showToast('In Chrome, open ⋮ and choose Install app or Add to Home screen.');
+      return;
+    }
+    try {
+      deferredInstallPrompt.prompt();
+      const choice = await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      showToast(choice && choice.outcome === 'accepted' ? 'Installing Little Feed…' : 'Installation cancelled');
+    } catch (error) {
+      console.warn('PWA install prompt could not be shown:', error);
+      showToast('Use Chrome ⋮ → Install app to install Little Feed.');
+    }
   });
   $('exportCsvBtn').addEventListener('click', () => {
     closeHeaderMenu();
@@ -2501,6 +2533,16 @@
     }, 1000);
   });
 })();
+</script>
+
+<script>
+// The service worker is scoped to the folder containing this page, including GitHub Pages project sites.
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js', {scope: './'})
+      .catch(error => console.warn('Little Feed offline support could not be enabled:', error));
+  });
+}
 </script>
 </body>
 </html>

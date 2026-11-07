@@ -1,0 +1,25 @@
+{
+  "id": "./",
+  "name": "Little Feed \u2014 Baby Feeding & Sleep Tracker",
+  "short_name": "Little Feed",
+  "description": "A gentle baby feeding, sleep and growth tracker.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8f5f0",
+  "theme_color": "#f8f5f0",
+  "categories": [
+    "lifestyle",
+    "health"
+  ],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "./icons/favicon-lion.png",
+      "sizes": "160x160",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
