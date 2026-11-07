@@ -180,6 +180,8 @@
   .timeline-block.sleep { left:11%; width:78%; background:var(--sleep-accent-mid); box-shadow:inset 0 0 0 1px rgba(46,98,135,.16); z-index:1; }
   .timeline-block.feed { left:18%; width:64%; min-width:5px; background:#638f70; box-shadow:inset 0 0 0 1px rgba(38,86,49,.2); border-radius:3px; z-index:3; }
   .timeline-block.ongoing { outline:2px dashed rgba(68,64,59,.52); outline-offset:-2px; }
+  .timeline-now-line { position:absolute; left:0; right:0; z-index:8; height:0; border-top:2px solid #c77968; pointer-events:none; filter:drop-shadow(0 1px 1px rgba(90,55,48,.18)); }
+  .timeline-now-line::after { content:""; position:absolute; right:0; top:-4px; width:7px; height:7px; border:1px solid #fffdfa; border-radius:50%; background:#c77968; box-shadow:0 0 0 1px rgba(199,121,104,.18); }
   .timeline-empty { margin-top:14px; padding:13px 14px; background:#f8f5f0; border-radius:15px; font-size:11px; line-height:1.45; color:var(--muted); }
   .timeline-footnote { margin:14px 2px 0; font-size:10px; line-height:1.45; color:#a3a197; }
   .history-head { display:flex; align-items:center; justify-content:space-between; margin:27px 2px 12px; }
@@ -551,6 +553,7 @@
   let editorContext = null;
   let sleepStartPreview = null;
   let selectedTimelineDayStart = null;
+  let lastTimelineCursorDateKey = '';
 
   const DB_NAME = 'LittleFeedDatabase';
   const DB_VERSION = 1;
@@ -1137,12 +1140,39 @@
       }
     }
   }
+  // Normalize saved feed timestamps before using them for history grouping or trends.
+  // Older/imported snapshots may contain ISO strings or Unix seconds, while current
+  // records use JavaScript milliseconds. Keeping this in one helper ensures the
+  // History list and Trends count sessions against exactly the same start time.
+  function timestampToMs(value) {
+    if (value == null || value === '') return NaN;
+    if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.getTime() : NaN;
+    if (typeof value === 'number' || /^-?\d+(?:\.\d+)?$/.test(String(value).trim())) {
+      let numeric = Number(value);
+      if (!Number.isFinite(numeric) || numeric <= 0) return NaN;
+      // Unix timestamps in seconds are around 1e9; JS timestamps in ms around 1e12.
+      if (numeric < 1e11) numeric *= 1000;
+      return numeric;
+    }
+    const parsed = Date.parse(String(value).trim());
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+  function feedDurationMs(item, endAt = NaN) {
+    const explicitTotal = Number(item.totalMs);
+    if (Number.isFinite(explicitTotal) && explicitTotal > 0) return explicitTotal;
+    const sideTotal = Math.max(0, Number(item.leftMs) || 0) + Math.max(0, Number(item.rightMs) || 0);
+    if (sideTotal > 0) return sideTotal;
+    const start = timestampToMs(item.startedAt ?? item.startAt ?? item.startTimestamp);
+    if (Number.isFinite(start) && Number.isFinite(endAt) && endAt > start) return endAt - start;
+    return 0;
+  }
   function feedStartTimestamp(item) {
-    const startedAt = Number(item.startedAt);
-    if (item.startedAt != null && Number.isFinite(startedAt) && startedAt > 0) return startedAt;
-    const endedAt = Number(item.endedAt);
-    const duration = Number(item.totalMs);
-    return Number.isFinite(endedAt) && Number.isFinite(duration) ? endedAt - duration : endedAt;
+    const explicitStart = timestampToMs(item.startedAt ?? item.startAt ?? item.startTimestamp);
+    if (Number.isFinite(explicitStart)) return explicitStart;
+    const endedAt = timestampToMs(item.endedAt ?? item.endAt ?? item.endTimestamp);
+    if (!Number.isFinite(endedAt)) return NaN;
+    const duration = feedDurationMs(item, endedAt);
+    return duration > 0 ? endedAt - duration : endedAt;
   }
   const historyMonthSelections = { feed: null, sleep: null, growth: null };
   function historyMonthKey(timestamp) {
@@ -1451,6 +1481,8 @@
     axis.innerHTML = `<div class="time-axis-spacer"></div><div class="time-ruler">${timeLabels.join('')}</div>`;
 
     let sleepCount = 0, feedCount = 0;
+    const cursorDateKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+    lastTimelineCursorDateKey = cursorDateKey;
     const rows = days.map(({start:dayStart, end:dayEnd}) => {
       const dayStartMs = dayStart.getTime(), dayEndMs = dayEnd.getTime();
       const dayEvents = events.filter(e => e.end > dayStartMs && e.start < dayEndMs);
@@ -1475,13 +1507,20 @@
         return `<span class="timeline-block ${e.type}${e.ongoing ? ' ongoing' : ''}" style="top:${topPct.toFixed(3)}%;height:${height.toFixed(3)}%" title="${title}" aria-label="${title}"></span>`;
       }).join('');
       const isToday = isSameDay(dayStart, today);
+      // `now` is the numeric render timestamp used for interval clipping; convert it
+      // before reading clock fields so the cursor cannot interrupt timeline rendering.
+      const clockNow = new Date(now);
+      const currentMinute = clockNow.getHours() * 60 + clockNow.getMinutes() + clockNow.getSeconds() / 60 + clockNow.getMilliseconds() / 60000;
+      const nowCursor = isToday
+        ? `<span class="timeline-now-line" style="top:${(currentMinute / 1440 * 100).toFixed(3)}%" title="Current time · ${clockNow.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}"></span>`
+        : '';
       const weekday = dayStart.toLocaleDateString([], {weekday:'short'});
       const daynum = dayStart.toLocaleDateString([], {month:'numeric',day:'numeric'});
       const fullDate = dayStart.toLocaleDateString([], {weekday:'long',month:'long',day:'numeric',year:'numeric'});
       const safeFullDate = fullDate.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       return `<button type="button" class="timeline-day${isToday ? ' today-column' : ''}" data-timeline-day="${dayStartMs}" aria-label="${safeFullDate}, ${dayEvents.length} sessions. Open entries for this day" title="Open entries for ${safeFullDate}">
         <div class="timeline-date"><strong>${isToday ? 'Today' : weekday}</strong>${daynum}</div>
-        <div class="timeline-plot" aria-hidden="true">${plotBlocks}</div>
+        <div class="timeline-plot" aria-hidden="true">${plotBlocks}${nowCursor}</div>
       </button>`;
     }).join('');
 
@@ -1526,6 +1565,25 @@
     if (!Number.isFinite(date.getTime())) return 'Unknown time';
     return `${date.toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'})} · ${date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
   }
+  function updateTimelineNowCursor() {
+    const panel = $('timelinePanel');
+    if (!panel || panel.hidden) return;
+    const now = new Date();
+    const today = new Date(now); today.setHours(0, 0, 0, 0);
+    const dateKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
+    if (dateKey !== lastTimelineCursorDateKey) {
+      // Rebuild exactly once when local midnight moves the current-day column.
+      renderTimeline();
+      return;
+    }
+    const todayColumn = $('weekDiagram')?.querySelector(`[data-timeline-day="${today.getTime()}"]`);
+    const marker = todayColumn?.querySelector('.timeline-now-line');
+    if (!marker) return;
+    const minutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60 + now.getMilliseconds() / 60000;
+    marker.style.top = `${(minutes / 1440 * 100).toFixed(3)}%`;
+    marker.title = `Current time · ${now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+  }
+
   function renderTimelineColumnHistory() {
     if (selectedTimelineDayStart === null) return;
     const date = new Date(Number(selectedTimelineDayStart));
@@ -1630,13 +1688,9 @@
   }
   function trendFeedRecords(now) {
     const records = state.history.map(item => {
+      const trendEnd = timestampToMs(item.endedAt ?? item.endAt ?? item.endTimestamp);
       const trendStart = feedStartTimestamp(item);
-      const trendEnd = Number(item.endedAt);
-      const sideTotal = Math.max(0, Number(item.leftMs) || 0) + Math.max(0, Number(item.rightMs) || 0);
-      const explicitTotal = Number(item.totalMs);
-      const trendTotal = Number.isFinite(explicitTotal) && explicitTotal > 0
-        ? explicitTotal
-        : (sideTotal > 0 ? sideTotal : (Number.isFinite(trendEnd) && Number.isFinite(trendStart) ? Math.max(0, trendEnd - trendStart) : 0));
+      const trendTotal = feedDurationMs(item, trendEnd);
       return {...item, trendStart, trendEnd, trendTotal};
     });
     const liveTotal = totalElapsed();
@@ -1813,7 +1867,7 @@
     const splitDetail = leftPercent === null ? 'No side-specific times recorded' : `${Math.round(leftPercent)}% left · ${Math.round(rightPercent)}% right`;
     const splitBar = leftPercent === null ? '' : `<div class="side-split-track" aria-label="${Math.round(leftPercent)} percent left, ${Math.round(rightPercent)} percent right"><span class="side-split-left" style="width:${Math.max(0, Math.min(100,leftPercent))}%"></span><span class="side-split-right" style="width:${Math.max(0, Math.min(100,rightPercent))}%"></span></div>`;
     const feedHtml = [
-      trendMetric('Average feeding sessions per day', current.avgFeedsPerDay.toFixed(1), metricDelta(current.avgFeedsPerDay, previous.avgFeedsPerDay, 'perday'), 'feed', `Daily average across ${days} day${days === 1 ? '' : 's'}`),
+      trendMetric('Average feeding sessions per day', current.avgFeedsPerDay.toFixed(1), metricDelta(current.avgFeedsPerDay, previous.avgFeedsPerDay, 'perday'), 'feed', `${current.feedCount} session${current.feedCount === 1 ? '' : 's'} ÷ ${days} complete day${days === 1 ? '' : 's'}`),
       trendMetric('Average feeding time per day', humanDuration(current.avgFeedMsPerDay), metricDelta(current.avgFeedMsPerDay, previous.avgFeedMsPerDay, 'duration'), 'feed', `Daily average across ${days} day${days === 1 ? '' : 's'} · recorded feeding time`),
       trendMetric('Average feed length', current.avgFeedMs === null ? '—' : humanDuration(current.avgFeedMs), metricDelta(current.avgFeedMs, previous.avgFeedMs, 'duration'), 'feed', current.avgFeedMs === null ? 'No feeds in this period' : 'Per feeding session'),
       trendMetric('Left / right balance', leftValue, metricDelta(current.leftPercent, previous.leftPercent, 'percent'), 'feed', splitDetail, splitBar)
@@ -2353,6 +2407,7 @@
     }
     render();
     setInterval(() => {
+      updateTimelineNowCursor();
       if (state.active || state.activeSleepStart) {
         render();
       } else {
