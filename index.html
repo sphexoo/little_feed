@@ -21,7 +21,14 @@
   .sticky-top { position:sticky; top:0; z-index:70; margin-top:calc(-1 * max(22px, env(safe-area-inset-top))); padding-top:max(22px, env(safe-area-inset-top)); padding-bottom:7px; background:var(--bg); box-shadow:0 8px 14px -14px rgba(48,51,47,.42); }
   header { display:flex; justify-content:space-between; align-items:center; margin: 6px 2px 12px; }
   .brand { display:flex; align-items:center; gap:11px; }
-  .logo { width:43px; height:43px; border-radius:16px; display:grid; place-items:center; background:#eee9e1; font-size:31px; line-height:1; }
+  .logo { appearance:none; -webkit-appearance:none; border:0; padding:0; color:inherit; width:43px; height:43px; border-radius:16px; display:grid; place-items:center; background:#eee9e1; font-size:31px; line-height:1; cursor:pointer; touch-action:manipulation; }
+  .logo:focus-visible { outline:2px solid var(--sage); outline-offset:3px; }
+  .logo.lion-pop { animation:lion-logo-pop .34s ease-out; }
+  @keyframes lion-logo-pop { 0% { transform:scale(1); } 38% { transform:scale(1.24) rotate(-8deg); } 72% { transform:scale(.92) rotate(5deg); } 100% { transform:scale(1); } }
+  .lion-firework-layer { position:fixed; inset:0; z-index:9999; overflow:hidden; pointer-events:none; }
+  .lion-firework-lion { position:absolute; display:block; line-height:1; font-size:var(--lion-size,24px); transform:translate(-50%,-50%); transform-origin:center; will-change:transform,opacity; filter:drop-shadow(0 2px 2px rgba(48,51,47,.16)); }
+  .lion-firework-ring { position:absolute; width:18px; height:18px; border:3px solid rgba(120,151,131,.78); border-radius:50%; transform:translate(-50%,-50%); box-shadow:0 0 0 4px rgba(231,238,231,.38); }
+  @media (prefers-reduced-motion: reduce) { .logo.lion-pop { animation:none; } }
   h1 { font-size:21px; letter-spacing:-.7px; margin:0; font-weight:750; }
   .subtitle { color:var(--muted); font-size:12px; margin-top:2px; }
   .header-tools { display:flex; align-items:center; gap:7px; }
@@ -304,7 +311,7 @@
   <div class="sticky-top">
   <header>
     <div class="brand">
-      <div class="logo" aria-hidden="true">🦁</div>
+      <button class="logo" id="lionEasterEgg" type="button" aria-label="Lion logo — tap five times for a surprise" title="A little surprise awaits">🦁</button>
       <div><h1>little feed</h1><div class="subtitle">your little one's feeding journal</div></div>
     </div>
     <div class="header-tools">
@@ -2368,6 +2375,83 @@
   });
   $('historyModalCloseBtn').addEventListener('click', closeHistoryOverlay);
   $('historyBackdrop').addEventListener('click', e => { if (e.target === $('historyBackdrop')) closeHistoryOverlay(); });
+
+  // Five quick taps on the lion launch a playful lion-firework easter egg.
+  let lionTapCount = 0;
+  let lionTapResetTimer = null;
+  let lionBurstActive = false;
+  function triggerLionFirework() {
+    const logo = $('lionEasterEgg');
+    if (!logo || lionBurstActive) return;
+    lionBurstActive = true;
+    logo.classList.remove('lion-pop');
+    void logo.offsetWidth;
+    logo.classList.add('lion-pop');
+    logo.addEventListener('animationend', () => logo.classList.remove('lion-pop'), {once:true});
+
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      showToast('🦁 Roar! A little lion surprise!');
+      setTimeout(() => { lionBurstActive = false; }, 700);
+      return;
+    }
+
+    const rect = logo.getBoundingClientRect();
+    const originX = rect.left + rect.width / 2;
+    const originY = rect.top + rect.height / 2;
+    const layer = document.createElement('div');
+    layer.className = 'lion-firework-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(layer);
+
+    const ring = document.createElement('span');
+    ring.className = 'lion-firework-ring';
+    ring.style.left = `${originX}px`;
+    ring.style.top = `${originY}px`;
+    layer.appendChild(ring);
+    ring.animate(
+      [{transform:'translate(-50%,-50%) scale(.25)',opacity:.95}, {transform:'translate(-50%,-50%) scale(8)',opacity:0}],
+      {duration:620,easing:'cubic-bezier(.12,.65,.28,1)',fill:'forwards'}
+    );
+
+    const lionCount = 34;
+    for (let i = 0; i < lionCount; i++) {
+      const angle = (Math.PI * 2 * i / lionCount) + (Math.random() - .5) * .22;
+      const distance = 75 + Math.random() * 145;
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+      const fall = 190 + Math.random() * 330;
+      const spin = (Math.random() - .5) * 900;
+      const lion = document.createElement('span');
+      lion.className = 'lion-firework-lion';
+      lion.textContent = '🦁';
+      lion.style.left = `${originX}px`;
+      lion.style.top = `${originY}px`;
+      lion.style.setProperty('--lion-size', `${19 + Math.random() * 14}px`);
+      layer.appendChild(lion);
+      const animation = lion.animate([
+        {transform:'translate(-50%,-50%) scale(.18) rotate(0deg)',opacity:0,offset:0},
+        {transform:`translate(calc(-50% + ${dx.toFixed(1)}px), calc(-50% + ${dy.toFixed(1)}px)) scale(1.08) rotate(${(spin * .28).toFixed(1)}deg)`,opacity:1,offset:.22,easing:'cubic-bezier(.12,.72,.2,1)'},
+        {transform:`translate(calc(-50% + ${(dx * 1.12).toFixed(1)}px), calc(-50% + ${(dy + fall).toFixed(1)}px)) scale(.7) rotate(${spin.toFixed(1)}deg)`,opacity:0,offset:1}
+      ], {duration:1750 + Math.random() * 850,delay:Math.random() * 115,easing:'cubic-bezier(.28,.62,.42,1)',fill:'forwards'});
+      animation.onfinish = () => lion.remove();
+    }
+    showToast('🦁 ROAR! Lion fireworks!');
+    setTimeout(() => {
+      layer.remove();
+      lionBurstActive = false;
+    }, 3100);
+  }
+  $('lionEasterEgg').addEventListener('click', () => {
+    if (lionBurstActive) return;
+    lionTapCount += 1;
+    clearTimeout(lionTapResetTimer);
+    if (lionTapCount >= 5) {
+      lionTapCount = 0;
+      triggerLionFirework();
+    } else {
+      lionTapResetTimer = setTimeout(() => { lionTapCount = 0; }, 2600);
+    }
+  });
 
   $('leftBtn').addEventListener('click', () => setSide('left'));
   $('rightBtn').addEventListener('click', () => setSide('right'));
