@@ -2273,22 +2273,6 @@
     closeHeaderMenu();
     window.location.reload();
   });
-  $('menuInstallAction').addEventListener('click', async () => {
-    closeHeaderMenu();
-    if (!deferredInstallPrompt) {
-      showToast('In Chrome, open ⋮ and choose Install app or Add to Home screen.');
-      return;
-    }
-    try {
-      deferredInstallPrompt.prompt();
-      const choice = await deferredInstallPrompt.userChoice;
-      deferredInstallPrompt = null;
-      showToast(choice && choice.outcome === 'accepted' ? 'Installing Little Feed…' : 'Installation cancelled');
-    } catch (error) {
-      console.warn('PWA install prompt could not be shown:', error);
-      showToast('Use Chrome ⋮ → Install app to install Little Feed.');
-    }
-  });
   $('exportCsvBtn').addEventListener('click', () => {
     closeHeaderMenu();
     exportCsv();
