@@ -50,6 +50,7 @@
   .header-menu-icon { display:inline-grid; place-items:center; width:18px; color:var(--sage-dark); font-size:15px; }
   .header-menu-badge { margin-left:auto; min-width:20px; padding:2px 7px; border-radius:99px; background:var(--sage-dark); color:#fff; font-size:10px; font-weight:800; text-align:center; }
   .header-menu-badge[hidden] { display:none; }
+  .drive-link { border:0; background:none; padding:0; color:var(--sage-dark); font:inherit; font-weight:750; text-decoration:underline; }
   .header-menu-note { padding:6px 11px 4px; color:var(--muted); font-size:10.5px; line-height:1.45; white-space:pre-line; overflow-wrap:anywhere; }
   .header-menu-separator { height:1px; margin:4px 5px; background:var(--line); }
   h2 { font-size:26px; line-height:1.15; letter-spacing:-1px; margin:7px 0 0; }
@@ -329,10 +330,9 @@
         <div class="header-menu-popover" id="headerMenuPopover" role="menu" aria-label="App menu" hidden>
           <button class="header-menu-item" id="menuRefreshAction" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↻</span>Update page</button>
           <div class="header-menu-separator" role="separator"></div>
-          <button class="header-menu-item" id="driveAuthBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">☁</span><span id="driveAuthLabel">Sign in to Google</span></button>
+          <button class="header-menu-item" id="driveSettingsBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">☁</span><span>Google Drive settings</span></button>
           <button class="header-menu-item" id="driveBackupBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇧</span><span>Back up to Drive</span><span class="header-menu-badge" id="driveBackupBadge" hidden></span></button>
           <button class="header-menu-item" id="driveLoadBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇩</span><span>Load from Drive</span></button>
-          <button class="header-menu-item" id="driveSettingsBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⚙</span><span>Drive settings</span></button>
           <div class="header-menu-note" id="driveNote"></div>
           <div class="header-menu-separator" role="separator"></div>
           <button class="header-menu-item" id="importCsvBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↑</span>Import CSV</button>
@@ -552,6 +552,20 @@
     </nav>
     <div id="growthChartContent" aria-live="polite"></div>
     <p class="growth-chart-foot">Each point is a saved measurement. Values with missing measurements are omitted from that series. Imported values are normalized to kg and cm so the lines use consistent units.</p>
+  </section>
+</div>
+<div class="growth-chart-backdrop" id="driveBackdrop" hidden>
+  <section class="growth-chart-modal" role="dialog" aria-modal="true" aria-labelledby="driveTitle">
+    <div class="growth-chart-top"><div><div class="editor-kicker">Little Feed · Backup</div><h2 id="driveTitle">Google Drive</h2></div><button class="growth-chart-close" id="driveCloseBtn" type="button" aria-label="Close Google Drive settings">×</button></div>
+    <form id="driveForm" novalidate autocomplete="off">
+      <div class="editor-fields">
+        <div class="editor-field full"><label for="driveClientId">OAuth client ID</label><input id="driveClientId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="1234-abc.apps.googleusercontent.com"></div>
+        <div class="editor-field full"><label for="driveFolderId">Drive folder link or ID</label><input id="driveFolderId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://drive.google.com/drive/folders/…"></div>
+      </div>
+      <p class="editor-help"><span id="driveStatus"></span> <button class="drive-link" id="driveSignOutBtn" type="button" hidden>Sign out</button><br>Both values are kept only in this browser. Saving also signs you in to Google. Changing the folder uploads everything to the new folder again.</p>
+      <p class="editor-error" id="driveError" role="alert"></p>
+      <div class="editor-actions"><button class="editor-cancel" id="driveCancelBtn" type="button">Cancel</button><button class="editor-save" type="submit">Save</button></div>
+    </form>
   </section>
 </div>
 <div class="toast" id="toast" role="status"></div>
@@ -1086,14 +1100,10 @@
     const id = m ? m[1] : t;
     return /^[A-Za-z0-9_-]{10,}$/.test(id) ? id : '';
   }
-  function askConfig() { // returns false if the person cancels; throws on invalid input
-    const c = prompt('Google OAuth client ID (ends with .apps.googleusercontent.com):', cfg.clientId);
-    if (c === null) return false;
-    const clientId = c.trim();
-    if (!/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) throw new Error('That does not look like a Google OAuth client ID.');
-    const f = prompt('Shared Drive folder (paste the folder link or just its ID):', cfg.folderId);
-    if (f === null) return false;
-    const folderId = parseFolderId(f);
+  function applyConfig(clientIdText, folderText) { // validates and stores; throws on invalid input
+    const clientId = String(clientIdText || '').trim();
+    if (!/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) throw new Error('That does not look like a Google OAuth client ID (it ends with .apps.googleusercontent.com).');
+    const folderId = parseFolderId(folderText);
     if (!folderId) throw new Error('That does not look like a Google Drive folder link or ID.');
     if (cfg.folderId && folderId !== cfg.folderId) { // new folder: everything must be uploaded / imported again
       Object.values(state.sync.meta).forEach(m => { m.s = 0; });
@@ -1103,11 +1113,11 @@
     if (clientId !== cfg.clientId) { tokenClient = null; accessToken = null; tokenExpiry = 0; account = null; }
     cfg.clientId = clientId; cfg.folderId = folderId;
     try { localStorage.setItem(CFG_KEYS.clientId, clientId); localStorage.setItem(CFG_KEYS.folderId, folderId); } catch (_) {}
-    return true;
   }
   function ensureConfig() {
     if (cfg.clientId && cfg.folderId) return;
-    if (!askConfig()) throw new Error('The client ID and folder are needed to connect to Google Drive.');
+    openDriveDialog();
+    const stop = new Error('Enter the client ID and folder first.'); stop.silent = true; throw stop;
   }
   const gisReady = () => !!(window.google && google.accounts && google.accounts.oauth2);
   function loadGis() {
@@ -1281,7 +1291,7 @@
   // --- Menu wiring ---
   function updateSyncMenu() {
     const n = pendingBackupCount();
-    $('driveAuthLabel').textContent = account ? 'Sign out of Google' : 'Sign in to Google';
+    updateDriveStatus();
     const badge = $('driveBackupBadge'); badge.textContent = String(n); badge.hidden = !n;
     const when = t => t ? new Date(t).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'never';
     $('driveNote').textContent = `${account ? `Signed in${account.email ? ` as ${account.email}` : ''}` : 'Not signed in'}\nLast backup: ${when(state.sync.lastBackupAt)}\nLast load: ${when(state.sync.lastLoadAt)}`;
@@ -1290,26 +1300,49 @@
     if (syncBusy) { showToast('Drive sync is already running…'); return; }
     syncBusy = true;
     try { await fn(); }
-    catch (error) { console.warn(`Little Feed: ${label} failed`, error); alert(`${label} failed: ${error.message || error}`); }
+    catch (error) { if (error && error.silent) return; console.warn(`Little Feed: ${label} failed`, error); alert(`${label} failed: ${error.message || error}`); }
     finally { syncBusy = false; updateSyncMenu(); }
   }
   $('refreshBtn').addEventListener('click', () => { updateSyncMenu(); if (navigator.onLine) loadGis().catch(() => {}); });
-  $('driveAuthBtn').addEventListener('click', () => {
-    closeHeaderMenu();
-    runSync('Google sign-in', async () => {
-      if (account) { signOut(); showToast('Signed out of Google'); return; }
-      await signIn('select_account');
-      showToast(`Signed in${account && account.email ? ` as ${account.email}` : ''}`);
-    });
-  });
   $('driveBackupBtn').addEventListener('click', () => { closeHeaderMenu(); runSync('Backup', backupToDrive); });
-  $('driveSettingsBtn').addEventListener('click', () => {
-    closeHeaderMenu();
-    try { if (askConfig()) showToast('Drive settings saved'); }
-    catch (error) { alert(error.message); }
-    updateSyncMenu();
-  });
   $('driveLoadBtn').addEventListener('click', () => { closeHeaderMenu(); runSync('Load', loadFromDrive); });
+
+  // --- Google Drive window (same look as the growth chart window) ---
+  function updateDriveStatus() {
+    $('driveStatus').textContent = account ? `Signed in${account.email ? ` as ${account.email}` : ''}.` : 'Not signed in.';
+    $('driveSignOutBtn').hidden = !account;
+  }
+  function openDriveDialog() {
+    $('driveClientId').value = cfg.clientId; $('driveFolderId').value = cfg.folderId;
+    $('driveError').textContent = '';
+    updateDriveStatus();
+    $('driveBackdrop').hidden = false;
+    document.body.style.overflow = 'hidden';
+    (cfg.clientId ? $('driveFolderId') : $('driveClientId')).focus();
+    if (navigator.onLine) loadGis().catch(() => {});
+  }
+  function closeDriveDialog() {
+    $('driveBackdrop').hidden = true;
+    if ($('historyBackdrop').hidden && $('editorBackdrop').hidden && $('growthChartBackdrop').hidden) document.body.style.overflow = '';
+  }
+  $('driveSettingsBtn').addEventListener('click', () => { closeHeaderMenu(); openDriveDialog(); });
+  $('driveCloseBtn').addEventListener('click', closeDriveDialog);
+  $('driveCancelBtn').addEventListener('click', closeDriveDialog);
+  $('driveBackdrop').addEventListener('click', e => { if (e.target === $('driveBackdrop')) closeDriveDialog(); });
+  $('driveSignOutBtn').addEventListener('click', () => { signOut(); showToast('Signed out of Google'); });
+  $('driveForm').addEventListener('submit', event => {
+    event.preventDefault();
+    if (syncBusy) return;
+    try { applyConfig($('driveClientId').value, $('driveFolderId').value); }
+    catch (error) { $('driveError').textContent = error.message; return; }
+    $('driveError').textContent = '';
+    if (account && accessToken) { closeDriveDialog(); showToast('Drive settings saved'); return; }
+    syncBusy = true; // saving also signs in; the Google pop-up opens straight from this click
+    signIn('select_account')
+      .then(() => { closeDriveDialog(); showToast(`Signed in${account && account.email ? ` as ${account.email}` : ''}`); })
+      .catch(error => { $('driveError').textContent = `Settings saved, but sign-in failed: ${error.message || error}`; })
+      .finally(() => { syncBusy = false; updateSyncMenu(); });
+  });
 
   // Timer calculations and presentation.
   function fmt(ms) {
@@ -2514,7 +2547,7 @@
   $('editorCloseBtn').addEventListener('click', closeEditor);
   $('editorCancelBtn').addEventListener('click', closeEditor);
   $('editorBackdrop').addEventListener('click', e => { if (e.target === $('editorBackdrop')) closeEditor(); });
-  document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('editorBackdrop').hidden) closeEditor(); else if (!$('growthChartBackdrop').hidden) closeGrowthChart(); else if (!$('historyBackdrop').hidden) closeHistoryOverlay(); else closeHeaderMenu(); });
+  document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('driveBackdrop').hidden) closeDriveDialog(); else if (!$('editorBackdrop').hidden) closeEditor(); else if (!$('growthChartBackdrop').hidden) closeGrowthChart(); else if (!$('historyBackdrop').hidden) closeHistoryOverlay(); else closeHeaderMenu(); });
 
   $('growthAddForm').addEventListener('submit', event => {
     event.preventDefault();
