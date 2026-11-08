@@ -43,11 +43,14 @@
   .refresh-button:hover, .refresh-button[aria-expanded="true"] { background:var(--sage-light); }
   .refresh-button:active { transform:scale(.96); }
   .refresh-button:focus-visible { outline:2px solid var(--sage); outline-offset:2px; }
-  .header-menu-popover { position:absolute; top:calc(100% + 8px); right:0; z-index:120; width:174px; padding:6px; border:1px solid var(--line); border-radius:15px; background:var(--card); box-shadow:0 12px 32px rgba(40,38,32,.16); }
+  .header-menu-popover { position:absolute; top:calc(100% + 8px); right:0; z-index:120; width:236px; padding:6px; border:1px solid var(--line); border-radius:15px; background:var(--card); box-shadow:0 12px 32px rgba(40,38,32,.16); }
   .header-menu-popover[hidden] { display:none !important; }
   .header-menu-item { display:flex; align-items:center; gap:10px; width:100%; min-height:42px; padding:10px 11px; border:0; border-radius:10px; background:transparent; color:var(--ink); text-align:left; font-size:12px; font-weight:700; white-space:nowrap; }
   .header-menu-item:hover, .header-menu-item:focus-visible { outline:none; background:var(--sage-light); }
   .header-menu-icon { display:inline-grid; place-items:center; width:18px; color:var(--sage-dark); font-size:15px; }
+  .header-menu-badge { margin-left:auto; min-width:20px; padding:2px 7px; border-radius:99px; background:var(--sage-dark); color:#fff; font-size:10px; font-weight:800; text-align:center; }
+  .header-menu-badge[hidden] { display:none; }
+  .header-menu-note { padding:6px 11px 4px; color:var(--muted); font-size:10.5px; line-height:1.45; white-space:pre-line; overflow-wrap:anywhere; }
   .header-menu-separator { height:1px; margin:4px 5px; background:var(--line); }
   h2 { font-size:26px; line-height:1.15; letter-spacing:-1px; margin:7px 0 0; }
   .card { background:var(--card); border:1px solid rgba(225,219,208,.7); border-radius:26px; box-shadow:var(--shadow); }
@@ -326,6 +329,12 @@
         <div class="header-menu-popover" id="headerMenuPopover" role="menu" aria-label="App menu" hidden>
           <button class="header-menu-item" id="menuRefreshAction" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↻</span>Update page</button>
           <div class="header-menu-separator" role="separator"></div>
+          <button class="header-menu-item" id="driveAuthBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">☁</span><span id="driveAuthLabel">Sign in to Google</span></button>
+          <button class="header-menu-item" id="driveBackupBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇧</span><span>Back up to Drive</span><span class="header-menu-badge" id="driveBackupBadge" hidden></span></button>
+          <button class="header-menu-item" id="driveLoadBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇩</span><span>Load from Drive</span></button>
+          <button class="header-menu-item" id="driveSettingsBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⚙</span><span>Drive settings</span></button>
+          <div class="header-menu-note" id="driveNote"></div>
+          <div class="header-menu-separator" role="separator"></div>
           <button class="header-menu-item" id="importCsvBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↑</span>Import CSV</button>
           <button class="header-menu-item" id="exportCsvBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↓</span>Export CSV</button>
         </div>
@@ -554,7 +563,8 @@
     history: [], leftMs: 0, rightMs: 0, active: null,
     startedAt: null, segmentStartedAt: null, lastSide: null,
     sleepHistory: [], activeSleepStart: null, growthHistory: [],
-    timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false
+    timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false,
+    sync: { deviceId: '', migrated: false, meta: {}, imported: {}, lastBackupAt: 0, lastLoadAt: 0 }
   };
   let selectedTrendDays = 1;
   let selectedGrowthSeries = 'weight';
@@ -944,6 +954,7 @@
     state.sleepHistory = Array.isArray(saved.sleepHistory) ? saved.sleepHistory : [];
     state.growthHistory = Array.isArray(saved.growthHistory) ? saved.growthHistory : [];
     state.activeSleepStart = Number(saved.activeSleepStart) || null;
+    state.sync = normalizeSync(saved.sync);
     if (saved.activeFeed && typeof saved.activeFeed === 'object') {
       state.leftMs = Math.max(0, Number(saved.activeFeed.leftMs) || 0);
       state.rightMs = Math.max(0, Number(saved.activeFeed.rightMs) || 0);
@@ -960,6 +971,7 @@
       lastSideAt: state.lastSideAt,
       sleepHistory: state.sleepHistory.map(item => ({ ...item })),
       growthHistory: state.growthHistory.map(item => ({ ...item })),
+      sync: snapshotSync(),
       activeSleepStart: state.activeSleepStart,
       activeFeed: (state.startedAt || state.leftMs || state.rightMs || state.active) ? {
         leftMs: state.leftMs, rightMs: state.rightMs, active: state.active,
@@ -980,6 +992,10 @@
       db = await openDatabase();
       const saved = await readDatabaseState();
       if (saved) applySavedState(saved);
+      if (!state.sync.deviceId) {
+        state.sync.deviceId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
+        persistExtended(); // first run after the sync upgrade: register existing records
+      }
 
       let persistent = false;
       try {
@@ -998,6 +1014,302 @@
       console.warn('Little Feed storage initialization failed:', error);
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Google Drive sync (shared folder, append-only backup files, per-record last-writer-wins).
+  // Every feed / sleep / growth record keeps a permanent id plus sync metadata
+  // {u: modification time, d: deleted marker, s: last time it was in Drive}. A backup uploads only
+  // records with u > s as a new immutable file; loading merges files not yet imported.
+  // ---------------------------------------------------------------------------
+  // The OAuth client ID and shared folder ID are NOT in this file. They are asked for at first sign-in
+  // and kept in this browser's localStorage only (menu: "Drive settings" changes them).
+  const CFG_KEYS = { clientId: 'littlefeed.googleClientId', folderId: 'littlefeed.driveFolderId' };
+  const readCfg = name => { try { return localStorage.getItem(CFG_KEYS[name]) || ''; } catch (_) { return ''; } };
+  const cfg = { clientId: readCfg('clientId'), folderId: readCfg('folderId') };
+  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
+  const SYNC_KINDS = { feed: 'history', sleep: 'sleepHistory', growth: 'growthHistory' };
+  const BACKUP_PREFIX = 'littlefeed-';
+  const BACKUP_CHUNK = 2000;
+  let syncBusy = false, gisPromise = null, tokenClient = null, pendingToken = null;
+  let accessToken = null, tokenExpiry = 0, account = null;
+
+  function stableStringify(v) {
+    if (Array.isArray(v)) return '[' + v.map(x => stableStringify(x === undefined ? null : x)).join(',') + ']';
+    if (v && typeof v === 'object') return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+    return JSON.stringify(v) ?? 'null';
+  }
+  function hashText(s) { // cyrb53: short fingerprint used only to notice that a record changed
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+  }
+  function normalizeSync(s) {
+    const o = s && typeof s === 'object' ? s : {};
+    const obj = x => (x && typeof x === 'object' && !Array.isArray(x)) ? x : {};
+    return { deviceId: typeof o.deviceId === 'string' ? o.deviceId : '', migrated: !!o.migrated,
+      meta: obj(o.meta), imported: obj(o.imported), lastBackupAt: Number(o.lastBackupAt) || 0, lastLoadAt: Number(o.lastLoadAt) || 0 };
+  }
+  function snapshotSync() {
+    const s = state.sync;
+    return { ...s, meta: Object.fromEntries(Object.entries(s.meta).map(([k, v]) => [k, { ...v }])), imported: { ...s.imported } };
+  }
+  function recordTime(kind, rec) { return Number(kind === 'growth' ? rec.timestamp : rec.endedAt) || 1; }
+
+  // Called from persistExtended(), the single choke point every create/edit/delete goes through.
+  function reconcileSyncMeta() {
+    const sync = state.sync, meta = sync.meta, legacy = !sync.migrated, now = Date.now(), seen = new Set();
+    for (const kind of Object.keys(SYNC_KINDS)) {
+      for (const rec of state[SYNC_KINDS[kind]]) {
+        if (!rec || typeof rec !== 'object') continue;
+        if (rec.id === undefined || rec.id === null || rec.id === '') rec.id = `${kind}-${now}-${Math.random().toString(36).slice(2, 8)}`;
+        const key = `${kind}:${rec.id}`; seen.add(key);
+        const f = hashText(stableStringify(rec)), m = meta[key];
+        // Records that existed before sync was added get their own event time, so an untouched old copy never beats a later edit.
+        if (!m) meta[key] = { k: kind, f, u: legacy ? recordTime(kind, rec) : now, d: false, s: 0 };
+        else if (m.d || m.f !== f) { m.f = f; m.d = false; m.u = Math.max(now, m.u + 1); }
+      }
+    }
+    for (const key of Object.keys(meta)) {
+      const m = meta[key];
+      if (!m.d && !seen.has(key)) { m.d = true; m.u = Math.max(now, m.u + 1); } // deletion marker
+    }
+    sync.migrated = true;
+  }
+  function pendingBackupCount() { return Object.values(state.sync.meta).filter(m => m.u > (m.s || 0)).length; }
+
+  // --- Google sign-in (Google Identity Services, token model) ---
+  function parseFolderId(text) {
+    const t = String(text || '').trim();
+    const m = t.match(/\/folders\/([A-Za-z0-9_-]+)/) || t.match(/[?&]id=([A-Za-z0-9_-]+)/);
+    const id = m ? m[1] : t;
+    return /^[A-Za-z0-9_-]{10,}$/.test(id) ? id : '';
+  }
+  function askConfig() { // returns false if the person cancels; throws on invalid input
+    const c = prompt('Google OAuth client ID (ends with .apps.googleusercontent.com):', cfg.clientId);
+    if (c === null) return false;
+    const clientId = c.trim();
+    if (!/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) throw new Error('That does not look like a Google OAuth client ID.');
+    const f = prompt('Shared Drive folder (paste the folder link or just its ID):', cfg.folderId);
+    if (f === null) return false;
+    const folderId = parseFolderId(f);
+    if (!folderId) throw new Error('That does not look like a Google Drive folder link or ID.');
+    if (cfg.folderId && folderId !== cfg.folderId) { // new folder: everything must be uploaded / imported again
+      Object.values(state.sync.meta).forEach(m => { m.s = 0; });
+      state.sync.imported = {}; state.sync.lastBackupAt = 0; state.sync.lastLoadAt = 0;
+      persistExtended();
+    }
+    if (clientId !== cfg.clientId) { tokenClient = null; accessToken = null; tokenExpiry = 0; account = null; }
+    cfg.clientId = clientId; cfg.folderId = folderId;
+    try { localStorage.setItem(CFG_KEYS.clientId, clientId); localStorage.setItem(CFG_KEYS.folderId, folderId); } catch (_) {}
+    return true;
+  }
+  function ensureConfig() {
+    if (cfg.clientId && cfg.folderId) return;
+    if (!askConfig()) throw new Error('The client ID and folder are needed to connect to Google Drive.');
+  }
+  const gisReady = () => !!(window.google && google.accounts && google.accounts.oauth2);
+  function loadGis() {
+    if (gisReady()) return Promise.resolve();
+    if (!gisPromise) gisPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+      s.onload = () => resolve();
+      s.onerror = () => { gisPromise = null; reject(new Error('Could not load Google sign-in. Check your internet connection.')); };
+      document.head.appendChild(s);
+    });
+    return gisPromise;
+  }
+  function readHint() { try { return localStorage.getItem('littlefeed.googleHint') || ''; } catch (_) { return ''; } }
+  function saveHint(email) { try { localStorage.setItem('littlefeed.googleHint', email || ''); } catch (_) {} }
+
+  async function signIn(prompt) {
+    ensureConfig();
+    if (!gisReady()) await loadGis();
+    if (!tokenClient) {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: cfg.clientId, scope: DRIVE_SCOPE,
+        callback: r => r.error ? pendingToken?.reject(new Error(r.error_description || r.error)) : pendingToken?.resolve(r),
+        error_callback: e => pendingToken?.reject(new Error(e && e.type === 'popup_closed' ? 'Sign-in was cancelled.' : `Google sign-in failed (${(e && e.type) || 'unknown error'}). Allow pop-ups for this page and try again.`))
+      });
+    }
+    const resp = await new Promise((resolve, reject) => {
+      pendingToken = { resolve, reject };
+      tokenClient.requestAccessToken({ prompt, hint: readHint() || undefined });
+    });
+    if (!google.accounts.oauth2.hasGrantedAllScopes(resp, DRIVE_SCOPE)) throw new Error('Google Drive access was not granted.');
+    accessToken = resp.access_token;
+    tokenExpiry = Date.now() + (Number(resp.expires_in) || 3600) * 1000 - 60000;
+    if (!account) {
+      try {
+        const u = (await (await driveFetch('https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress)')).json()).user || {};
+        account = { name: u.displayName || '', email: u.emailAddress || '' };
+        saveHint(account.email);
+      } catch (_) { account = { name: '', email: '' }; }
+    }
+    updateSyncMenu();
+  }
+  async function ensureToken() {
+    if (accessToken && Date.now() < tokenExpiry) return accessToken;
+    await signIn(account ? '' : 'select_account');
+    return accessToken;
+  }
+  function signOut() {
+    if (accessToken && gisReady()) google.accounts.oauth2.revoke(accessToken, () => {});
+    accessToken = null; tokenExpiry = 0; account = null; saveHint('');
+    updateSyncMenu();
+  }
+
+  // --- Drive REST helpers ---
+  async function driveFetch(url, opts = {}, retry = true) {
+    const token = accessToken && Date.now() < tokenExpiry ? accessToken : await ensureToken();
+    const res = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${token}` } });
+    if (res.status === 401 && retry) { accessToken = null; return driveFetch(url, opts, false); }
+    if (!res.ok) {
+      let detail = ''; try { detail = (await res.json()).error?.message || ''; } catch (_) {}
+      const hint = (res.status === 403 || res.status === 404) ? ' Make sure the folder is shared with your Google account with edit access.' : '';
+      throw new Error(`Google Drive error ${res.status}${detail ? `: ${detail}` : ''}.${hint}`);
+    }
+    return res;
+  }
+  async function driveUpload(name, text) {
+    const boundary = 'lf' + Math.random().toString(36).slice(2);
+    const meta = JSON.stringify({ name, parents: [cfg.folderId], mimeType: 'application/json' });
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${text}\r\n--${boundary}--`;
+    const res = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name',
+      { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
+    return res.json();
+  }
+  async function driveListBackups() {
+    const files = []; let pageToken = '';
+    do {
+      const params = new URLSearchParams({
+        q: `'${cfg.folderId}' in parents and trashed = false and name contains '${BACKUP_PREFIX}'`,
+        fields: 'nextPageToken,files(id,name,createdTime)', pageSize: '1000',
+        supportsAllDrives: 'true', includeItemsFromAllDrives: 'true', corpora: 'allDrives'
+      });
+      if (pageToken) params.set('pageToken', pageToken);
+      const data = await (await driveFetch(`https://www.googleapis.com/drive/v3/files?${params}`)).json();
+      files.push(...(data.files || [])); pageToken = data.nextPageToken || '';
+    } while (pageToken);
+    return files.sort((a, b) => String(a.createdTime).localeCompare(String(b.createdTime)));
+  }
+  async function mapPool(items, limit, fn) {
+    const out = new Array(items.length); let next = 0;
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) { const i = next++; out[i] = await fn(items[i]).then(v => ({ v }), e => ({ e })); }
+    }));
+    return out;
+  }
+
+  // --- Backup (new/changed/deleted records -> one new file in the folder) ---
+  async function backupToDrive() {
+    reconcileSyncMeta();
+    const dirty = Object.entries(state.sync.meta).filter(([, m]) => m.u > (m.s || 0)).map(([key, m]) => {
+      const id = key.slice(m.k.length + 1);
+      const rec = m.d ? null : state[SYNC_KINDS[m.k]].find(x => String(x.id) === id);
+      if (!m.d && !rec) return null;
+      return { key, u: m.u, event: { id: rec ? rec.id : id, kind: m.k, updatedAt: m.u, deleted: !!m.d, ...(rec ? { data: JSON.parse(JSON.stringify(rec)) } : {}) } };
+    }).filter(Boolean);
+    if (!dirty.length) { showToast('Everything is already backed up'); return; }
+    await ensureToken();
+    showToast(`Backing up ${dirty.length} change${dirty.length === 1 ? '' : 's'}…`);
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
+    const parts = Math.ceil(dirty.length / BACKUP_CHUNK);
+    for (let p = 0; p < parts; p++) {
+      const chunk = dirty.slice(p * BACKUP_CHUNK, (p + 1) * BACKUP_CHUNK);
+      const payload = { app: 'littlefeed', schema: 1, deviceId: state.sync.deviceId, createdAt: Date.now(), events: chunk.map(x => x.event) };
+      const file = await driveUpload(`${BACKUP_PREFIX}${stamp}-${state.sync.deviceId.slice(0, 6)}-${p + 1}of${parts}.json`, JSON.stringify(payload));
+      chunk.forEach(x => { const m = state.sync.meta[x.key]; if (m && m.u === x.u) m.s = x.u; }); // edits made during upload stay pending
+      state.sync.imported[file.id] = 1; // our own file needs no re-import
+      state.sync.lastBackupAt = Date.now();
+      persistExtended(); await saveChain;
+    }
+    showToast(`Backed up ${dirty.length} change${dirty.length === 1 ? '' : 's'} to Drive`);
+  }
+
+  // --- Load (merge every backup file not imported yet) ---
+  function mergeEvents(events, counts) {
+    for (const ev of events) {
+      if (!ev || !SYNC_KINDS[ev.kind] || ev.id === undefined || ev.id === null || ev.id === '' || !Number.isFinite(Number(ev.updatedAt))) continue;
+      if (!ev.deleted && (!ev.data || typeof ev.data !== 'object')) continue;
+      const u = Number(ev.updatedAt), key = `${ev.kind}:${ev.id}`, m = state.sync.meta[key];
+      const same = m && m.u === u && !!m.d === !!ev.deleted;
+      if (same) { m.s = Math.max(m.s || 0, u); continue; }
+      if (m && !(u > m.u || (u === m.u && ev.deleted && !m.d))) continue; // local copy is newer: it stays pending for the next backup
+      const list = state[SYNC_KINDS[ev.kind]], idx = list.findIndex(x => String(x.id) === String(ev.id));
+      if (idx >= 0) list.splice(idx, 1);
+      let f = m ? m.f : '';
+      if (ev.deleted) { if (idx >= 0) counts.removed++; }
+      else {
+        const rec = JSON.parse(JSON.stringify(ev.data)); rec.id = ev.id;
+        list.push(rec); f = hashText(stableStringify(rec));
+        if (idx >= 0) counts.updated++; else counts.added++;
+      }
+      state.sync.meta[key] = { k: ev.kind, f, u, d: !!ev.deleted, s: u };
+    }
+  }
+  async function loadFromDrive() {
+    await ensureToken();
+    showToast('Checking Drive for new backups…');
+    const pending = (await driveListBackups()).filter(f => !state.sync.imported[f.id]);
+    if (!pending.length) { showToast('No new backups on Drive'); return; }
+    const results = await mapPool(pending, 4, async f => {
+      const data = await (await driveFetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&supportsAllDrives=true`)).json();
+      if (!data || data.app !== 'littlefeed' || data.schema !== 1 || !Array.isArray(data.events)) throw new Error(`${f.name} is not a supported backup file`);
+      return data;
+    });
+    // All network work is done; merge synchronously so nothing can interleave with the update.
+    reconcileSyncMeta();
+    const counts = { added: 0, updated: 0, removed: 0, files: 0 }, failed = [];
+    results.forEach((r, i) => {
+      if (r.e) { failed.push(`${pending[i].name}: ${r.e.message}`); return; }
+      mergeEvents(r.v.events, counts); state.sync.imported[pending[i].id] = 1; counts.files++;
+    });
+    state.history.sort((a, b) => Number(b.endedAt) - Number(a.endedAt));
+    state.sleepHistory.sort((a, b) => Number(b.endedAt) - Number(a.endedAt));
+    state.growthHistory.sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
+    recalculateLastFeed();
+    state.sync.lastLoadAt = Date.now();
+    persistExtended(); await saveChain;
+    render(); refreshTimelineColumnHistoryIfOpen();
+    showToast(`Loaded: ${counts.added} new, ${counts.updated} updated, ${counts.removed} deleted`);
+    if (failed.length) alert(`${failed.length} backup file(s) could not be read and will be retried next time:\n\n${failed.join('\n')}`);
+  }
+
+  // --- Menu wiring ---
+  function updateSyncMenu() {
+    const n = pendingBackupCount();
+    $('driveAuthLabel').textContent = account ? 'Sign out of Google' : 'Sign in to Google';
+    const badge = $('driveBackupBadge'); badge.textContent = String(n); badge.hidden = !n;
+    const when = t => t ? new Date(t).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'never';
+    $('driveNote').textContent = `${account ? `Signed in${account.email ? ` as ${account.email}` : ''}` : 'Not signed in'}\nLast backup: ${when(state.sync.lastBackupAt)}\nLast load: ${when(state.sync.lastLoadAt)}`;
+  }
+  async function runSync(label, fn) {
+    if (syncBusy) { showToast('Drive sync is already running…'); return; }
+    syncBusy = true;
+    try { await fn(); }
+    catch (error) { console.warn(`Little Feed: ${label} failed`, error); alert(`${label} failed: ${error.message || error}`); }
+    finally { syncBusy = false; updateSyncMenu(); }
+  }
+  $('refreshBtn').addEventListener('click', () => { updateSyncMenu(); if (navigator.onLine) loadGis().catch(() => {}); });
+  $('driveAuthBtn').addEventListener('click', () => {
+    closeHeaderMenu();
+    runSync('Google sign-in', async () => {
+      if (account) { signOut(); showToast('Signed out of Google'); return; }
+      await signIn('select_account');
+      showToast(`Signed in${account && account.email ? ` as ${account.email}` : ''}`);
+    });
+  });
+  $('driveBackupBtn').addEventListener('click', () => { closeHeaderMenu(); runSync('Backup', backupToDrive); });
+  $('driveSettingsBtn').addEventListener('click', () => {
+    closeHeaderMenu();
+    try { if (askConfig()) showToast('Drive settings saved'); }
+    catch (error) { alert(error.message); }
+    updateSyncMenu();
+  });
+  $('driveLoadBtn').addEventListener('click', () => { closeHeaderMenu(); runSync('Load', loadFromDrive); });
 
   // Timer calculations and presentation.
   function fmt(ms) {
@@ -1963,6 +2275,7 @@
     persistExtended(); render(); showToast('Feed saved — you’re doing great 🤍');
   }
   function persistExtended() {
+    reconcileSyncMeta(); // keep id / modified-time / deleted markers current for Drive sync
     if (!db) return;
     const snapshot = persistedStateSnapshot();
     saveChain = saveChain.then(() => writeDatabaseState(snapshot)).catch(error => {
