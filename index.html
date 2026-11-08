@@ -164,8 +164,7 @@
   .legend-swatch { display:inline-block; border-radius:4px; width:15px; }
   .legend-swatch.sleep { height:12px; background:var(--sleep-accent-mid); }
   .legend-swatch.feed { height:8px; background:#638f70; }
-  /* Keep the browser's native horizontal scrollbar available on desktop and touch devices. */
-  .timeline-scroll { display:block; width:100%; max-width:100%; overflow-x:scroll; overflow-y:hidden; border-radius:0; background:#fffdfa; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:auto; scrollbar-color:#8d887d #e9e5dd; scrollbar-gutter:stable; }
+  .timeline-scroll { display:block; width:100%; max-width:min(100%, calc(34px + var(--timeline-visible-days, 25) * 47px)); margin-left:auto; margin-right:auto; overflow-x:scroll; overflow-y:hidden; border-radius:0; background:#fffdfa; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:auto; scrollbar-color:#8d887d #e9e5dd; scrollbar-gutter:stable; }
   .timeline-scroll::-webkit-scrollbar { display:block; height:15px; -webkit-appearance:none; }
   .timeline-scroll::-webkit-scrollbar-track { background:#e9e5dd; border-top:1px solid #d8d2c8; border-bottom:1px solid #d8d2c8; }
   .timeline-scroll::-webkit-scrollbar-thumb { background:#8d887d; border:3px solid #e9e5dd; border-radius:99px; min-width:34px; }
