@@ -114,6 +114,22 @@
   .sleep-button { width:100%; background:var(--sleep-accent); color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(77,132,171,.18); }
   .sleep-button.waking { background:var(--sleep-accent-dark); box-shadow:0 5px 12px rgba(46,98,135,.16); }
   .sleep-history-mark { background:var(--sleep-accent-light); }
+  :root { --meal-tint:#fdf6ee; --meal-tint-strong:#fbeedd; --meal-accent:#c9894f; --meal-accent-dark:#8f5a2c; --meal-accent-light:#f7e4cd; --meal-accent-mid:#e5b98a; --meal-accent-border:#efd6b8; }
+  .meal-card { margin-top:14px; padding:22px 18px 18px; background:var(--meal-tint); border-color:var(--meal-accent-border); }
+  .meal-card .live { color:var(--meal-accent-dark); background:var(--meal-accent-light); }
+  .meal-card .sleep-start-row { margin:18px auto 18px; }
+  .meal-card .sleep-adjust-label { color:var(--meal-accent-dark); }
+  .meal-card .sleep-adjustment-value strong { color:#5e3a17; }
+  #mealSlider { display:block; width:100%; min-height:28px; margin:4px 0 0; padding:0; accent-color:var(--meal-accent); cursor:pointer; touch-action:pan-y; }
+  #mealSlider:focus-visible { outline:2px solid var(--meal-accent-mid); outline-offset:3px; border-radius:8px; }
+  .meal-button { width:100%; background:var(--meal-accent); color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(201,137,79,.2); }
+  .meal-button:active { transform:scale(.98); }
+  .meal-history-mark { background:var(--meal-accent-light); }
+  .legend-swatch.meal { height:6px; background:var(--meal-accent); }
+  .timeline-block.meal { left:8%; width:84%; min-width:5px; background:var(--meal-accent); box-shadow:inset 0 0 0 1px rgba(110,66,24,.3); border-radius:3px; z-index:2; }
+  .timeline-history-item.meal-entry { background:var(--meal-tint-strong); border-color:var(--meal-accent-border); }
+  .timeline-history-item.meal-entry .history-mark { background:var(--meal-accent-light); color:var(--meal-accent-dark); }
+  .timeline-history-item.meal-entry .timeline-history-kind { color:var(--meal-accent-dark); }
   .tab-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; padding:5px; margin:0 0 4px; background:#eee9e1; border-radius:17px; }
   .tab-button { border:0; border-radius:13px; min-height:43px; padding:10px 9px; color:var(--muted); background:transparent; font-size:12px; font-weight:750; }
   .tab-button[aria-selected="true"] { background:var(--card); color:var(--ink); box-shadow:0 2px 8px rgba(67,61,49,.07); }
@@ -164,6 +180,9 @@
   .legend-swatch { display:inline-block; border-radius:4px; width:15px; }
   .legend-swatch.sleep { height:12px; background:var(--sleep-accent-mid); }
   .legend-swatch.feed { height:8px; background:#638f70; }
+  /* Keep the browser's native horizontal scrollbar available on desktop and touch devices.
+     28 days are loaded but the viewport is capped at 25 (32px axis + 25 x 47px columns + 2px padding),
+     so on wide screens a few days always sit behind an active scrollbar. */
   .timeline-scroll { display:block; width:100%; max-width:min(100%, calc(34px + var(--timeline-visible-days, 25) * 47px)); margin-left:auto; margin-right:auto; overflow-x:scroll; overflow-y:hidden; border-radius:0; background:#fffdfa; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; scrollbar-width:auto; scrollbar-color:#8d887d #e9e5dd; scrollbar-gutter:stable; }
   .timeline-scroll::-webkit-scrollbar { display:block; height:15px; -webkit-appearance:none; }
   .timeline-scroll::-webkit-scrollbar-track { background:#e9e5dd; border-top:1px solid #d8d2c8; border-bottom:1px solid #d8d2c8; }
@@ -426,6 +445,25 @@
     </div>
   </section>
 
+  <section class="card meal-card" aria-label="Baby meal tracker">
+    <div class="section-top">
+      <div class="section-title">Meal tracker</div>
+      <div class="section-actions"><div class="live" id="mealStatusPill">NO MEALS YET</div></div>
+    </div>
+    <div class="sleep-start-row" id="mealRow">
+      <div class="sleep-adjustment-values" aria-live="polite" aria-atomic="true">
+        <div class="sleep-adjustment-value"><span class="sleep-adjust-label">Meal time</span><strong id="mealTimeValue">—</strong></div>
+        <div class="sleep-adjustment-value"><span class="sleep-adjust-label">Meals today</span><strong id="mealTodayValue">0</strong></div>
+      </div>
+      <input id="mealSlider" type="range" min="0" max="1000" step="1" value="0" aria-label="Adjust meal time; move right to set an earlier time">
+      <div class="sleep-slider-labels"><span>Now</span><span>5 hours ago</span></div>
+    </div>
+    <div class="sleep-actions">
+      <button class="meal-button" id="mealAddBtn" type="button">🍽️ Add meal</button>
+      <button class="history-toggle" id="mealHistoryToggle" type="button" aria-expanded="false" aria-controls="mealHistoryPanel" aria-label="Open meal history" title="Open meal history"><span class="history-symbol" aria-hidden="true">◷</span></button>
+    </div>
+  </section>
+
   <section class="card growth-card" aria-label="Baby growth tracker">
     <div class="section-top">
       <div class="section-title">Growth tracker</div>
@@ -458,6 +496,7 @@
       <div class="diagram-legend" aria-label="Diagram legend">
         <span class="legend-item"><i class="legend-swatch sleep"></i> Sleep interval</span>
         <span class="legend-item"><i class="legend-swatch feed"></i> Feeding session</span>
+        <span class="legend-item"><i class="legend-swatch meal"></i> Meal</span>
       </div>
       <div class="timeline-summary" id="timelineSummary">Last 4 weeks</div>
       <div class="timeline-scroll" id="timelineScroller" tabindex="0" aria-label="Scrollable baby sleep and feeding timeline. Older days are to the left and today is on the right.">
@@ -467,7 +506,7 @@
         </div>
       </div>
       <div class="timeline-empty" id="timelineEmpty" hidden>No sleep or feeding sessions are recorded for this period yet. Start tracking a few sessions and they'll appear here.</div>
-      <p class="timeline-footnote">Blue blocks show sleep; green feeding blocks overlay the same column. Overnight sessions continue into the next day. Outlined blocks are still in progress. Tap a day column to open all sessions that overlap that day, ordered by start time.</p>
+      <p class="timeline-footnote">Blue blocks show sleep; green feeding blocks and orange meal markers overlay the same column. Overnight sessions continue into the next day. Outlined blocks are still in progress. Tap a day column to open all sessions that overlap that day, ordered by start time.</p>
     </div>
   </section>
 
@@ -489,7 +528,7 @@
   <input id="importCsvFile" type="file" accept=".csv,text/csv" hidden>
 
   <div class="storage-status" id="storageStatus" role="status" aria-live="polite">Opening secure local storage…</div>
-  <div class="footnote">Made with love for the little moments ✨<br>Your data stays on this device; it is not synced to the cloud.</div>
+  <div class="footnote">Made with love for the little moments ✨<br>Your data stays on this device unless you back it up to Google Drive.</div>
 </main>
 <div class="history-backdrop" id="historyBackdrop" hidden>
   <section class="history-modal" role="dialog" aria-modal="true" aria-label="Little Feed history entries">
@@ -510,6 +549,13 @@
         </div>
         <div class="history-month-nav" id="sleepHistoryMonthNav" aria-live="polite" hidden></div>
         <section class="history-list" id="sleepHistoryList" aria-live="polite"></section>
+      </div>
+      <div class="history-collapse" id="mealHistoryPanel" hidden>
+        <div class="history-head">
+          <h3>Meal history</h3><span class="count" id="mealHistoryCount">0 meals</span>
+        </div>
+        <div class="history-month-nav" id="mealHistoryMonthNav" aria-live="polite" hidden></div>
+        <section class="history-list" id="mealHistoryList" aria-live="polite"></section>
       </div>
       <div class="history-collapse" id="growthHistoryPanel" hidden>
         <div class="history-head">
@@ -575,7 +621,7 @@
   const state = {
     history: [], leftMs: 0, rightMs: 0, active: null,
     startedAt: null, segmentStartedAt: null, lastSide: null,
-    sleepHistory: [], activeSleepStart: null, growthHistory: [],
+    sleepHistory: [], activeSleepStart: null, growthHistory: [], mealHistory: [],
     timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false,
     sync: { deviceId: '', migrated: false, meta: {}, imported: {}, lastBackupAt: 0, lastLoadAt: 0 }
   };
@@ -594,6 +640,7 @@
   const DB_VERSION = 1;
   const DB_STORE = 'appRecords';
   const DB_RECORD_ID = 'appState';
+  const MEAL_MS = 15 * 60000; // a meal only has a start time; it is drawn and exported as 15 minutes
   const CSV_HEADERS = [
     'Type','Timestamp','Date','Time','End Timestamp','Duration (min)','Amount','Unit','Side',
     'Diaper Type','Rash','Food','Allergen Tags','Medication','Dose','Vaccine','Vaccine Site',
@@ -706,6 +753,10 @@
       const timestamp = Number(item.timestamp);
       if (Number.isFinite(timestamp)) records.push({start:timestamp, row:newGrowthCsvRow(item)});
     }
+    for (const item of state.mealHistory) {
+      const start = Number(item.startedAt);
+      if (Number.isFinite(start)) records.push({start, row:newCsvRow('meal', start, start + MEAL_MS, MEAL_MS)});
+    }
     // An in-progress sleep is represented the same way as the sample scheme: a start timestamp and blank end/duration.
     if (state.activeSleepStart) {
       const start = Number(state.activeSleepStart);
@@ -775,6 +826,9 @@
     const bv = b[key] == null ? null : Number(b[key]);
     return av === bv;
   }
+  function sameMeal(a, b) {
+    return Math.abs(Number(a.startedAt) - Number(b.startedAt)) < 1500;
+  }
   function sameGrowthRecord(a, b) {
     return Math.abs(Number(a.timestamp) - Number(b.timestamp)) < 1500 && ['weight','height','headCirc'].every(key => growthMeasurementEqual(a,b,key));
   }
@@ -792,7 +846,7 @@
       return;
     }
     const value = (row, name) => { const i = col(name); return i < 0 ? '' : String(row[i] ?? '').trim(); };
-    const pendingFeeds = [], pendingSleeps = [], pendingGrowth = [];
+    const pendingFeeds = [], pendingSleeps = [], pendingGrowth = [], pendingMeals = [];
     const openFeeds = [], openSleeps = [];
     let unsupported = 0, invalid = 0;
     const now = Date.now();
@@ -800,7 +854,7 @@
     for (const row of rows.slice(1)) {
       if (!row.length || row.every(cell => String(cell ?? '').trim() === '')) continue;
       const type = value(row, 'Type').toLowerCase();
-      if (!['breast','sleep','growth'].includes(type)) { unsupported++; continue; }
+      if (!['breast','sleep','growth','meal'].includes(type)) { unsupported++; continue; }
       const start = parseCsvTimestamp(value(row, 'Timestamp'), value(row, 'Date'), value(row, 'Time'));
       if (!Number.isFinite(start) || start > now) { invalid++; continue; }
       if (type === 'growth') {
@@ -813,6 +867,10 @@
         };
         if (item.weight == null && item.height == null && item.headCirc == null) { invalid++; continue; }
         pendingGrowth.push(item);
+        continue;
+      }
+      if (type === 'meal') { // only the start time matters; the end is always start + 15 minutes
+        pendingMeals.push({ id: `import-meal-${start}`, startedAt: start, endedAt: start + MEAL_MS, durationMs: MEAL_MS });
         continue;
       }
       const rawEnd = value(row, 'End Timestamp');
@@ -860,13 +918,13 @@
     openFeeds.sort((a,b) => b.start - a.start);
     const incomingOpenSleep = openSleeps[0] || null;
     const incomingOpenFeed = openFeeds[0] || null;
-    const candidateCount = pendingFeeds.length + pendingSleeps.length + pendingGrowth.length + (incomingOpenSleep ? 1 : 0) + (incomingOpenFeed ? 1 : 0);
+    const candidateCount = pendingFeeds.length + pendingSleeps.length + pendingGrowth.length + pendingMeals.length + (incomingOpenSleep ? 1 : 0) + (incomingOpenFeed ? 1 : 0);
     if (!candidateCount) {
       showToast('No valid records found');
-      alert(`No valid breast, sleep, or growth records were found. Unsupported rows ignored: ${unsupported}; invalid rows: ${invalid}.`);
+      alert(`No valid breast, sleep, meal, or growth records were found. Unsupported rows ignored: ${unsupported}; invalid rows: ${invalid}.`);
       return;
     }
-    const approved = confirm(`Import ${pendingFeeds.length} feeding records, ${pendingSleeps.length} sleep sessions, and ${pendingGrowth.length} growth records?\n\nExisting data will be kept. Exact duplicates will be skipped.\nUnsupported entry types (such as diaper) will be ignored.\n${incomingOpenSleep ? 'The CSV also contains an active sleep timer. ' : ''}${incomingOpenFeed ? 'The CSV also contains an active feeding timer. ' : ''}`);
+    const approved = confirm(`Import ${pendingFeeds.length} feeding records, ${pendingSleeps.length} sleep sessions, ${pendingMeals.length} meals, and ${pendingGrowth.length} growth records?\n\nExisting data will be kept. Exact duplicates will be skipped.\nUnsupported entry types (such as diaper) will be ignored.\n${incomingOpenSleep ? 'The CSV also contains an active sleep timer. ' : ''}${incomingOpenFeed ? 'The CSV also contains an active feeding timer. ' : ''}`);
     if (!approved) return;
 
     let addedFeeds = 0, addedSleeps = 0, duplicates = 0;
@@ -877,6 +935,11 @@
     for (const item of pendingSleeps) {
       if (state.sleepHistory.some(existing => sameSession(existing, item))) { duplicates++; continue; }
       state.sleepHistory.push(item); addedSleeps++;
+    }
+    let addedMeals = 0;
+    for (const item of pendingMeals) {
+      if (state.mealHistory.some(existing => sameMeal(existing, item))) { duplicates++; continue; }
+      state.mealHistory.push(item); addedMeals++;
     }
     let addedGrowth = 0;
     for (const item of pendingGrowth) {
@@ -900,12 +963,13 @@
     state.history.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
     state.sleepHistory.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
     state.growthHistory.sort((a,b) => Number(b.timestamp) - Number(a.timestamp));
+    state.mealHistory.sort((a,b) => Number(b.startedAt) - Number(a.startedAt));
     recalculateLastFeed();
     persistExtended();
     await saveChain;
     render();
-    const details = `Imported ${addedFeeds} feeding, ${addedSleeps} sleep, and ${addedGrowth} growth records${duplicates ? `; ${duplicates} duplicate/active record(s) skipped` : ''}${unsupported ? `; ${unsupported} unsupported row(s) ignored` : ''}${invalid ? `; ${invalid} invalid row(s) skipped` : ''}.`;
-    showToast(`Imported ${addedFeeds + addedSleeps + addedGrowth} records`);
+    const details = `Imported ${addedFeeds} feeding, ${addedSleeps} sleep, ${addedMeals} meal, and ${addedGrowth} growth records${duplicates ? `; ${duplicates} duplicate/active record(s) skipped` : ''}${unsupported ? `; ${unsupported} unsupported row(s) ignored` : ''}${invalid ? `; ${invalid} invalid row(s) skipped` : ''}.`;
+    showToast(`Imported ${addedFeeds + addedSleeps + addedMeals + addedGrowth} records`);
     alert(details);
   }
 
@@ -966,6 +1030,7 @@
     state.lastSideAt = Number(saved.lastSideAt) || null;
     state.sleepHistory = Array.isArray(saved.sleepHistory) ? saved.sleepHistory : [];
     state.growthHistory = Array.isArray(saved.growthHistory) ? saved.growthHistory : [];
+    state.mealHistory = Array.isArray(saved.mealHistory) ? saved.mealHistory : [];
     state.activeSleepStart = Number(saved.activeSleepStart) || null;
     state.sync = normalizeSync(saved.sync);
     if (saved.activeFeed && typeof saved.activeFeed === 'object') {
@@ -984,6 +1049,7 @@
       lastSideAt: state.lastSideAt,
       sleepHistory: state.sleepHistory.map(item => ({ ...item })),
       growthHistory: state.growthHistory.map(item => ({ ...item })),
+      mealHistory: state.mealHistory.map(item => ({ ...item })),
       sync: snapshotSync(),
       activeSleepStart: state.activeSleepStart,
       activeFeed: (state.startedAt || state.leftMs || state.rightMs || state.active) ? {
@@ -1040,7 +1106,7 @@
   const readCfg = name => { try { return localStorage.getItem(CFG_KEYS[name]) || ''; } catch (_) { return ''; } };
   const cfg = { clientId: readCfg('clientId'), folderId: readCfg('folderId') };
   const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
-  const SYNC_KINDS = { feed: 'history', sleep: 'sleepHistory', growth: 'growthHistory' };
+  const SYNC_KINDS = { feed: 'history', sleep: 'sleepHistory', growth: 'growthHistory', meal: 'mealHistory' };
   const BACKUP_PREFIX = 'littlefeed-';
   const BACKUP_CHUNK = 2000;
   let syncBusy = false, gisPromise = null, tokenClient = null, pendingToken = null;
@@ -1274,11 +1340,13 @@
     const counts = { added: 0, updated: 0, removed: 0, files: 0 }, failed = [];
     results.forEach((r, i) => {
       if (r.e) { failed.push(`${pending[i].name}: ${r.e.message}`); return; }
-      mergeEvents(r.v.events, counts); state.sync.imported[pending[i].id] = 1; counts.files++;
+      mergeEvents(r.v.events, counts); counts.files++;
+      if (!r.v.events.some(ev => ev && !SYNC_KINDS[ev.kind])) state.sync.imported[pending[i].id] = 1; // files with unknown kinds are retried after an app update
     });
     state.history.sort((a, b) => Number(b.endedAt) - Number(a.endedAt));
     state.sleepHistory.sort((a, b) => Number(b.endedAt) - Number(a.endedAt));
     state.growthHistory.sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
+    state.mealHistory.sort((a, b) => Number(b.startedAt) - Number(a.startedAt));
     recalculateLastFeed();
     state.sync.lastLoadAt = Date.now();
     persistExtended(); await saveChain;
@@ -1412,7 +1480,7 @@
     renderFeedCaption();
     $('finishBtn').disabled = totalElapsed() === 0;
     $('finishBtn').style.opacity = totalElapsed() === 0 ? '.55' : '1';
-    renderLast(); renderHistory(); renderSleep(); renderSleepHistory(); renderGrowth();
+    renderLast(); renderHistory(); renderSleep(); renderSleepHistory(); renderMeal(); renderMealHistory(); renderGrowth();
     if (!$('timelinePanel').hidden) {
       const second = Math.floor(Date.now() / 1000);
       if (second !== lastTimelineRenderSecond) { lastTimelineRenderSecond = second; renderTimeline(); }
@@ -1530,7 +1598,7 @@
     const duration = feedDurationMs(item, endedAt);
     return duration > 0 ? endedAt - duration : endedAt;
   }
-  const historyMonthSelections = { feed: null, sleep: null, growth: null };
+  const historyMonthSelections = { feed: null, sleep: null, meal: null, growth: null };
   function historyMonthKey(timestamp) {
     const date = new Date(Number(timestamp));
     if (!Number.isFinite(date.getTime())) return '';
@@ -1541,7 +1609,7 @@
     return new Date(year, month - 1, 1).toLocaleDateString([], { month: 'long', year: 'numeric' });
   }
   function selectHistoryMonth(type, records, timestampOf) {
-    const navIds = { feed: 'feedHistoryMonthNav', sleep: 'sleepHistoryMonthNav', growth: 'growthHistoryMonthNav' };
+    const navIds = { feed: 'feedHistoryMonthNav', sleep: 'sleepHistoryMonthNav', meal: 'mealHistoryMonthNav', growth: 'growthHistoryMonthNav' };
     const nav = $(navIds[type]);
     const valid = records.map(item => ({ item, key: historyMonthKey(timestampOf(item)) })).filter(row => row.key);
     const months = [...new Set(valid.map(row => row.key))].sort((a,b) => b.localeCompare(a));
@@ -1563,6 +1631,7 @@
     const config = {
       feed: { records: state.history, timestampOf: feedStartTimestamp },
       sleep: { records: state.sleepHistory, timestampOf: item => item.endedAt },
+      meal: { records: state.mealHistory, timestampOf: item => item.startedAt },
       growth: { records: state.growthHistory, timestampOf: item => item.timestamp }
     }[type];
     if (!config) return;
@@ -1661,6 +1730,49 @@
     }
     $('sleepToggleBtn').textContent = sleeping ? '☀️ Wake up & save sleep' : '🌙 Start sleep';
     $('sleepToggleBtn').classList.toggle('waking', sleeping);
+  }
+  // Meal tracker: no timer, just "add a meal now" plus a slider to shift the time into the past.
+  let mealMinutesAgo = 0;
+  function renderMeal() {
+    const now = Date.now();
+    $('mealTimeValue').textContent = sleepStartLabel(now - mealMinutesAgo * 60000);
+    const last = state.mealHistory.reduce((max, item) => Math.max(max, Number(item.startedAt) || 0), 0);
+    const since = now - last;
+    $('mealStatusPill').textContent = !last ? 'NO MEALS YET' : (since < 60000 ? 'LAST MEAL JUST NOW' : `LAST MEAL ${humanDuration(since).toUpperCase()} AGO`);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    $('mealTodayValue').textContent = String(state.mealHistory.filter(item => Number(item.startedAt) >= today.getTime()).length);
+  }
+  function addMeal() {
+    const now = Date.now();
+    const start = now - mealMinutesAgo * 60000;
+    if (state.mealHistory.some(item => Math.abs(Number(item.startedAt) - start) < 120000) &&
+        !confirm('A meal was already added at about this time. Add another one?')) return;
+    state.mealHistory.push({ id: `meal-${now}-${Math.random().toString(36).slice(2, 7)}`, startedAt: start, endedAt: start + MEAL_MS, durationMs: MEAL_MS });
+    state.mealHistory.sort((a, b) => Number(b.startedAt) - Number(a.startedAt));
+    const shifted = mealMinutesAgo > 0;
+    mealMinutesAgo = 0; $('mealSlider').value = '0';
+    persistExtended(); render();
+    showToast(shifted ? `Meal added for ${new Date(start).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hourCycle:'h23'})} 🍽️` : 'Meal added 🍽️');
+  }
+  function renderMealHistory() {
+    const list = $('mealHistoryList');
+    $('mealHistoryCount').textContent = `${state.mealHistory.length} ${state.mealHistory.length === 1 ? 'meal' : 'meals'}`;
+    if (!state.mealHistory.length) {
+      $('mealHistoryMonthNav').hidden = true;
+      list.innerHTML = '<div class="card empty"><div class="empty-icon">🍽️</div><strong>No meals yet</strong><br>Tap “Add meal” to record the first one.</div>';
+      return;
+    }
+    const monthItems = selectHistoryMonth('meal', state.mealHistory, item => item.startedAt);
+    list.innerHTML = monthItems.sort((a, b) => Number(b.startedAt) - Number(a.startedAt)).map(item => {
+      const start = new Date(item.startedAt);
+      const time = start.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+      const dateText = isSameDay(start, new Date()) ? `Today · ${time}` : `${start.toLocaleDateString([], {month:'short', day:'numeric'})} · ${time}`;
+      return `<article class="card history-item">
+        <div class="history-mark meal-history-mark">🍽️</div>
+        <div class="history-main"><div class="history-date">${dateText}</div><div class="history-meta">${start.toLocaleDateString([], {weekday:'long'})}</div></div>
+        <div class="record-actions"><button class="edit-record" type="button" data-edit-meal="${safeAttr(item.id)}">Edit</button><button class="delete" type="button" aria-label="Delete meal" data-meal-delete="${safeAttr(item.id)}">Delete</button></div>
+      </article>`;
+    }).join('');
   }
   function renderSleepHistory() {
     const list = $('sleepHistoryList');
@@ -1826,6 +1938,11 @@
       events.push({type:'feed', start:Number(state.startedAt), end:now, label:`Feeding in progress · ${capitalize(state.active)} side`, ongoing:true});
     }
 
+    state.mealHistory.forEach(item => {
+      const start = Number(item.startedAt);
+      if (Number.isFinite(start)) events.push({type:'meal', start, end:start + MEAL_MS, label:'Meal', id:item.id});
+    });
+
     // Keep a fixed 24-hour vertical scale: midnight at the top, 24:00 at the bottom.
     const timeLabels = [];
     for (let hour = 0; hour <= 24; hour += 3) {
@@ -1836,7 +1953,7 @@
     }
     axis.innerHTML = `<div class="time-axis-spacer"></div><div class="time-ruler">${timeLabels.join('')}</div>`;
 
-    let sleepCount = 0, feedCount = 0;
+    let sleepCount = 0, feedCount = 0, mealCount = 0;
     const cursorDateKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
     lastTimelineCursorDateKey = cursorDateKey;
     const rows = days.map(({start:dayStart, end:dayEnd}) => {
@@ -1855,11 +1972,13 @@
         const heightPct = Math.max(0, bottomPct - topPct);
         const duration = segEnd - segStart;
         const time = `${new Date(segStart).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}–${new Date(segEnd).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
-        const label = `${e.label}, ${time}, ${humanDuration(duration)}${e.ongoing ? ', ongoing' : ''}`;
-        if (e.type === 'sleep') sleepCount++; else feedCount++;
+        const label = e.type === 'meal'
+          ? `Meal, ${new Date(e.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`
+          : `${e.label}, ${time}, ${humanDuration(duration)}${e.ongoing ? ', ongoing' : ''}`;
+        if (e.type === 'sleep') sleepCount++; else if (e.type === 'meal') mealCount++; else feedCount++;
         const title = label.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         // Feed bars stay narrower than sleep blocks so simultaneous events remain visible.
-        const height = Math.max(e.type === 'sleep' ? 0.8 : 0.6, heightPct);
+        const height = Math.max(e.type === 'sleep' ? 0.8 : (e.type === 'meal' ? 1 : 0.6), heightPct);
         return `<span class="timeline-block ${e.type}${e.ongoing ? ' ongoing' : ''}" style="top:${topPct.toFixed(3)}%;height:${height.toFixed(3)}%" title="${title}" aria-label="${title}"></span>`;
       }).join('');
       const isToday = isSameDay(dayStart, today);
@@ -1885,7 +2004,7 @@
     const oldestEvent = events.reduce((min, e) => Math.min(min, e.start), Infinity);
     const canLoadEarlier = Number.isFinite(oldestEvent) && oldestEvent < oldestDate.getTime();
     scroller.dataset.canLoadEarlier = canLoadEarlier ? 'true' : 'false';
-    $('timelineSummary').textContent = `${state.timelineDaysCount} days · ${sleepCount} sleep blocks · ${feedCount} feed blocks`;
+    $('timelineSummary').textContent = `${state.timelineDaysCount} days · ${sleepCount} sleep blocks · ${feedCount} feed blocks · ${mealCount} meals`;
     const hasPeriodData = events.some(e => e.end > days[0].start.getTime() && e.start < days[days.length-1].end.getTime());
     $('timelineEmpty').hidden = hasPeriodData;
 
@@ -1912,6 +2031,7 @@
     };
     state.sleepHistory.forEach(item => add({kind:'sleep', id:item.id, item, start:Number(item.startedAt), end:Number(item.endedAt)}));
     state.history.forEach(item => add({kind:'feed', id:item.id, item, start:Number(feedStartTimestamp(item)), end:Number(item.endedAt)}));
+    state.mealHistory.forEach(item => add({kind:'meal', id:item.id, item, start:Number(item.startedAt), end:Number(item.startedAt) + MEAL_MS}));
     if (state.activeSleepStart) add({kind:'active-sleep', start:Number(state.activeSleepStart), end:Date.now(), ongoing:true});
     if (state.active && state.startedAt) add({kind:'active-feed', start:Number(state.startedAt), end:Date.now(), ongoing:true});
     return entries.sort((a,b) => a.start-b.start || a.end-b.end || a.kind.localeCompare(b.kind));
@@ -1950,21 +2070,22 @@
     $('timelineDayHistoryTitle').textContent = dateLabel;
     $('timelineDayHistoryCount').textContent = `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`;
     if (!entries.length) {
-      list.innerHTML = '<div class="timeline-history-empty">No feeding or sleep sessions overlap this day.</div>';
+      list.innerHTML = '<div class="timeline-history-empty">No feeding, sleep or meal entries overlap this day.</div>';
       return;
     }
     list.innerHTML = entries.map(entry => {
       const isFeed = entry.kind === 'feed' || entry.kind === 'active-feed';
       const isActive = entry.kind === 'active-feed' || entry.kind === 'active-sleep';
-      const isSleep = !isFeed;
+      const isMeal = entry.kind === 'meal';
+      const isSleep = !isFeed && !isMeal;
       const item = entry.item || {};
       const start = new Date(entry.start), end = new Date(entry.end);
-      const typeLabel = isFeed ? 'Feeding' : 'Sleep';
-      const icon = isFeed ? '🍼' : '🌙';
-      const range = `${timelineEntryDateTime(entry.start)} – ${isActive ? 'In progress' : timelineEntryDateTime(entry.end)}`;
+      const typeLabel = isFeed ? 'Feeding' : (isMeal ? 'Meal' : 'Sleep');
+      const icon = isFeed ? '🍼' : (isMeal ? '🍽️' : '🌙');
+      const range = isMeal ? timelineEntryDateTime(entry.start) : `${timelineEntryDateTime(entry.start)} – ${isActive ? 'In progress' : timelineEntryDateTime(entry.end)}`;
       const crossingMidnight = !isSameDay(start, end);
       let details = range;
-      if (crossingMidnight && !isActive) details += ' · overnight';
+      if (crossingMidnight && !isActive && !isMeal) details += ' · overnight';
       let durationMs;
       if (entry.kind === 'feed') durationMs = Math.max(0, Number(item.totalMs) || (entry.end - entry.start));
       else if (entry.kind === 'sleep') durationMs = Math.max(0, Number(item.durationMs) || (entry.end - entry.start));
@@ -1978,20 +2099,24 @@
       }
       if (isFeed && entry.kind === 'active-feed') details += `<br>${capitalize(state.active)} side · running`;
       if (isSleep && isActive) details += '<br>Sleep in progress';
-      const editButton = entry.kind === 'feed'
+      const editButton = entry.kind === 'meal'
+        ? `<button class="edit-record" type="button" data-edit-meal="${safeAttr(entry.id)}">Edit</button>`
+        : entry.kind === 'feed'
         ? `<button class="edit-record" type="button" data-edit-feed="${safeAttr(entry.id)}">Edit</button>`
         : entry.kind === 'sleep'
           ? `<button class="edit-record" type="button" data-edit-sleep="${safeAttr(entry.id)}">Edit</button>`
           : `<button class="edit-record" type="button" data-edit-timeline-active="${entry.kind === 'active-feed' ? 'feed' : 'sleep'}">Adjust</button>`;
-      const deleteButton = entry.kind === 'feed'
+      const deleteButton = entry.kind === 'meal'
+        ? `<button class="delete" type="button" data-meal-delete="${safeAttr(entry.id)}" aria-label="Delete meal">Delete</button>`
+        : entry.kind === 'feed'
         ? `<button class="delete" type="button" data-delete="${safeAttr(entry.id)}" aria-label="Delete feed">Delete</button>`
         : entry.kind === 'sleep'
           ? `<button class="delete" type="button" data-sleep-delete="${safeAttr(entry.id)}" aria-label="Delete sleep record">Delete</button>`
           : '';
-      return `<article class="card history-item timeline-history-item ${isFeed ? 'feed-entry' : 'sleep-entry'}">
-        <div class="history-mark${isSleep ? ' sleep-history-mark' : ''}">${icon}</div>
+      return `<article class="card history-item timeline-history-item ${isFeed ? 'feed-entry' : (isMeal ? 'meal-entry' : 'sleep-entry')}">
+        <div class="history-mark${isSleep ? ' sleep-history-mark' : ''}${isMeal ? ' meal-history-mark' : ''}">${icon}</div>
         <div class="history-main"><div class="timeline-history-kind">${typeLabel}${entry.ongoing ? ' · In progress' : ''}</div><div class="history-date timeline-history-start">${timelineEntryDateTime(entry.start)}</div><div class="history-meta">${details}</div></div>
-        <div class="history-duration">${humanDuration(durationMs)}<small>${isFeed ? 'feeding' : 'asleep'}</small></div>
+        ${isMeal ? '' : `<div class="history-duration">${humanDuration(durationMs)}<small>${isFeed ? 'feeding' : 'asleep'}</small></div>`}
         <div class="record-actions">${editButton}${deleteButton}</div>
       </article>`;
     }).join('');
@@ -1999,9 +2124,9 @@
   function openTimelineDayHistory(dayStartMs, sourceButton) {
     selectedTimelineDayStart = Number(dayStartMs);
     lastHistoryToggle = null;
-    ['feedingHistoryPanel','sleepHistoryPanel','growthHistoryPanel'].forEach(id => { $(id).hidden = true; });
+    ['feedingHistoryPanel','sleepHistoryPanel','mealHistoryPanel','growthHistoryPanel'].forEach(id => { $(id).hidden = true; });
     $('timelineDayHistoryPanel').hidden = false;
-    ['feedHistoryToggle','sleepHistoryToggle','growthHistoryToggle'].forEach(id => { $(id).setAttribute('aria-expanded', 'false'); });
+    ['feedHistoryToggle','sleepHistoryToggle','mealHistoryToggle','growthHistoryToggle'].forEach(id => { $(id).setAttribute('aria-expanded', 'false'); });
     renderTimelineColumnHistory();
     $('historyBackdrop').hidden = false;
     document.body.style.overflow = 'hidden';
@@ -2396,6 +2521,12 @@
       fields = editField('Fell asleep at', 'startAt', 'datetime-local', localDateTimeValue(item.startedAt), {full:true}) +
         editField('Woke up at', 'endAt', 'datetime-local', localDateTimeValue(item.endedAt), {full:true});
       help = 'Sleep duration is calculated automatically from the start and wake-up times. Overnight sessions are supported.';
+    } else if (type === 'meal-record') {
+      const item = state.mealHistory.find(x => String(x.id) === String(id));
+      if (!item) return;
+      title = 'Edit meal';
+      fields = editField('Meal time', 'startAt', 'datetime-local', localDateTimeValue(item.startedAt), {full:true});
+      help = 'A meal only has a start time. In the timeline it is drawn as a short 15-minute block.';
     } else if (type === 'growth-record') {
       const item = state.growthHistory.find(x => String(x.id) === String(id));
       if (!item) return;
@@ -2481,6 +2612,13 @@
       item.timestamp = startAt; item.weight = weight; item.height = height; item.headCirc = headCirc;
       state.growthHistory.sort((a,b) => Number(b.timestamp)-Number(a.timestamp));
       persistExtended(); closeEditor(); render(); showToast('Growth record updated'); return;
+    }
+    if (editorContext.type === 'meal-record') {
+      const item = state.mealHistory.find(x => String(x.id) === String(editorContext.id));
+      if (!item) { closeEditor(); return; }
+      item.startedAt = startAt; item.endedAt = startAt + MEAL_MS; item.durationMs = MEAL_MS;
+      state.mealHistory.sort((a, b) => Number(b.startedAt) - Number(a.startedAt));
+      persistExtended(); closeEditor(); render(); showToast('Meal updated'); return;
     }
     if (!Number.isFinite(endAt) || endAt <= startAt || endAt > now) {
       editorError('Please make sure the end time is after the start time and not in the future.');
@@ -2683,6 +2821,8 @@
     if (editFeed) { openEditor('feed-record', editFeed.dataset.editFeed); return; }
     const editSleep = event.target.closest('[data-edit-sleep]');
     if (editSleep) { openEditor('sleep-record', editSleep.dataset.editSleep); return; }
+    const editMeal = event.target.closest('[data-edit-meal]');
+    if (editMeal) { openEditor('meal-record', editMeal.dataset.editMeal); return; }
     const editActive = event.target.closest('[data-edit-timeline-active]');
     if (editActive) { openEditor(editActive.dataset.editTimelineActive === 'feed' ? 'active-feed' : 'active-sleep'); return; }
     const feedDelete = event.target.closest('[data-delete]');
@@ -2698,13 +2838,21 @@
       if (!item || !confirm('Delete this sleep record?')) return;
       state.sleepHistory = state.sleepHistory.filter(x => x.id !== item.id);
       persistExtended(); render(); renderTimelineColumnHistory(); showToast('Sleep record removed');
+      return;
+    }
+    const mealDelete = event.target.closest('[data-meal-delete]');
+    if (mealDelete) {
+      const item = state.mealHistory.find(x => String(x.id) === String(mealDelete.dataset.mealDelete));
+      if (!item || !confirm('Delete this meal?')) return;
+      state.mealHistory = state.mealHistory.filter(x => x.id !== item.id);
+      persistExtended(); render(); renderTimelineColumnHistory(); showToast('Meal removed');
     }
   });
   function closeHistoryOverlay() {
     const restoreTimelineDay = selectedTimelineDayStart;
     $('historyBackdrop').hidden = true;
-    ['feedingHistoryPanel','sleepHistoryPanel','growthHistoryPanel','timelineDayHistoryPanel'].forEach(id => { $(id).hidden = true; });
-    ['feedHistoryToggle','sleepHistoryToggle','growthHistoryToggle'].forEach(id => { $(id).setAttribute('aria-expanded', 'false'); });
+    ['feedingHistoryPanel','sleepHistoryPanel','mealHistoryPanel','growthHistoryPanel','timelineDayHistoryPanel'].forEach(id => { $(id).hidden = true; });
+    ['feedHistoryToggle','sleepHistoryToggle','mealHistoryToggle','growthHistoryToggle'].forEach(id => { $(id).setAttribute('aria-expanded', 'false'); });
     selectedTimelineDayStart = null;
     document.body.style.overflow = '';
     if (lastHistoryToggle && lastHistoryToggle.isConnected) lastHistoryToggle.focus();
@@ -2718,8 +2866,8 @@
     button.addEventListener('click', () => {
       lastHistoryToggle = button;
       selectedTimelineDayStart = null;
-      ['feedingHistoryPanel','sleepHistoryPanel','growthHistoryPanel','timelineDayHistoryPanel'].forEach(id => { $(id).hidden = id !== panelId; });
-      ['feedHistoryToggle','sleepHistoryToggle','growthHistoryToggle'].forEach(id => { $(id).setAttribute('aria-expanded', String($(id).id === buttonId)); });
+      ['feedingHistoryPanel','sleepHistoryPanel','mealHistoryPanel','growthHistoryPanel','timelineDayHistoryPanel'].forEach(id => { $(id).hidden = id !== panelId; });
+      ['feedHistoryToggle','sleepHistoryToggle','mealHistoryToggle','growthHistoryToggle'].forEach(id => { $(id).setAttribute('aria-expanded', String($(id).id === buttonId)); });
       $('historyBackdrop').hidden = false;
       document.body.style.overflow = 'hidden';
       $('historyModalCloseBtn').focus();
@@ -2727,8 +2875,9 @@
   }
   wireHistoryToggle('feedHistoryToggle', 'feedingHistoryPanel');
   wireHistoryToggle('sleepHistoryToggle', 'sleepHistoryPanel');
+  wireHistoryToggle('mealHistoryToggle', 'mealHistoryPanel');
   wireHistoryToggle('growthHistoryToggle', 'growthHistoryPanel');
-  ['feedHistoryMonthNav','sleepHistoryMonthNav','growthHistoryMonthNav'].forEach(navId => {
+  ['feedHistoryMonthNav','sleepHistoryMonthNav','mealHistoryMonthNav','growthHistoryMonthNav'].forEach(navId => {
     $(navId).addEventListener('click', event => {
       const button = event.target.closest('[data-month-nav]');
       if (button && !button.disabled) moveHistoryMonth(button.dataset.monthNav, button.dataset.direction);
@@ -2819,6 +2968,21 @@
   $('finishBtn').addEventListener('click', finish);
   $('resetBtn').addEventListener('click', reset);
   $('sleepToggleBtn').addEventListener('click', toggleSleep);
+  $('mealAddBtn').addEventListener('click', addMeal);
+  $('mealSlider').addEventListener('input', () => {
+    mealMinutesAgo = sleepSliderMinutesFromPosition(Number($('mealSlider').value));
+    renderMeal();
+  });
+  $('mealHistoryList').addEventListener('click', e => {
+    const editBtn = e.target.closest('[data-edit-meal]');
+    if (editBtn) { openEditor('meal-record', editBtn.dataset.editMeal); return; }
+    const btn = e.target.closest('[data-meal-delete]');
+    if (!btn) return;
+    const item = state.mealHistory.find(x => String(x.id) === String(btn.dataset.mealDelete));
+    if (!item || !confirm('Delete this meal?')) return;
+    state.mealHistory = state.mealHistory.filter(x => x.id !== item.id);
+    persistExtended(); render(); showToast('Meal removed');
+  });
   $('sleepHistoryList').addEventListener('click', e => {
     const editBtn = e.target.closest('[data-edit-sleep]');
     if (editBtn) { openEditor('sleep-record', editBtn.dataset.editSleep); return; }
@@ -2858,6 +3022,7 @@
       } else {
         renderFeedCaption();
         renderAwakeCaption();
+        renderMeal();
       }
     }, 1000);
   });
