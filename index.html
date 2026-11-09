@@ -1555,13 +1555,9 @@
       const tile = $(side === 'left' ? 'leftTile' : 'rightTile');
       const button = $(side === 'left' ? 'leftBtn' : 'rightBtn');
       const badge = $(side === 'left' ? 'leftLastSideLabel' : 'rightLastSideLabel');
-      const hint = button.querySelector('.side-hint');
       tile.classList.toggle('last-used', isLastSide);
       badge.setAttribute('aria-hidden', String(!isLastSide));
       button.setAttribute('aria-label', `${capitalize(side)} breast${isLastSide ? ', last fed side' : ''}${state.active === side ? ', currently feeding' : ''}`);
-      if (isLastSide && state.lastSideAt) {
-        hint.textContent = `Last fed · ${relativeTime(state.lastSideAt)}`;
-      }
     }
   }
   // Normalize saved feed timestamps before using them for history grouping or trends.
@@ -2451,14 +2447,6 @@
   }
   function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : ''; }
   function isSameDay(a,b) { return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
-  function relativeTime(timestamp) {
-    const mins = Math.max(0, Math.floor((Date.now()-timestamp)/60000));
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins} min${mins===1?'':'s'} ago`;
-    const hours = Math.floor(mins/60);
-    if (hours < 24) return `${hours} hr${hours===1?'':'s'} ago`;
-    return new Date(timestamp).toLocaleDateString([], {month:'short',day:'numeric'});
-  }
   // Shared helpers for the record editor.
   function localDateTimeValue(timestamp) {
     const n = Number(timestamp);
