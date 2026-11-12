@@ -623,7 +623,7 @@
     startedAt: null, segmentStartedAt: null, lastSide: null,
     sleepHistory: [], activeSleepStart: null, growthHistory: [], mealHistory: [],
     timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false,
-    sync: { imported: {}, lastBackupAt: 0, lastLoadAt: 0 }
+    sync: { lastBackupAt: 0, lastLoadAt: 0 }
   };
   let selectedTrendDays = 1;
   let selectedGrowthSeries = 'weight';
@@ -1132,11 +1132,12 @@
   }
   function normalizeSync(s) {
     const o = s && typeof s === 'object' ? s : {};
-    const imported = o.imported && typeof o.imported === 'object' && !Array.isArray(o.imported) ? o.imported : {};
-    return { imported, lastBackupAt:Number(o.lastBackupAt) || 0, lastLoadAt:Number(o.lastLoadAt) || 0 };
+    // Backup files are intentionally re-scanned on every load so manually deleted
+    // local records can always be restored from Drive. No per-file imported flag.
+    return { lastBackupAt:Number(o.lastBackupAt) || 0, lastLoadAt:Number(o.lastLoadAt) || 0 };
   }
   function snapshotSync() {
-    return { ...state.sync, imported:{ ...state.sync.imported } };
+    return { lastBackupAt:state.sync.lastBackupAt, lastLoadAt:state.sync.lastLoadAt };
   }
 
   // Every record has one globally unique, persistent ID. Missing/duplicate IDs are repaired locally.
@@ -1170,7 +1171,7 @@
     const folderId = parseFolderId(folderText);
     if (!folderId) throw new Error('That does not look like a Google Drive folder link or ID.');
     if (cfg.folderId && folderId !== cfg.folderId) { // new folder: reset the local file checkpoint
-      state.sync.imported = {}; state.sync.lastBackupAt = 0; state.sync.lastLoadAt = 0;
+      state.sync.lastBackupAt = 0; state.sync.lastLoadAt = 0;
       persistExtended();
     }
     if (clientId !== cfg.clientId) { tokenClient = null; accessToken = null; tokenExpiry = 0; account = null; }
@@ -1341,7 +1342,6 @@
     showToast(`Backing up ${newRecords.length} new record${newRecords.length === 1 ? '' : 's'}…`);
     const file = await driveUpload(name, csv, 'text/csv');
     state.sync.lastBackupAt = Date.now();
-    if (file && file.id) state.sync.imported[file.id] = 1;
     persistExtended(); await saveChain;
     showToast(`Backed up ${newRecords.length} new records to ${name}`);
   }
@@ -1443,23 +1443,23 @@
   async function loadFromDrive() {
     await ensureToken();
     showToast('Checking Drive for CSV backups…');
-    const allFiles = await driveListBackups();
-    const pending = allFiles.filter(file => !state.sync.imported[file.id]);
-    if (!pending.length) { showToast('No new CSV backup files on Drive'); return; }
+    // Always inspect every CSV. A file may need to restore a record that was
+    // imported previously and subsequently deleted from this device.
+    const files = await driveListBackups();
+    if (!files.length) { showToast('No CSV backup files found on Drive'); return; }
 
-    const results = await mapPool(pending, 4, async file => {
+    const results = await mapPool(files, 4, async file => {
       const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&supportsAllDrives=true`);
       return parseBackupCsv(await response.text());
     });
 
     const counts = {added:0, duplicates:0, files:0, unsupported:0, invalid:0};
     const failed = [];
-    for (let i = 0; i < pending.length; i++) {
-      const file = pending[i], result = results[i];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i], result = results[i];
       if (result.e) { failed.push(`${file.name}: ${result.e.message}`); continue; }
       try {
         mergeBackupCsv(result.v, counts);
-        state.sync.imported[file.id] = 1;
         counts.files++;
       } catch (error) {
         failed.push(`${file.name}: ${error.message || error}`);
@@ -1477,7 +1477,7 @@
     showToast(`Loaded ${counts.added} new records · skipped ${counts.duplicates} already present`);
     if (failed.length) {
       const preview = failed.slice(0, 3).join('\n');
-      alert(`Could not read ${failed.length} backup file${failed.length === 1 ? '' : 's'}. Failed files were not marked as imported and will be retried next time.\n\n${preview}${failed.length > 3 ? `\n…and ${failed.length - 3} more` : ''}`);
+      alert(`Could not read ${failed.length} backup file${failed.length === 1 ? '' : 's'}. These files will be checked again next time.\n\n${preview}${failed.length > 3 ? `\n…and ${failed.length - 3} more` : ''}`);
     }
   }
 
