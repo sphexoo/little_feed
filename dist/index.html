@@ -623,7 +623,7 @@
     startedAt: null, segmentStartedAt: null, lastSide: null,
     sleepHistory: [], activeSleepStart: null, growthHistory: [], mealHistory: [],
     timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false,
-    sync: { deviceId: '', migrated: false, meta: {}, imported: {}, lastBackupAt: 0, lastLoadAt: 0, lastDriveBackupTimestamp: 0, lastBackupFileTimestamp: 0 }
+    sync: { imported: {}, lastBackupAt: 0, lastLoadAt: 0 }
   };
   let selectedTrendDays = 1;
   let selectedGrowthSeries = 'weight';
@@ -738,34 +738,34 @@
   }
 
   function collectCsvRecords(includeActiveSleep = true) {
-    reconcileSyncMeta(); // assign and persist stable ids before rows are built
+    ensureRecordIds(); // assign stable ids before rows are built
     const records = [];
     for (const item of state.history) {
       const start = Number(item.startedAt || (Number(item.endedAt) - Number(item.totalMs || 0)));
       const end = Number(item.endedAt);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-      records.push({start, row:newCsvRow('breast', start, end,
+      records.push({start, id:String(item.id), row:newCsvRow('breast', start, end,
         Number(item.totalMs) || Number(item.leftMs || 0) + Number(item.rightMs || 0), getFeedSide(item), item.id)});
     }
     for (const item of state.sleepHistory) {
       const start = Number(item.startedAt), end = Number(item.endedAt);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-      records.push({start, row:newCsvRow('sleep', start, end, Number(item.durationMs) || end - start, '', item.id)});
+      records.push({start, id:String(item.id), row:newCsvRow('sleep', start, end, Number(item.durationMs) || end - start, '', item.id)});
     }
     for (const item of state.growthHistory) {
       const timestamp = Number(item.timestamp);
-      if (Number.isFinite(timestamp)) records.push({start:timestamp, row:newGrowthCsvRow(item)});
+      if (Number.isFinite(timestamp)) records.push({start:timestamp, id:String(item.id), row:newGrowthCsvRow(item)});
     }
     for (const item of state.mealHistory) {
       const start = Number(item.startedAt);
-      if (Number.isFinite(start)) records.push({start, row:newCsvRow('meal', start, start + MEAL_MS, MEAL_MS, '', item.id)});
+      if (Number.isFinite(start)) records.push({start, id:String(item.id), row:newCsvRow('meal', start, start + MEAL_MS, MEAL_MS, '', item.id)});
     }
     // An in-progress sleep gets the same stable id it will have when it is completed.
     if (includeActiveSleep && state.activeSleepStart) {
       const start = Number(state.activeSleepStart);
-      if (Number.isFinite(start)) records.push({start, row:newCsvRow('sleep', start, null, null, '', `sleep-${Math.trunc(start)}`)});
+      if (Number.isFinite(start)) { const id = `sleep-${Math.trunc(start)}`; records.push({start, id, row:newCsvRow('sleep', start, null, null, '', id)}); }
     }
-    records.sort((a,b) => a.start - b.start);
+    records.sort((a,b) => a.start - b.start || String(a.id).localeCompare(String(b.id)));
     return records;
   }
 
@@ -1090,11 +1090,6 @@
       db = await openDatabase();
       const saved = await readDatabaseState();
       if (saved) applySavedState(saved);
-      if (!state.sync.deviceId) {
-        state.sync.deviceId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36);
-        persistExtended(); // first run after the sync upgrade: register existing records
-      }
-
       let persistent = false;
       try {
         if (navigator.storage?.persisted) persistent = await navigator.storage.persisted();
@@ -1114,7 +1109,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Google Drive backups are timestamped CSV snapshots. Rows carry stable record IDs,
+  // Google Drive backups are timestamped incremental CSV files. Rows carry stable record IDs,
   // and restore only adds IDs not already present locally. Deletions are never synced.
   // ---------------------------------------------------------------------------
   // The OAuth client ID and shared folder ID are NOT in this file. They are asked for at first sign-in
@@ -1128,12 +1123,7 @@
   let syncBusy = false, gisPromise = null, tokenClient = null, pendingToken = null;
   let accessToken = null, tokenExpiry = 0, account = null;
 
-  function stableStringify(v) {
-    if (Array.isArray(v)) return '[' + v.map(x => stableStringify(x === undefined ? null : x)).join(',') + ']';
-    if (v && typeof v === 'object') return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
-    return JSON.stringify(v) ?? 'null';
-  }
-  function hashText(s) { // cyrb53: short fingerprint used only to notice that a record changed
+  function hashText(s) { // cyrb53: deterministic fallback ID fingerprint for older CSV rows
     let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
     for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
     h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
@@ -1142,22 +1132,16 @@
   }
   function normalizeSync(s) {
     const o = s && typeof s === 'object' ? s : {};
-    const obj = x => (x && typeof x === 'object' && !Array.isArray(x)) ? x : {};
-    return { deviceId: typeof o.deviceId === 'string' ? o.deviceId : '', migrated: !!o.migrated,
-      meta: obj(o.meta), imported: obj(o.imported), lastBackupAt: Number(o.lastBackupAt) || 0, lastLoadAt: Number(o.lastLoadAt) || 0,
-      lastDriveBackupTimestamp: Number(o.lastDriveBackupTimestamp) || 0, lastBackupFileTimestamp: Number(o.lastBackupFileTimestamp) || 0 };
+    const imported = o.imported && typeof o.imported === 'object' && !Array.isArray(o.imported) ? o.imported : {};
+    return { imported, lastBackupAt:Number(o.lastBackupAt) || 0, lastLoadAt:Number(o.lastLoadAt) || 0 };
   }
   function snapshotSync() {
-    const s = state.sync;
-    return { ...s, meta: Object.fromEntries(Object.entries(s.meta).map(([k, v]) => [k, { ...v }])), imported: { ...s.imported } };
+    return { ...state.sync, imported:{ ...state.sync.imported } };
   }
-  function recordTime(kind, rec) { return Number(kind === 'growth' ? rec.timestamp : rec.endedAt) || 1; }
 
-  // Ensure each saved record has a stable, globally unique id. Missing records are
-  // simply absent: deletions are never represented or synchronized to Drive.
-  function reconcileSyncMeta() {
+  // Every record has one globally unique, persistent ID. Missing/duplicate IDs are repaired locally.
+  function ensureRecordIds() {
     const used = new Set();
-    const meta = {};
     const now = Date.now();
     for (const kind of Object.keys(SYNC_KINDS)) {
       for (const rec of state[SYNC_KINDS[kind]]) {
@@ -1167,15 +1151,10 @@
           id = `${kind}-${now}-${Math.random().toString(36).slice(2, 10)}`;
           while (used.has(id)) id = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
           rec.id = id;
-        }
+        } else if (rec.id !== id) rec.id = id;
         used.add(id);
-        const key = `${kind}:${id}`;
-        const old = state.sync.meta[key] || {};
-        meta[key] = {k:kind, f:hashText(stableStringify(rec)), u:Number(old.u) || recordTime(kind, rec), s:Number(old.s) || 0};
       }
     }
-    state.sync.meta = meta; // drops legacy deletion markers
-    state.sync.migrated = true;
   }
 
   // --- Google sign-in (Google Identity Services, token model) ---
@@ -1191,9 +1170,7 @@
     const folderId = parseFolderId(folderText);
     if (!folderId) throw new Error('That does not look like a Google Drive folder link or ID.');
     if (cfg.folderId && folderId !== cfg.folderId) { // new folder: reset the local file checkpoint
-      Object.values(state.sync.meta).forEach(m => { m.s = 0; });
       state.sync.imported = {}; state.sync.lastBackupAt = 0; state.sync.lastLoadAt = 0;
-      state.sync.lastDriveBackupTimestamp = 0; state.sync.lastBackupFileTimestamp = 0;
       persistExtended();
     }
     if (clientId !== cfg.clientId) { tokenClient = null; accessToken = null; tokenExpiry = 0; account = null; }
@@ -1301,10 +1278,11 @@
       files.push(...(data.files || [])); pageToken = data.nextPageToken || '';
     } while (pageToken);
     return files
-      .filter(file => /\.csv$/i.test(file.name || '') || /\.json$/i.test(file.name || ''))
+      .filter(file => /\.csv$/i.test(file.name || ''))
       .map(file => ({...file, backupTimestamp:backupFilenameTimestamp(file)}))
       .filter(file => file.backupTimestamp > 0)
-      .sort((a, b) => a.backupTimestamp - b.backupTimestamp || String(a.name).localeCompare(String(b.name)));
+      .sort((a, b) => a.backupTimestamp - b.backupTimestamp ||
+        Date.parse(a.createdTime || '') - Date.parse(b.createdTime || '') || String(a.id).localeCompare(String(b.id)));
   }
 
   async function mapPool(items, limit, fn) {
@@ -1315,24 +1293,57 @@
     return out;
   }
 
-  // --- Backup: one complete, immutable CSV snapshot per click. ---
+  function compareBackupEntries(a, b) {
+    return Number(a.timestamp) - Number(b.timestamp) || String(a.id || '').localeCompare(String(b.id || ''));
+  }
+
+  async function latestBackedUpEntry(files) {
+    // The newest CSV is an append-only segment. Read it first and use its final data row
+    // as the cursor. An empty (headers-only) file falls back to the previous non-empty one.
+    for (let i = files.length - 1; i >= 0; i--) {
+      const file = files[i];
+      const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&supportsAllDrives=true`);
+      const parsed = parseBackupCsv(await response.text());
+      if (parsed.entries.length) return parsed.entries[parsed.entries.length - 1];
+    }
+    return null;
+  }
+
+  // --- Backup: create a new CSV containing only records after the last row already in Drive. ---
   async function backupToDrive() {
     ensureConfig();
-    reconcileSyncMeta();
+    ensureRecordIds();
     persistExtended();
     await saveChain;
-    const records = collectCsvRecords(true);
-    const csv = serializeCsvRecords(records);
     await ensureToken();
-    const timestamp = Math.max(Date.now(), Number(state.sync.lastBackupFileTimestamp || 0) + 1);
+
+    showToast('Checking the latest Drive backup…');
+    const existingFiles = await driveListBackups();
+    const cursor = existingFiles.length ? await latestBackedUpEntry(existingFiles) : null;
+    const records = collectCsvRecords(false); // only finalized records are backed up; in-progress timers can change
+    const newRecords = cursor
+      ? records.filter(record => {
+          const entry = {timestamp:record.start, id:record.id};
+          const completedOpenSleep = cursor.open && cursor.type === 'sleep' && record.id === cursor.id &&
+            record.start === Number(cursor.timestamp) && !!String(record.row[4] || '').trim();
+          return compareBackupEntries(entry, cursor) > 0 || completedOpenSleep;
+        })
+      : records;
+
+    if (!newRecords.length) {
+      showToast('No newer records to back up');
+      return;
+    }
+
+    const csv = serializeCsvRecords(newRecords);
+    const timestamp = Math.max(Date.now(), Number(existingFiles[existingFiles.length - 1]?.backupTimestamp || 0) + 1);
     const name = `${BACKUP_PREFIX}${backupFilenameStamp(timestamp)}.csv`;
-    showToast(`Backing up ${records.length} record${records.length === 1 ? '' : 's'}…`);
+    showToast(`Backing up ${newRecords.length} new record${newRecords.length === 1 ? '' : 's'}…`);
     const file = await driveUpload(name, csv, 'text/csv');
     state.sync.lastBackupAt = Date.now();
-    state.sync.lastBackupFileTimestamp = timestamp;
-    if (file && file.id) state.sync.imported[file.id] = 1; // do not immediately re-import our own snapshot
+    if (file && file.id) state.sync.imported[file.id] = 1;
     persistExtended(); await saveChain;
-    showToast(`Backed up ${records.length} records to ${name}`);
+    showToast(`Backed up ${newRecords.length} new records to ${name}`);
   }
 
   function parseBackupCsv(text) {
@@ -1344,7 +1355,7 @@
       throw new Error('The file does not contain the required Type and Timestamp/Date columns.');
     }
     const value = (row, name) => { const i = col(name); return i < 0 ? '' : String(row[i] ?? '').trim(); };
-    const parsed = {feeds:[], sleeps:[], growth:[], meals:[], openSleeps:[], unsupported:0, invalid:0};
+    const parsed = {entries:[], feeds:[], sleeps:[], growth:[], meals:[], openSleeps:[], unsupported:0, invalid:0};
     const now = Date.now();
     for (const row of rows.slice(1)) {
       if (!row.length || row.every(cell => String(cell ?? '').trim() === '')) continue;
@@ -1359,11 +1370,13 @@
         const headCirc = canonicalGrowthValue(value(row, 'Head Circ'), value(row, 'Head Circ Unit'), 'headCirc');
         if (weight == null && height == null && headCirc == null) { parsed.invalid++; continue; }
         const fingerprint = hashText(`${weight}|${height}|${headCirc}`);
-        parsed.growth.push({id:sourceId || `import-growth-${start}-${fingerprint}`, timestamp:start, weight, height, headCirc});
+        const item = {id:sourceId || `import-growth-${start}-${fingerprint}`, timestamp:start, weight, height, headCirc};
+        parsed.growth.push(item); parsed.entries.push({timestamp:start, id:item.id, type});
         continue;
       }
       if (type === 'meal') {
-        parsed.meals.push({id:sourceId || `import-meal-${start}`, startedAt:start, endedAt:start + MEAL_MS, durationMs:MEAL_MS});
+        const item = {id:sourceId || `import-meal-${start}`, startedAt:start, endedAt:start + MEAL_MS, durationMs:MEAL_MS};
+        parsed.meals.push(item); parsed.entries.push({timestamp:start, id:item.id, type});
         continue;
       }
       const rawEnd = value(row, 'End Timestamp');
@@ -1377,17 +1390,20 @@
       if (Number.isFinite(end) && end > start && end <= now + 60000) {
         const elapsedMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : end - start;
         if (type === 'sleep') {
-          parsed.sleeps.push({id:sourceId || `import-sleep-${start}-${end}`, startedAt:start, endedAt:end, durationMs:Math.max(0, elapsedMs)});
+          const item = {id:sourceId || `import-sleep-${start}-${end}`, startedAt:start, endedAt:end, durationMs:Math.max(0, elapsedMs)};
+          parsed.sleeps.push(item); parsed.entries.push({timestamp:start, id:item.id, type});
         } else {
           let leftMs = 0, rightMs = 0, lastSide = null, importedAggregate = false;
           if (side === 'left') { leftMs = elapsedMs; lastSide = 'left'; }
           else if (side === 'right') { rightMs = elapsedMs; lastSide = 'right'; }
           else if (side === 'both') importedAggregate = true;
-          parsed.feeds.push({id:sourceId || `import-breast-${start}-${end}`, startedAt:start, endedAt:end,
-            leftMs, rightMs, totalMs:Math.max(0, elapsedMs), lastSide, importedSide:side, importedAggregate});
+          const item = {id:sourceId || `import-breast-${start}-${end}`, startedAt:start, endedAt:end,
+            leftMs, rightMs, totalMs:Math.max(0, elapsedMs), lastSide, importedSide:side, importedAggregate};
+          parsed.feeds.push(item); parsed.entries.push({timestamp:start, id:item.id, type});
         }
       } else if (!rawEnd && !rawDuration && type === 'sleep') {
-        parsed.openSleeps.push({id:sourceId || `sleep-${Math.trunc(start)}`, start});
+        const item = {id:sourceId || `sleep-${Math.trunc(start)}`, start};
+        parsed.openSleeps.push(item); parsed.entries.push({timestamp:start, id:item.id, type, open:true});
       } else {
         parsed.invalid++;
       }
@@ -1395,8 +1411,7 @@
     return parsed;
   }
 
-  function mergeBackupCsv(text, counts) {
-    const parsed = parseBackupCsv(text);
+  function mergeBackupCsv(parsed, counts) {
     for (const item of parsed.feeds) {
       if (hasRecordId(item.id)) { counts.duplicates++; continue; }
       state.history.push(item); counts.added++;
@@ -1425,51 +1440,30 @@
     counts.invalid += parsed.invalid;
   }
 
-  // Read old JSON event backups for backwards compatibility, but never apply their deletion markers.
-  function mergeLegacyBackup(events, counts) {
-    for (const ev of events || []) {
-      if (!ev || ev.deleted || !SYNC_KINDS[ev.kind] || ev.id == null || ev.id === '' || !ev.data || typeof ev.data !== 'object') continue;
-      const id = String(ev.id);
-      if (hasRecordId(id)) { counts.duplicates++; continue; }
-      const rec = JSON.parse(JSON.stringify(ev.data)); rec.id = id;
-      state[SYNC_KINDS[ev.kind]].push(rec);
-      counts.added++;
-    }
-  }
-
   async function loadFromDrive() {
     await ensureToken();
-    showToast('Checking Drive for newer CSV backups…');
+    showToast('Checking Drive for CSV backups…');
     const allFiles = await driveListBackups();
-    const checkpoint = Number(state.sync.lastDriveBackupTimestamp) || 0;
-    const pending = allFiles.filter(file => !state.sync.imported[file.id] && file.backupTimestamp >= checkpoint && file.backupTimestamp > 0);
-    if (!pending.length) { showToast('No newer backups on Drive'); return; }
+    const pending = allFiles.filter(file => !state.sync.imported[file.id]);
+    if (!pending.length) { showToast('No new CSV backup files on Drive'); return; }
+
     const results = await mapPool(pending, 4, async file => {
       const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&supportsAllDrives=true`);
-      if (/\.csv$/i.test(file.name)) return {type:'csv', text:await response.text()};
-      const data = await response.json();
-      if (!data || data.app !== 'littlefeed' || data.schema !== 1 || !Array.isArray(data.events)) throw new Error(`${file.name} is not a supported legacy backup`);
-      return {type:'legacy', data};
+      return parseBackupCsv(await response.text());
     });
 
     const counts = {added:0, duplicates:0, files:0, unsupported:0, invalid:0};
     const failed = [];
-    let newestProcessed = checkpoint;
-    // Advance the timestamp only through a contiguous run of readable files. A failed
-    // file and every later file remain eligible for retry on the next load.
     for (let i = 0; i < pending.length; i++) {
       const file = pending[i], result = results[i];
-      if (result.e) { failed.push(`${file.name}: ${result.e.message}`); break; }
+      if (result.e) { failed.push(`${file.name}: ${result.e.message}`); continue; }
       try {
-        if (result.v.type === 'csv') mergeBackupCsv(result.v.text, counts);
-        else mergeLegacyBackup(result.v.data.events, counts);
+        mergeBackupCsv(result.v, counts);
+        state.sync.imported[file.id] = 1;
+        counts.files++;
       } catch (error) {
         failed.push(`${file.name}: ${error.message || error}`);
-        break;
       }
-      state.sync.imported[file.id] = 1;
-      newestProcessed = Math.max(newestProcessed, file.backupTimestamp);
-      counts.files++;
     }
 
     state.history.sort((a, b) => Number(b.endedAt) - Number(a.endedAt));
@@ -1477,12 +1471,14 @@
     state.growthHistory.sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
     state.mealHistory.sort((a, b) => Number(b.startedAt) - Number(a.startedAt));
     recalculateLastFeed();
-    state.sync.lastDriveBackupTimestamp = newestProcessed;
     state.sync.lastLoadAt = Date.now();
     persistExtended(); await saveChain;
     render(); refreshTimelineColumnHistoryIfOpen();
     showToast(`Loaded ${counts.added} new records · skipped ${counts.duplicates} already present`);
-    if (failed.length) alert(`Could not read ${failed[0]}. This file and newer backups will be retried next time.`);
+    if (failed.length) {
+      const preview = failed.slice(0, 3).join('\n');
+      alert(`Could not read ${failed.length} backup file${failed.length === 1 ? '' : 's'}. Failed files were not marked as imported and will be retried next time.\n\n${preview}${failed.length > 3 ? `\n…and ${failed.length - 3} more` : ''}`);
+    }
   }
 
   // --- Menu wiring ---
@@ -2559,7 +2555,7 @@
     persistExtended(); render(); showToast('Feed saved — you’re doing great 🤍');
   }
   function persistExtended() {
-    reconcileSyncMeta(); // assign stable record ids; deletions are not synchronized
+    ensureRecordIds(); // assign stable record ids; deletions are not synchronized
     if (!db) return;
     const snapshot = persistedStateSnapshot();
     saveChain = saveChain.then(() => writeDatabaseState(snapshot)).catch(error => {
