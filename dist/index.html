@@ -844,7 +844,7 @@
           updatedAt:Number(item.updatedAt) || start, revision:Number(item.revision) || 1, legacy:!!item._backupLegacy, item});
       }
     }
-    // An in-progress sleep gets the same stable id it will have when it is completed.
+    // An in-progress sleep gets the same stable id it will have when completed; the verifier compares its CSV cells directly.
     if (includeActiveSleep && state.activeSleepStart) {
       const start = Number(state.activeSleepStart);
       if (Number.isFinite(start)) {
@@ -1382,7 +1382,11 @@
       && typeof pending.payloadHash === 'string' && Array.isArray(pending.recordIds)
       ? {name:pending.name, csv:pending.csv, payloadHash:pending.payloadHash,
           recordCount:Math.max(0, Number(pending.recordCount) || 0), recordIds:pending.recordIds.map(String),
-          records:Array.isArray(pending.records) ? pending.records.filter(record => record && record.id != null).map(record => ({id:String(record.id), fingerprint:String(record.fingerprint || '')})) : [],
+          records:Array.isArray(pending.records) ? pending.records.filter(record => record && record.id != null).map(record => ({
+            id:String(record.id), fingerprint:String(record.fingerprint || ''),
+            createdAt:Number(record.createdAt) || 0, updatedAt:Number(record.updatedAt) || 0,
+            revision:Math.max(0, Number(record.revision) || 0)
+          })) : [],
           createdAt:Number(pending.createdAt) || Date.now()}
       : null;
     return {lastBackupAt:Number(o.lastBackupAt) || 0, lastLoadAt:Number(o.lastLoadAt) || 0, pendingBackup};
@@ -1579,20 +1583,112 @@
     return index;
   }
 
-  async function verifyDriveBackup(fileId, pending) {
-    const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`);
-    const downloaded = await response.text();
-    if (hashText(downloaded) !== pending.payloadHash) throw new Error('The uploaded CSV could not be verified: its downloaded contents do not match the upload. The pending backup has been kept for retry.');
-    const parsed = parseBackupCsv(downloaded);
-    if (parsed.invalid || parsed.unsupported) throw new Error(`The uploaded CSV verification found ${parsed.invalid} invalid and ${parsed.unsupported} unsupported row(s). The pending backup has been kept for retry.`);
-    if (!Array.isArray(pending.records) || pending.records.length !== pending.recordCount || pending.recordIds.length !== pending.recordCount) {
+  function verifyBackupCsvContents(csvText, pending, sourceLabel) {
+    const fail = message => { throw new Error(`${sourceLabel} ${message}. The pending backup has been kept for retry.`); };
+    let expectedRows, actualRows;
+    try {
+      // Compare parsed CSV cells rather than raw bytes or reconstructed app objects.
+      // This naturally ignores a UTF-8 BOM and CRLF/LF transport normalization.
+      expectedRows = csvParse(pending.csv);
+      actualRows = csvParse(csvText);
+    } catch (error) {
+      fail(`could not be parsed as CSV (${error.message || error})`);
+    }
+    const nonEmptyRows = rows => rows.filter((row, index) => index === 0 || row.some(cell => String(cell ?? '').trim() !== ''));
+    expectedRows = nonEmptyRows(expectedRows || []);
+    actualRows = nonEmptyRows(actualRows || []);
+    if (!expectedRows.length || !actualRows.length) fail('is empty');
+
+    const normalizeHeader = row => row.map((cell, index) => String(cell ?? '').replace(index === 0 ? /^\uFEFF/ : /$^/, '').trim().toLowerCase());
+    const expectedHeaders = normalizeHeader(expectedRows[0]);
+    const actualHeaders = normalizeHeader(actualRows[0]);
+    if (JSON.stringify(expectedHeaders) !== JSON.stringify(actualHeaders)) fail('has different CSV columns from the saved upload');
+    const headers = expectedHeaders;
+    const column = name => headers.indexOf(name.toLowerCase());
+    const typeCol = column('type'), timestampCol = column('timestamp'), idCol = column('record id');
+    const hashCol = column('record hash'), createdCol = column('created at'), updatedCol = column('updated at'), revisionCol = column('revision');
+    if (typeCol < 0 || timestampCol < 0 || idCol < 0) fail('is missing the required Type, Timestamp or Record ID column');
+    if (!Array.isArray(pending.records) || !Array.isArray(pending.recordIds)
+      || pending.records.length !== pending.recordCount || pending.recordIds.length !== pending.recordCount) {
       throw new Error('The pending upload manifest is incomplete. It has been kept for retry.');
     }
-    if (parsed.entries.length !== pending.recordCount) throw new Error(`The uploaded CSV verification found ${parsed.entries.length} records instead of ${pending.recordCount}. The pending backup has been kept for retry.`);
-    const actual = new Map(parsed.entries.map(entry => [entry.id, entry.fingerprint]));
-    for (const record of pending.records) {
-      if (actual.get(record.id) !== record.fingerprint) throw new Error(`The uploaded CSV is missing or has a changed record (${record.id}). The pending backup has been kept for retry.`);
+    const expectedData = expectedRows.slice(1);
+    const actualData = actualRows.slice(1);
+    if (expectedData.length !== pending.recordCount) {
+      throw new Error(`The saved pending CSV contains ${expectedData.length} records instead of ${pending.recordCount}. It has been kept for retry.`);
     }
+    if (actualData.length !== pending.recordCount) {
+      fail(`contains ${actualData.length} records instead of ${pending.recordCount}`);
+    }
+
+    const makeIndex = (rows, label) => {
+      const index = new Map();
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.length !== headers.length) fail(`row ${i + 2} has ${row.length} columns instead of ${headers.length}`);
+        const id = String(row[idCol] ?? '').trim();
+        if (!id) fail(`row ${i + 2} has no Record ID`);
+        if (index.has(id)) fail(`contains duplicate Record ID ${id}`);
+        const type = String(row[typeCol] ?? '').trim().toLowerCase();
+        if (!['breast','sleep','growth','meal'].includes(type)) fail(`contains unsupported record type "${type}"`);
+        if (!Number.isFinite(Date.parse(String(row[timestampCol] ?? '')))) fail(`contains an invalid timestamp for record ${id}`);
+        if (hashCol >= 0 && String(row[hashCol] ?? '').trim()) {
+          const calculated = hashText(JSON.stringify(row.slice(0, idCol)));
+          if (String(row[hashCol]).trim() !== calculated) fail(`contains a corrupt Record Hash for record ${id}`);
+        }
+        index.set(id, row);
+      }
+      return index;
+    };
+    const expectedById = makeIndex(expectedData, 'saved upload');
+    const actualById = makeIndex(actualData, sourceLabel);
+    if (expectedById.size !== pending.recordCount || actualById.size !== pending.recordCount) {
+      fail('contains missing or duplicate record IDs');
+    }
+
+    const manifestIds = new Set(pending.recordIds.map(value => String(value)));
+    if (manifestIds.size !== pending.recordCount || manifestIds.size !== expectedById.size) {
+      throw new Error('The pending upload manifest contains duplicate or missing record IDs. It has been kept for retry.');
+    }
+    for (const record of pending.records) {
+      const id = String(record.id ?? '');
+      if (!id || !manifestIds.has(id)) throw new Error('The pending upload manifest does not match its record ID list. It has been kept for retry.');
+      const expectedRow = expectedById.get(id), actualRow = actualById.get(id);
+      if (!expectedRow || !actualRow) fail(`is missing record ${id}`);
+      // Compare all CSV fields by ID. Row order, BOM and line-ending changes are harmless;
+      // any changed, missing or additional cell remains a verification failure.
+      if (expectedRow.length !== actualRow.length || expectedRow.some((cell, index) => String(cell ?? '') !== String(actualRow[index] ?? ''))) {
+        fail(`contains data that differs from the saved upload for record ${id}`);
+      }
+      if (record.fingerprint && hashCol >= 0 && String(actualRow[hashCol]) !== String(record.fingerprint)) {
+        fail(`contains a changed record fingerprint for ${id}`);
+      }
+      if (record.createdAt > 0 && createdCol >= 0 && Number(actualRow[createdCol]) !== Number(record.createdAt)) {
+        fail(`contains changed creation metadata for record ${id}`);
+      }
+      if (record.updatedAt > 0 && updatedCol >= 0 && Number(actualRow[updatedCol]) !== Number(record.updatedAt)) {
+        fail(`contains changed revision metadata for record ${id}`);
+      }
+      if (record.revision > 0 && revisionCol >= 0 && Number(actualRow[revisionCol]) !== Number(record.revision)) {
+        fail(`contains a changed revision number for record ${id}`);
+      }
+    }
+    if (manifestIds.size !== actualById.size || [...actualById.keys()].some(id => !manifestIds.has(id))) {
+      fail('does not contain exactly the records in the saved upload');
+    }
+    return true;
+  }
+
+  async function verifyDriveBackup(fileId, pending) {
+    // This checksum protects the locally persisted retry payload. Do not compare it
+    // directly to response.text(): UTF-8 decoding strips the CSV's leading BOM.
+    if (pending.payloadHash && hashText(pending.csv) !== pending.payloadHash) {
+      throw new Error('The saved pending CSV has changed since it was prepared. The pending backup has been kept for retry.');
+    }
+    verifyBackupCsvContents(pending.csv, pending, 'The saved pending CSV');
+    const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`);
+    const downloaded = await response.text();
+    verifyBackupCsvContents(downloaded, pending, 'The downloaded CSV');
     return true;
   }
 
@@ -1647,7 +1743,7 @@
     showToast('Checking existing Drive backups…');
     const existingFiles = await driveListBackups();
     const remoteIndex = existingFiles.length ? await readDriveBackupIndex(existingFiles) : new Map();
-    const records = collectCsvRecords(false); // only finalized records are backed up; in-progress timers can change
+    const records = collectCsvRecords(true); // include an open sleep as a stable start-only record; completion updates the same ID as a newer revision
     const newRecords = [], conflicts = [];
     for (const record of records) {
       const remote = remoteIndex.get(record.id);
@@ -1673,11 +1769,11 @@
     state.sync.pendingBackup = {
       name, csv, payloadHash:hashText(csv), recordCount:newRecords.length,
       recordIds:newRecords.map(record => record.id),
-      records:newRecords.map(record => ({id:record.id, fingerprint:record.fingerprint})),
+      records:newRecords.map(record => ({id:record.id, fingerprint:record.fingerprint, createdAt:Number(record.item?.createdAt) || record.start, updatedAt:record.updatedAt, revision:record.revision})),
       createdAt:Date.now()
     };
     if (!await persistExtended()) throw new Error('Backup was not uploaded because its retry-safe upload record could not be saved locally. Check browser storage and retry.');
-    showToast(`Backing up ${newRecords.length} new or changed record${newRecords.length === 1 ? '' : 's'}…`);
+    showToast(`Backing up ${newRecords.length} new or changed records…`);
     await finishPendingBackup();
   }
 
@@ -1701,6 +1797,7 @@
       if (result.status === 'open-sleep') {
         parsed.openSleeps.push(result.item);
         parsed.entries.push({timestamp:result.start, id:result.item.id, type:result.type, open:true,
+          createdAt:Number(result.item.createdAt) || result.start,
           updatedAt:Number(result.item.updatedAt) || result.start, revision:Number(result.item.revision) || 1,
           fingerprint:result.item._backupHash, legacy:!!result.item._backupLegacy});
         continue;
@@ -1710,6 +1807,7 @@
         : result.type === 'growth' ? parsed.growth : parsed.meals;
       target.push(result.item);
       parsed.entries.push({timestamp:result.start, id:result.item.id, type:result.type,
+        createdAt:Number(result.item.createdAt) || result.start,
         updatedAt:Number(result.item.updatedAt) || result.start, revision:Number(result.item.revision) || 1,
         fingerprint:result.item._backupHash, legacy:!!result.item._backupLegacy});
     }
