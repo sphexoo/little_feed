@@ -607,7 +607,7 @@
         <div class="editor-field full"><label for="driveClientId">OAuth client ID</label><input id="driveClientId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="1234-abc.apps.googleusercontent.com"></div>
         <div class="editor-field full"><label for="driveFolderId">Drive folder link or ID</label><input id="driveFolderId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://drive.google.com/drive/folders/…"></div>
       </div>
-      <p class="editor-help"><span id="driveStatus"></span> <button class="drive-link" id="driveSignOutBtn" type="button" hidden>Sign out</button><br>Both values are kept only in this browser. Saving also signs you in to Google. Changing the folder uploads everything to the new folder again.</p>
+      <p class="editor-help"><span id="driveStatus"></span> <button class="drive-link" id="driveSignOutBtn" type="button" hidden>Sign out</button><br>Both values are kept only in this browser. Saving also signs you in to Google. Each backup is a new timestamped CSV snapshot. Loading adds records whose IDs are not already on this device. Deletions are not synchronized; remove rows from Drive CSV files manually when needed.</p>
       <p class="editor-error" id="driveError" role="alert"></p>
       <div class="editor-actions"><button class="editor-cancel" id="driveCancelBtn" type="button">Cancel</button><button class="editor-save" type="submit">Save</button></div>
     </form>
@@ -623,7 +623,7 @@
     startedAt: null, segmentStartedAt: null, lastSide: null,
     sleepHistory: [], activeSleepStart: null, growthHistory: [], mealHistory: [],
     timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false,
-    sync: { deviceId: '', migrated: false, meta: {}, imported: {}, lastBackupAt: 0, lastLoadAt: 0 }
+    sync: { deviceId: '', migrated: false, meta: {}, imported: {}, lastBackupAt: 0, lastLoadAt: 0, lastDriveBackupTimestamp: 0, lastBackupFileTimestamp: 0 }
   };
   let selectedTrendDays = 1;
   let selectedGrowthSeries = 'weight';
@@ -646,12 +646,12 @@
     'Diaper Type','Rash','Food','Allergen Tags','Medication','Dose','Vaccine','Vaccine Site',
     'Vaccine Lot','Vaccine Place','Temperature','Temp Unit','Temp Method','Weight','Weight Unit',
     'Height','Height Unit','Head Circ','Head Circ Unit','Severity','Quality','Drink Type',
-    'Milestone','Category','Label','Notes','Source'
+    'Milestone','Category','Label','Notes','Source','Record ID'
   ];
   let db = null;
   let saveChain = Promise.resolve();
 
-  // CSV import/export supports 'breast', 'sleep', and 'growth' records.
+  // CSV import/export supports 'breast', 'sleep', 'meal', and 'growth' records; each row carries a stable Record ID.
   function csvEscape(value) {
     const text = String(value ?? '');
     return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -704,7 +704,7 @@
     return Number.isFinite(d.getTime()) ? d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '';
   }
 
-  function newCsvRow(type, startAt, endAt, durationMs, side = '') {
+  function newCsvRow(type, startAt, endAt, durationMs, side = '', recordId = '') {
     const row = Array(CSV_HEADERS.length).fill('');
     row[0] = type;
     row[1] = localOffsetIso(startAt);
@@ -713,6 +713,7 @@
     row[4] = endAt == null ? '' : localOffsetIso(endAt);
     row[5] = durationMs == null ? '' : String(Math.max(0, Math.round(Number(durationMs) / 60000)));
     row[8] = side || '';
+    row[row.length - 1] = recordId == null ? '' : String(recordId);
     // Source and all unrelated scheme columns intentionally remain blank.
     return row;
   }
@@ -732,22 +733,24 @@
     if (item.weight != null && item.weight !== '' && Number.isFinite(Number(item.weight))) { row[22] = String(item.weight); row[23] = 'kg'; }
     if (item.height != null && item.height !== '' && Number.isFinite(Number(item.height))) { row[24] = String(item.height); row[25] = 'cm'; }
     if (item.headCirc != null && item.headCirc !== '' && Number.isFinite(Number(item.headCirc))) { row[26] = String(item.headCirc); row[27] = 'cm'; }
+    row[row.length - 1] = item.id == null ? '' : String(item.id);
     return row;
   }
 
-  function exportCsv() {
-    const rows = [CSV_HEADERS];
+  function collectCsvRecords(includeActiveSleep = true) {
+    reconcileSyncMeta(); // assign and persist stable ids before rows are built
     const records = [];
     for (const item of state.history) {
       const start = Number(item.startedAt || (Number(item.endedAt) - Number(item.totalMs || 0)));
       const end = Number(item.endedAt);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-      records.push({start, row:newCsvRow('breast', start, end, Number(item.totalMs) || Number(item.leftMs || 0) + Number(item.rightMs || 0), getFeedSide(item))});
+      records.push({start, row:newCsvRow('breast', start, end,
+        Number(item.totalMs) || Number(item.leftMs || 0) + Number(item.rightMs || 0), getFeedSide(item), item.id)});
     }
     for (const item of state.sleepHistory) {
       const start = Number(item.startedAt), end = Number(item.endedAt);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-      records.push({start, row:newCsvRow('sleep', start, end, Number(item.durationMs) || end - start)});
+      records.push({start, row:newCsvRow('sleep', start, end, Number(item.durationMs) || end - start, '', item.id)});
     }
     for (const item of state.growthHistory) {
       const timestamp = Number(item.timestamp);
@@ -755,16 +758,27 @@
     }
     for (const item of state.mealHistory) {
       const start = Number(item.startedAt);
-      if (Number.isFinite(start)) records.push({start, row:newCsvRow('meal', start, start + MEAL_MS, MEAL_MS)});
+      if (Number.isFinite(start)) records.push({start, row:newCsvRow('meal', start, start + MEAL_MS, MEAL_MS, '', item.id)});
     }
-    // An in-progress sleep is represented the same way as the sample scheme: a start timestamp and blank end/duration.
-    if (state.activeSleepStart) {
+    // An in-progress sleep gets the same stable id it will have when it is completed.
+    if (includeActiveSleep && state.activeSleepStart) {
       const start = Number(state.activeSleepStart);
-      if (Number.isFinite(start)) records.push({start, row:newCsvRow('sleep', start, null, null)});
+      if (Number.isFinite(start)) records.push({start, row:newCsvRow('sleep', start, null, null, '', `sleep-${Math.trunc(start)}`)});
     }
     records.sort((a,b) => a.start - b.start);
-    for (const item of records) rows.push(item.row);
-    const csv = '\uFEFF' + rows.map(row => row.map(csvEscape).join(',')).join('\r\n') + '\r\n';
+    return records;
+  }
+
+  function serializeCsvRecords(records) {
+    const rows = [CSV_HEADERS, ...records.map(item => item.row)];
+    return '\uFEFF' + rows.map(row => row.map(csvEscape).join(',')).join('\r\n') + '\r\n';
+  }
+
+  async function exportCsv() {
+    const records = collectCsvRecords(true);
+    persistExtended();
+    await saveChain;
+    const csv = serializeCsvRecords(records);
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -805,6 +819,11 @@
 
   function sameSession(a, b) {
     return Math.abs(Number(a.startedAt) - Number(b.startedAt)) < 1500 && Math.abs(Number(a.endedAt) - Number(b.endedAt)) < 1500;
+  }
+  function hasRecordId(id) {
+    if (id === undefined || id === null || id === '') return false;
+    const key = String(id);
+    return [...state.history, ...state.sleepHistory, ...state.growthHistory, ...state.mealHistory].some(item => String(item.id) === key);
   }
   function canonicalGrowthValue(value, unit, kind) {
     if (value === '' || value == null) return null;
@@ -860,7 +879,7 @@
       if (type === 'growth') {
         const weightRaw = value(row, 'Weight'), heightRaw = value(row, 'Height'), headRaw = value(row, 'Head Circ');
         const item = {
-          id: `growth-${start}-${Math.random().toString(36).slice(2,7)}`, timestamp: start,
+          id: value(row, 'Record ID') || `growth-${start}-${Math.random().toString(36).slice(2,7)}`, timestamp: start,
           weight: canonicalGrowthValue(weightRaw, value(row, 'Weight Unit'), 'weight'),
           height: canonicalGrowthValue(heightRaw, value(row, 'Height Unit'), 'height'),
           headCirc: canonicalGrowthValue(headRaw, value(row, 'Head Circ Unit'), 'headCirc')
@@ -870,7 +889,7 @@
         continue;
       }
       if (type === 'meal') { // only the start time matters; the end is always start + 15 minutes
-        pendingMeals.push({ id: `import-meal-${start}`, startedAt: start, endedAt: start + MEAL_MS, durationMs: MEAL_MS });
+        pendingMeals.push({ id: value(row, 'Record ID') || `import-meal-${start}`, startedAt: start, endedAt: start + MEAL_MS, durationMs: MEAL_MS });
         continue;
       }
       const rawEnd = value(row, 'End Timestamp');
@@ -886,7 +905,7 @@
         const elapsedMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : end - start;
         if (type === 'sleep') {
           pendingSleeps.push({
-            id: `import-sleep-${start}-${end}`, startedAt: start, endedAt: end,
+            id: value(row, 'Record ID') || `import-sleep-${start}-${end}`, startedAt: start, endedAt: end,
             durationMs: Math.max(0, elapsedMs)
           });
         } else {
@@ -899,7 +918,7 @@
             importedAggregate = true;
           }
           pendingFeeds.push({
-            id: `import-breast-${start}-${end}`, startedAt: start, endedAt: end,
+            id: value(row, 'Record ID') || `import-breast-${start}-${end}`, startedAt: start, endedAt: end,
             leftMs, rightMs, totalMs: Math.max(0, elapsedMs), lastSide, importedSide: side,
             importedAggregate
           });
@@ -929,21 +948,21 @@
 
     let addedFeeds = 0, addedSleeps = 0, duplicates = 0;
     for (const item of pendingFeeds) {
-      if (state.history.some(existing => sameSession(existing, item))) { duplicates++; continue; }
+      if (hasRecordId(item.id) || state.history.some(existing => sameSession(existing, item))) { duplicates++; continue; }
       state.history.push(item); addedFeeds++;
     }
     for (const item of pendingSleeps) {
-      if (state.sleepHistory.some(existing => sameSession(existing, item))) { duplicates++; continue; }
+      if (hasRecordId(item.id) || state.sleepHistory.some(existing => sameSession(existing, item))) { duplicates++; continue; }
       state.sleepHistory.push(item); addedSleeps++;
     }
     let addedMeals = 0;
     for (const item of pendingMeals) {
-      if (state.mealHistory.some(existing => sameMeal(existing, item))) { duplicates++; continue; }
+      if (hasRecordId(item.id) || state.mealHistory.some(existing => sameMeal(existing, item))) { duplicates++; continue; }
       state.mealHistory.push(item); addedMeals++;
     }
     let addedGrowth = 0;
     for (const item of pendingGrowth) {
-      if (state.growthHistory.some(existing => sameGrowthRecord(existing, item))) { duplicates++; continue; }
+      if (hasRecordId(item.id) || state.growthHistory.some(existing => sameGrowthRecord(existing, item))) { duplicates++; continue; }
       state.growthHistory.push(item); addedGrowth++;
     }
     if (incomingOpenSleep) {
@@ -1095,10 +1114,8 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Google Drive sync (shared folder, append-only backup files, per-record last-writer-wins).
-  // Every feed / sleep / growth record keeps a permanent id plus sync metadata
-  // {u: modification time, d: deleted marker, s: last time it was in Drive}. A backup uploads only
-  // records with u > s as a new immutable file; loading merges files not yet imported.
+  // Google Drive backups are timestamped CSV snapshots. Rows carry stable record IDs,
+  // and restore only adds IDs not already present locally. Deletions are never synced.
   // ---------------------------------------------------------------------------
   // The OAuth client ID and shared folder ID are NOT in this file. They are asked for at first sign-in
   // and kept in this browser's localStorage only (menu: "Drive settings" changes them).
@@ -1108,7 +1125,6 @@
   const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
   const SYNC_KINDS = { feed: 'history', sleep: 'sleepHistory', growth: 'growthHistory', meal: 'mealHistory' };
   const BACKUP_PREFIX = 'littlefeed-';
-  const BACKUP_CHUNK = 2000;
   let syncBusy = false, gisPromise = null, tokenClient = null, pendingToken = null;
   let accessToken = null, tokenExpiry = 0, account = null;
 
@@ -1128,7 +1144,8 @@
     const o = s && typeof s === 'object' ? s : {};
     const obj = x => (x && typeof x === 'object' && !Array.isArray(x)) ? x : {};
     return { deviceId: typeof o.deviceId === 'string' ? o.deviceId : '', migrated: !!o.migrated,
-      meta: obj(o.meta), imported: obj(o.imported), lastBackupAt: Number(o.lastBackupAt) || 0, lastLoadAt: Number(o.lastLoadAt) || 0 };
+      meta: obj(o.meta), imported: obj(o.imported), lastBackupAt: Number(o.lastBackupAt) || 0, lastLoadAt: Number(o.lastLoadAt) || 0,
+      lastDriveBackupTimestamp: Number(o.lastDriveBackupTimestamp) || 0, lastBackupFileTimestamp: Number(o.lastBackupFileTimestamp) || 0 };
   }
   function snapshotSync() {
     const s = state.sync;
@@ -1136,27 +1153,30 @@
   }
   function recordTime(kind, rec) { return Number(kind === 'growth' ? rec.timestamp : rec.endedAt) || 1; }
 
-  // Called from persistExtended(), the single choke point every create/edit/delete goes through.
+  // Ensure each saved record has a stable, globally unique id. Missing records are
+  // simply absent: deletions are never represented or synchronized to Drive.
   function reconcileSyncMeta() {
-    const sync = state.sync, meta = sync.meta, legacy = !sync.migrated, now = Date.now(), seen = new Set();
+    const used = new Set();
+    const meta = {};
+    const now = Date.now();
     for (const kind of Object.keys(SYNC_KINDS)) {
       for (const rec of state[SYNC_KINDS[kind]]) {
         if (!rec || typeof rec !== 'object') continue;
-        if (rec.id === undefined || rec.id === null || rec.id === '') rec.id = `${kind}-${now}-${Math.random().toString(36).slice(2, 8)}`;
-        const key = `${kind}:${rec.id}`; seen.add(key);
-        const f = hashText(stableStringify(rec)), m = meta[key];
-        // Records that existed before sync was added get their own event time, so an untouched old copy never beats a later edit.
-        if (!m) meta[key] = { k: kind, f, u: legacy ? recordTime(kind, rec) : now, d: false, s: 0 };
-        else if (m.d || m.f !== f) { m.f = f; m.d = false; m.u = Math.max(now, m.u + 1); }
+        let id = rec.id == null ? '' : String(rec.id);
+        if (!id || used.has(id)) {
+          id = `${kind}-${now}-${Math.random().toString(36).slice(2, 10)}`;
+          while (used.has(id)) id = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+          rec.id = id;
+        }
+        used.add(id);
+        const key = `${kind}:${id}`;
+        const old = state.sync.meta[key] || {};
+        meta[key] = {k:kind, f:hashText(stableStringify(rec)), u:Number(old.u) || recordTime(kind, rec), s:Number(old.s) || 0};
       }
     }
-    for (const key of Object.keys(meta)) {
-      const m = meta[key];
-      if (!m.d && !seen.has(key)) { m.d = true; m.u = Math.max(now, m.u + 1); } // deletion marker
-    }
-    sync.migrated = true;
+    state.sync.meta = meta; // drops legacy deletion markers
+    state.sync.migrated = true;
   }
-  function pendingBackupCount() { return Object.values(state.sync.meta).filter(m => m.u > (m.s || 0)).length; }
 
   // --- Google sign-in (Google Identity Services, token model) ---
   function parseFolderId(text) {
@@ -1170,9 +1190,10 @@
     if (!/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) throw new Error('That does not look like a Google OAuth client ID (it ends with .apps.googleusercontent.com).');
     const folderId = parseFolderId(folderText);
     if (!folderId) throw new Error('That does not look like a Google Drive folder link or ID.');
-    if (cfg.folderId && folderId !== cfg.folderId) { // new folder: everything must be uploaded / imported again
+    if (cfg.folderId && folderId !== cfg.folderId) { // new folder: reset the local file checkpoint
       Object.values(state.sync.meta).forEach(m => { m.s = 0; });
       state.sync.imported = {}; state.sync.lastBackupAt = 0; state.sync.lastLoadAt = 0;
+      state.sync.lastDriveBackupTimestamp = 0; state.sync.lastBackupFileTimestamp = 0;
       persistExtended();
     }
     if (clientId !== cfg.clientId) { tokenClient = null; accessToken = null; tokenExpiry = 0; account = null; }
@@ -1248,28 +1269,44 @@
     }
     return res;
   }
-  async function driveUpload(name, text) {
+  async function driveUpload(name, text, mimeType = 'text/csv') {
     const boundary = 'lf' + Math.random().toString(36).slice(2);
-    const meta = JSON.stringify({ name, parents: [cfg.folderId], mimeType: 'application/json' });
-    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${text}\r\n--${boundary}--`;
-    const res = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name',
+    const meta = JSON.stringify({ name, parents: [cfg.folderId], mimeType });
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mimeType}; charset=UTF-8\r\n\r\n${text}\r\n--${boundary}--`;
+    const res = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,createdTime',
       { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
     return res.json();
+  }
+  function backupFilenameTimestamp(file) {
+    const match = /^littlefeed-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(\d{3})?Z?/i.exec(String(file.name || ''));
+    if (match) {
+      return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]), Number(match[6]), Number(match[7] || 0));
+    }
+    const created = Date.parse(file.createdTime || '');
+    return Number.isFinite(created) ? created : 0;
+  }
+  function backupFilenameStamp(timestamp) {
+    return new Date(timestamp).toISOString().replace(/[-:]/g, '').replace('.', '');
   }
   async function driveListBackups() {
     const files = []; let pageToken = '';
     do {
       const params = new URLSearchParams({
         q: `'${cfg.folderId}' in parents and trashed = false and name contains '${BACKUP_PREFIX}'`,
-        fields: 'nextPageToken,files(id,name,createdTime)', pageSize: '1000',
+        fields: 'nextPageToken,files(id,name,createdTime,mimeType)', pageSize: '1000',
         supportsAllDrives: 'true', includeItemsFromAllDrives: 'true', corpora: 'allDrives'
       });
       if (pageToken) params.set('pageToken', pageToken);
       const data = await (await driveFetch(`https://www.googleapis.com/drive/v3/files?${params}`)).json();
       files.push(...(data.files || [])); pageToken = data.nextPageToken || '';
     } while (pageToken);
-    return files.sort((a, b) => String(a.createdTime).localeCompare(String(b.createdTime)));
+    return files
+      .filter(file => /\.csv$/i.test(file.name || '') || /\.json$/i.test(file.name || ''))
+      .map(file => ({...file, backupTimestamp:backupFilenameTimestamp(file)}))
+      .filter(file => file.backupTimestamp > 0)
+      .sort((a, b) => a.backupTimestamp - b.backupTimestamp || String(a.name).localeCompare(String(b.name)));
   }
+
   async function mapPool(items, limit, fn) {
     const out = new Array(items.length); let next = 0;
     await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
@@ -1278,91 +1315,185 @@
     return out;
   }
 
-  // --- Backup (new/changed/deleted records -> one new file in the folder) ---
+  // --- Backup: one complete, immutable CSV snapshot per click. ---
   async function backupToDrive() {
+    ensureConfig();
     reconcileSyncMeta();
-    const dirty = Object.entries(state.sync.meta).filter(([, m]) => m.u > (m.s || 0)).map(([key, m]) => {
-      const id = key.slice(m.k.length + 1);
-      const rec = m.d ? null : state[SYNC_KINDS[m.k]].find(x => String(x.id) === id);
-      if (!m.d && !rec) return null;
-      return { key, u: m.u, event: { id: rec ? rec.id : id, kind: m.k, updatedAt: m.u, deleted: !!m.d, ...(rec ? { data: JSON.parse(JSON.stringify(rec)) } : {}) } };
-    }).filter(Boolean);
-    if (!dirty.length) { showToast('Everything is already backed up'); return; }
+    persistExtended();
+    await saveChain;
+    const records = collectCsvRecords(true);
+    const csv = serializeCsvRecords(records);
     await ensureToken();
-    showToast(`Backing up ${dirty.length} change${dirty.length === 1 ? '' : 's'}…`);
-    const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
-    const parts = Math.ceil(dirty.length / BACKUP_CHUNK);
-    for (let p = 0; p < parts; p++) {
-      const chunk = dirty.slice(p * BACKUP_CHUNK, (p + 1) * BACKUP_CHUNK);
-      const payload = { app: 'littlefeed', schema: 1, deviceId: state.sync.deviceId, createdAt: Date.now(), events: chunk.map(x => x.event) };
-      const file = await driveUpload(`${BACKUP_PREFIX}${stamp}-${state.sync.deviceId.slice(0, 6)}-${p + 1}of${parts}.json`, JSON.stringify(payload));
-      chunk.forEach(x => { const m = state.sync.meta[x.key]; if (m && m.u === x.u) m.s = x.u; }); // edits made during upload stay pending
-      state.sync.imported[file.id] = 1; // our own file needs no re-import
-      state.sync.lastBackupAt = Date.now();
-      persistExtended(); await saveChain;
-    }
-    showToast(`Backed up ${dirty.length} change${dirty.length === 1 ? '' : 's'} to Drive`);
+    const timestamp = Math.max(Date.now(), Number(state.sync.lastBackupFileTimestamp || 0) + 1);
+    const name = `${BACKUP_PREFIX}${backupFilenameStamp(timestamp)}.csv`;
+    showToast(`Backing up ${records.length} record${records.length === 1 ? '' : 's'}…`);
+    const file = await driveUpload(name, csv, 'text/csv');
+    state.sync.lastBackupAt = Date.now();
+    state.sync.lastBackupFileTimestamp = timestamp;
+    if (file && file.id) state.sync.imported[file.id] = 1; // do not immediately re-import our own snapshot
+    persistExtended(); await saveChain;
+    showToast(`Backed up ${records.length} records to ${name}`);
   }
 
-  // --- Load (merge every backup file not imported yet) ---
-  function mergeEvents(events, counts) {
-    for (const ev of events) {
-      if (!ev || !SYNC_KINDS[ev.kind] || ev.id === undefined || ev.id === null || ev.id === '' || !Number.isFinite(Number(ev.updatedAt))) continue;
-      if (!ev.deleted && (!ev.data || typeof ev.data !== 'object')) continue;
-      const u = Number(ev.updatedAt), key = `${ev.kind}:${ev.id}`, m = state.sync.meta[key];
-      const same = m && m.u === u && !!m.d === !!ev.deleted;
-      if (same) { m.s = Math.max(m.s || 0, u); continue; }
-      if (m && !(u > m.u || (u === m.u && ev.deleted && !m.d))) continue; // local copy is newer: it stays pending for the next backup
-      const list = state[SYNC_KINDS[ev.kind]], idx = list.findIndex(x => String(x.id) === String(ev.id));
-      if (idx >= 0) list.splice(idx, 1);
-      let f = m ? m.f : '';
-      if (ev.deleted) { if (idx >= 0) counts.removed++; }
-      else {
-        const rec = JSON.parse(JSON.stringify(ev.data)); rec.id = ev.id;
-        list.push(rec); f = hashText(stableStringify(rec));
-        if (idx >= 0) counts.updated++; else counts.added++;
+  function parseBackupCsv(text) {
+    const rows = csvParse(text);
+    if (!rows.length) throw new Error('The CSV file is empty.');
+    const headers = rows[0].map(h => String(h || '').replace(/^\uFEFF/, '').trim().toLowerCase());
+    const col = name => headers.indexOf(name.toLowerCase());
+    if (col('type') < 0 || (col('timestamp') < 0 && col('date') < 0)) {
+      throw new Error('The file does not contain the required Type and Timestamp/Date columns.');
+    }
+    const value = (row, name) => { const i = col(name); return i < 0 ? '' : String(row[i] ?? '').trim(); };
+    const parsed = {feeds:[], sleeps:[], growth:[], meals:[], openSleeps:[], unsupported:0, invalid:0};
+    const now = Date.now();
+    for (const row of rows.slice(1)) {
+      if (!row.length || row.every(cell => String(cell ?? '').trim() === '')) continue;
+      const type = value(row, 'Type').toLowerCase();
+      if (!['breast','sleep','growth','meal'].includes(type)) { parsed.unsupported++; continue; }
+      const start = parseCsvTimestamp(value(row, 'Timestamp'), value(row, 'Date'), value(row, 'Time'));
+      if (!Number.isFinite(start) || start > now) { parsed.invalid++; continue; }
+      const sourceId = value(row, 'Record ID');
+      if (type === 'growth') {
+        const weight = canonicalGrowthValue(value(row, 'Weight'), value(row, 'Weight Unit'), 'weight');
+        const height = canonicalGrowthValue(value(row, 'Height'), value(row, 'Height Unit'), 'height');
+        const headCirc = canonicalGrowthValue(value(row, 'Head Circ'), value(row, 'Head Circ Unit'), 'headCirc');
+        if (weight == null && height == null && headCirc == null) { parsed.invalid++; continue; }
+        const fingerprint = hashText(`${weight}|${height}|${headCirc}`);
+        parsed.growth.push({id:sourceId || `import-growth-${start}-${fingerprint}`, timestamp:start, weight, height, headCirc});
+        continue;
       }
-      state.sync.meta[key] = { k: ev.kind, f, u, d: !!ev.deleted, s: u };
+      if (type === 'meal') {
+        parsed.meals.push({id:sourceId || `import-meal-${start}`, startedAt:start, endedAt:start + MEAL_MS, durationMs:MEAL_MS});
+        continue;
+      }
+      const rawEnd = value(row, 'End Timestamp');
+      const rawDuration = value(row, 'Duration (min)');
+      const durationNumber = rawDuration === '' ? NaN : Number(rawDuration);
+      const durationMs = Number.isFinite(durationNumber) && durationNumber >= 0 ? durationNumber * 60000 : NaN;
+      let end = rawEnd ? parseCsvTimestamp(rawEnd) : NaN;
+      if (!Number.isFinite(end) && Number.isFinite(durationMs) && durationMs > 0) end = start + durationMs;
+      const rawSide = value(row, 'Side').toLowerCase();
+      const side = ['left','right','both'].includes(rawSide) ? rawSide : (rawSide === 'l' ? 'left' : rawSide === 'r' ? 'right' : '');
+      if (Number.isFinite(end) && end > start && end <= now + 60000) {
+        const elapsedMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : end - start;
+        if (type === 'sleep') {
+          parsed.sleeps.push({id:sourceId || `import-sleep-${start}-${end}`, startedAt:start, endedAt:end, durationMs:Math.max(0, elapsedMs)});
+        } else {
+          let leftMs = 0, rightMs = 0, lastSide = null, importedAggregate = false;
+          if (side === 'left') { leftMs = elapsedMs; lastSide = 'left'; }
+          else if (side === 'right') { rightMs = elapsedMs; lastSide = 'right'; }
+          else if (side === 'both') importedAggregate = true;
+          parsed.feeds.push({id:sourceId || `import-breast-${start}-${end}`, startedAt:start, endedAt:end,
+            leftMs, rightMs, totalMs:Math.max(0, elapsedMs), lastSide, importedSide:side, importedAggregate});
+        }
+      } else if (!rawEnd && !rawDuration && type === 'sleep') {
+        parsed.openSleeps.push({id:sourceId || `sleep-${Math.trunc(start)}`, start});
+      } else {
+        parsed.invalid++;
+      }
+    }
+    return parsed;
+  }
+
+  function mergeBackupCsv(text, counts) {
+    const parsed = parseBackupCsv(text);
+    for (const item of parsed.feeds) {
+      if (hasRecordId(item.id)) { counts.duplicates++; continue; }
+      state.history.push(item); counts.added++;
+    }
+    for (const item of parsed.sleeps) {
+      if (hasRecordId(item.id)) { counts.duplicates++; continue; }
+      if (state.activeSleepStart && Math.abs(Number(state.activeSleepStart) - Number(item.startedAt)) < 1500) state.activeSleepStart = null;
+      state.sleepHistory.push(item); counts.added++;
+    }
+    for (const item of parsed.growth) {
+      if (hasRecordId(item.id)) { counts.duplicates++; continue; }
+      state.growthHistory.push(item); counts.added++;
+    }
+    for (const item of parsed.meals) {
+      if (hasRecordId(item.id)) { counts.duplicates++; continue; }
+      state.mealHistory.push(item); counts.added++;
+    }
+    for (const item of parsed.openSleeps) {
+      if (hasRecordId(item.id) || (state.activeSleepStart && Math.abs(Number(state.activeSleepStart) - item.start) < 1500)) {
+        counts.duplicates++; continue;
+      }
+      if (!state.activeSleepStart) { state.activeSleepStart = item.start; counts.added++; }
+      else counts.duplicates++;
+    }
+    counts.unsupported += parsed.unsupported;
+    counts.invalid += parsed.invalid;
+  }
+
+  // Read old JSON event backups for backwards compatibility, but never apply their deletion markers.
+  function mergeLegacyBackup(events, counts) {
+    for (const ev of events || []) {
+      if (!ev || ev.deleted || !SYNC_KINDS[ev.kind] || ev.id == null || ev.id === '' || !ev.data || typeof ev.data !== 'object') continue;
+      const id = String(ev.id);
+      if (hasRecordId(id)) { counts.duplicates++; continue; }
+      const rec = JSON.parse(JSON.stringify(ev.data)); rec.id = id;
+      state[SYNC_KINDS[ev.kind]].push(rec);
+      counts.added++;
     }
   }
+
   async function loadFromDrive() {
     await ensureToken();
-    showToast('Checking Drive for new backups…');
-    const pending = (await driveListBackups()).filter(f => !state.sync.imported[f.id]);
-    if (!pending.length) { showToast('No new backups on Drive'); return; }
-    const results = await mapPool(pending, 4, async f => {
-      const data = await (await driveFetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&supportsAllDrives=true`)).json();
-      if (!data || data.app !== 'littlefeed' || data.schema !== 1 || !Array.isArray(data.events)) throw new Error(`${f.name} is not a supported backup file`);
-      return data;
+    showToast('Checking Drive for newer CSV backups…');
+    const allFiles = await driveListBackups();
+    const checkpoint = Number(state.sync.lastDriveBackupTimestamp) || 0;
+    const pending = allFiles.filter(file => !state.sync.imported[file.id] && file.backupTimestamp >= checkpoint && file.backupTimestamp > 0);
+    if (!pending.length) { showToast('No newer backups on Drive'); return; }
+    const results = await mapPool(pending, 4, async file => {
+      const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&supportsAllDrives=true`);
+      if (/\.csv$/i.test(file.name)) return {type:'csv', text:await response.text()};
+      const data = await response.json();
+      if (!data || data.app !== 'littlefeed' || data.schema !== 1 || !Array.isArray(data.events)) throw new Error(`${file.name} is not a supported legacy backup`);
+      return {type:'legacy', data};
     });
-    // All network work is done; merge synchronously so nothing can interleave with the update.
-    reconcileSyncMeta();
-    const counts = { added: 0, updated: 0, removed: 0, files: 0 }, failed = [];
-    results.forEach((r, i) => {
-      if (r.e) { failed.push(`${pending[i].name}: ${r.e.message}`); return; }
-      mergeEvents(r.v.events, counts); counts.files++;
-      if (!r.v.events.some(ev => ev && !SYNC_KINDS[ev.kind])) state.sync.imported[pending[i].id] = 1; // files with unknown kinds are retried after an app update
-    });
+
+    const counts = {added:0, duplicates:0, files:0, unsupported:0, invalid:0};
+    const failed = [];
+    let newestProcessed = checkpoint;
+    // Advance the timestamp only through a contiguous run of readable files. A failed
+    // file and every later file remain eligible for retry on the next load.
+    for (let i = 0; i < pending.length; i++) {
+      const file = pending[i], result = results[i];
+      if (result.e) { failed.push(`${file.name}: ${result.e.message}`); break; }
+      try {
+        if (result.v.type === 'csv') mergeBackupCsv(result.v.text, counts);
+        else mergeLegacyBackup(result.v.data.events, counts);
+      } catch (error) {
+        failed.push(`${file.name}: ${error.message || error}`);
+        break;
+      }
+      state.sync.imported[file.id] = 1;
+      newestProcessed = Math.max(newestProcessed, file.backupTimestamp);
+      counts.files++;
+    }
+
     state.history.sort((a, b) => Number(b.endedAt) - Number(a.endedAt));
     state.sleepHistory.sort((a, b) => Number(b.endedAt) - Number(a.endedAt));
     state.growthHistory.sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
     state.mealHistory.sort((a, b) => Number(b.startedAt) - Number(a.startedAt));
     recalculateLastFeed();
+    state.sync.lastDriveBackupTimestamp = newestProcessed;
     state.sync.lastLoadAt = Date.now();
     persistExtended(); await saveChain;
     render(); refreshTimelineColumnHistoryIfOpen();
-    showToast(`Loaded: ${counts.added} new, ${counts.updated} updated, ${counts.removed} deleted`);
-    if (failed.length) alert(`${failed.length} backup file(s) could not be read and will be retried next time:\n\n${failed.join('\n')}`);
+    showToast(`Loaded ${counts.added} new records · skipped ${counts.duplicates} already present`);
+    if (failed.length) alert(`Could not read ${failed[0]}. This file and newer backups will be retried next time.`);
   }
 
   // --- Menu wiring ---
   function updateSyncMenu() {
-    const n = pendingBackupCount();
     updateDriveStatus();
-    const badge = $('driveBackupBadge'); badge.textContent = String(n); badge.hidden = !n;
-    const when = t => t ? new Date(t).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'never';
-    $('driveNote').textContent = `${account ? `Signed in${account.email ? ` as ${account.email}` : ''}` : 'Not signed in'}\nLast backup: ${when(state.sync.lastBackupAt)}\nLast load: ${when(state.sync.lastLoadAt)}`;
+    const badge = $('driveBackupBadge'); badge.textContent = ''; badge.hidden = true;
+    const when = t => t ? new Date(t).toLocaleString([], {dateStyle:'short', timeStyle:'short'}) : 'never';
+    const records = state.history.length + state.sleepHistory.length + state.growthHistory.length + state.mealHistory.length + (state.activeSleepStart ? 1 : 0);
+    $('driveNote').textContent = `${account ? `Signed in${account.email ? ` as ${account.email}` : ''}` : 'Not signed in'}\nLocal records: ${records}\nLast backup: ${when(state.sync.lastBackupAt)}\nLast load: ${when(state.sync.lastLoadAt)}`;
   }
+
   async function runSync(label, fn) {
     if (syncBusy) { showToast('Drive sync is already running…'); return; }
     syncBusy = true;
@@ -2399,7 +2530,7 @@
     const startedAt = sleepStartPreview ?? state.activeSleepStart;
     sleepStartPreview = null;
     const item = {
-      id: `${now}-${Math.random().toString(36).slice(2,7)}`,
+      id: `sleep-${Math.trunc(startedAt)}`,
       startedAt,
       endedAt: now,
       durationMs: Math.max(0, now - startedAt)
@@ -2428,7 +2559,7 @@
     persistExtended(); render(); showToast('Feed saved — you’re doing great 🤍');
   }
   function persistExtended() {
-    reconcileSyncMeta(); // keep id / modified-time / deleted markers current for Drive sync
+    reconcileSyncMeta(); // assign stable record ids; deletions are not synchronized
     if (!db) return;
     const snapshot = persistedStateSnapshot();
     saveChain = saveChain.then(() => writeDatabaseState(snapshot)).catch(error => {
@@ -2746,7 +2877,7 @@
   });
   $('exportCsvBtn').addEventListener('click', () => {
     closeHeaderMenu();
-    exportCsv();
+    exportCsv().catch(error => alert(`CSV export failed: ${error.message || error}`));
   });
   $('importCsvBtn').addEventListener('click', () => {
     closeHeaderMenu();
