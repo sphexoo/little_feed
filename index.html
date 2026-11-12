@@ -16,7 +16,7 @@
   :root {
     --bg: #f8f5f0; --card: #fffdf9; --ink: #30332f; --muted: #85877f;
     --sage: #789783; --sage-dark: #52715d; --sage-light: #e7eee7;
-    --peach: #f2d9ca; --feed-tint: #f3f7f1; --feed-tint-strong: #edf4eb; --sleep-tint: #eff7fc; --sleep-tint-strong: #e2f1fa; --sleep-accent: #4d84ab; --sleep-accent-dark: #2e6287; --sleep-accent-light: #dceefa; --sleep-accent-mid: #9dc8e5; --sleep-accent-border: #c7e0ef; --line: #ece7df; --shadow: 0 10px 30px rgba(67, 61, 49, .06);
+    --feed-tint: #f3f7f1; --feed-tint-strong: #edf4eb; --sleep-tint: #eff7fc; --sleep-tint-strong: #e2f1fa; --sleep-accent: #4d84ab; --sleep-accent-dark: #2e6287; --sleep-accent-light: #dceefa; --sleep-accent-mid: #9dc8e5; --sleep-accent-border: #c7e0ef; --line: #ece7df; --shadow: 0 10px 30px rgba(67, 61, 49, .06); --meal-tint:#fdf6ee; --meal-tint-strong:#fbeedd; --meal-accent:#c9894f; --meal-accent-dark:#8f5a2c; --meal-accent-light:#f7e4cd; --meal-accent-mid:#e5b98a; --meal-accent-border:#efd6b8;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -48,8 +48,6 @@
   .header-menu-item { display:flex; align-items:center; gap:10px; width:100%; min-height:42px; padding:10px 11px; border:0; border-radius:10px; background:transparent; color:var(--ink); text-align:left; font-size:12px; font-weight:700; white-space:nowrap; }
   .header-menu-item:hover, .header-menu-item:focus-visible { outline:none; background:var(--sage-light); }
   .header-menu-icon { display:inline-grid; place-items:center; width:18px; color:var(--sage-dark); font-size:15px; }
-  .header-menu-badge { margin-left:auto; min-width:20px; padding:2px 7px; border-radius:99px; background:var(--sage-dark); color:#fff; font-size:10px; font-weight:800; text-align:center; }
-  .header-menu-badge[hidden] { display:none; }
   .drive-link { border:0; background:none; padding:0; color:var(--sage-dark); font:inherit; font-weight:750; text-decoration:underline; }
   .header-menu-note { padding:6px 11px 4px; color:var(--muted); font-size:10.5px; line-height:1.45; white-space:pre-line; overflow-wrap:anywhere; }
   .header-menu-separator { height:1px; margin:4px 5px; background:var(--line); }
@@ -114,7 +112,6 @@
   .sleep-button { width:100%; background:var(--sleep-accent); color:white; border:0; border-radius:16px; padding:15px 16px; font-weight:750; min-height:52px; box-shadow:0 5px 12px rgba(77,132,171,.18); }
   .sleep-button.waking { background:var(--sleep-accent-dark); box-shadow:0 5px 12px rgba(46,98,135,.16); }
   .sleep-history-mark { background:var(--sleep-accent-light); }
-  :root { --meal-tint:#fdf6ee; --meal-tint-strong:#fbeedd; --meal-accent:#c9894f; --meal-accent-dark:#8f5a2c; --meal-accent-light:#f7e4cd; --meal-accent-mid:#e5b98a; --meal-accent-border:#efd6b8; }
   .meal-card { margin-top:14px; padding:22px 18px 18px; background:var(--meal-tint); border-color:var(--meal-accent-border); }
   .meal-card .live { color:var(--meal-accent-dark); background:var(--meal-accent-light); }
   .meal-card .sleep-start-row { margin:18px auto 18px; }
@@ -131,10 +128,9 @@
   .timeline-history-item.meal-entry .history-mark { background:var(--meal-accent-light); color:var(--meal-accent-dark); }
   .timeline-history-item.meal-entry .timeline-history-kind { color:var(--meal-accent-dark); }
   .tab-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; padding:5px; margin:0 0 4px; background:#eee9e1; border-radius:17px; }
-  .tab-button { border:0; border-radius:13px; min-height:43px; padding:10px 9px; color:var(--muted); background:transparent; font-size:12px; font-weight:750; }
+  .tab-button { border:0; border-radius:13px; min-height:43px; padding:10px 5px; color:var(--muted); background:transparent; font-size:11px; font-weight:750; white-space:nowrap; }
   .tab-button[aria-selected="true"] { background:var(--card); color:var(--ink); box-shadow:0 2px 8px rgba(67,61,49,.07); }
   .tab-panel[hidden] { display:none !important; }
-  .tab-button { padding:10px 5px; font-size:11px; white-space:nowrap; }
   .trends-page { padding-top:2px; }
   .trends-intro { margin:0 2px 16px; }
   .trends-intro h2 { font-size:23px; margin:0; }
@@ -319,12 +315,6 @@
   .growth-chart-empty { padding:28px 12px; text-align:center; color:var(--muted); font-size:12px; line-height:1.5; }
   .growth-chart-foot { color:var(--muted); font-size:10px; line-height:1.45; margin:10px 3px 0; }
   @media (max-width:380px) { .growth-fields { grid-template-columns:1fr; } .growth-field input { min-height:42px; } .growth-item { flex-wrap:wrap; } .growth-item .record-actions { margin-left:46px; } }
-  .data-card { margin-top:18px; padding:18px; box-shadow:none; }
-  .data-help { margin:10px 0 14px; color:var(--muted); font-size:11px; line-height:1.5; }
-  .data-actions { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
-  .data-actions button { min-width:0; padding:12px 8px; font-size:12px; }
-  .data-actions .secondary { border-radius:14px; }
-  .data-actions .primary { border-radius:14px; }
   .storage-status { text-align:center; max-width:420px; margin:18px auto -12px; color:#8e8c82; font-size:10px; line-height:1.45; }
   .storage-status.warning { color:#9b5b3f; }
   .footnote { text-align:center; font-size:10px; color:#a3a197; padding:22px 10px 4px; }
@@ -349,7 +339,7 @@
           <button class="header-menu-item" id="menuRefreshAction" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↻</span>Update page</button>
           <div class="header-menu-separator" role="separator"></div>
           <button class="header-menu-item" id="driveSettingsBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">☁</span><span>Google Drive settings</span></button>
-          <button class="header-menu-item" id="driveBackupBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇧</span><span>Back up to Drive</span><span class="header-menu-badge" id="driveBackupBadge" hidden></span></button>
+          <button class="header-menu-item" id="driveBackupBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇧</span><span>Back up to Drive</span></button>
           <button class="header-menu-item" id="driveLoadBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇩</span><span>Load from Drive</span></button>
           <div class="header-menu-note" id="driveNote"></div>
           <div class="header-menu-separator" role="separator"></div>
@@ -852,6 +842,88 @@
     return Math.abs(Number(a.timestamp) - Number(b.timestamp)) < 1500 && ['weight','height','headCirc'].every(key => growthMeasurementEqual(a,b,key));
   }
 
+  // Convert one compatible CSV row into the same normalized record shape for both import paths.
+  // The caller controls fallback-ID policy and whether an unfinished feeding timer is accepted.
+  function parseCsvRecordRow(row, value, {idMode = 'manual', allowOpenFeed = false, now = Date.now()} = {}) {
+    const type = value(row, 'Type').toLowerCase();
+    if (!['breast','sleep','growth','meal'].includes(type)) return {status:'unsupported'};
+    const start = parseCsvTimestamp(value(row, 'Timestamp'), value(row, 'Date'), value(row, 'Time'));
+    if (!Number.isFinite(start) || start > now) return {status:'invalid'};
+
+    const sourceId = value(row, 'Record ID');
+    const makeId = (kind, end = null, details = null) => {
+      if (sourceId) return sourceId;
+      if (kind === 'growth') {
+        return idMode === 'backup'
+          ? `import-growth-${start}-${hashText(details)}`
+          : `growth-${start}-${Math.random().toString(36).slice(2,7)}`;
+      }
+      if (kind === 'meal') return `import-meal-${start}`;
+      if (kind === 'sleep' && end == null) return `sleep-${Math.trunc(start)}`;
+      if (kind === 'sleep') return `import-sleep-${start}-${end}`;
+      return `import-breast-${start}-${end}`;
+    };
+
+    if (type === 'growth') {
+      const weight = canonicalGrowthValue(value(row, 'Weight'), value(row, 'Weight Unit'), 'weight');
+      const height = canonicalGrowthValue(value(row, 'Height'), value(row, 'Height Unit'), 'height');
+      const headCirc = canonicalGrowthValue(value(row, 'Head Circ'), value(row, 'Head Circ Unit'), 'headCirc');
+      if (weight == null && height == null && headCirc == null) return {status:'invalid'};
+      const fingerprint = `${weight}|${height}|${headCirc}`;
+      return {status:'record', type, start, item:{
+        id:makeId('growth', null, fingerprint), timestamp:start, weight, height, headCirc
+      }};
+    }
+
+    if (type === 'meal') {
+      return {status:'record', type, start, item:{
+        id:makeId('meal'), startedAt:start, endedAt:start + MEAL_MS, durationMs:MEAL_MS
+      }};
+    }
+
+    const rawEnd = value(row, 'End Timestamp');
+    const rawDuration = value(row, 'Duration (min)');
+    const durationNumber = rawDuration === '' ? NaN : Number(rawDuration);
+    const durationMs = Number.isFinite(durationNumber) && durationNumber >= 0 ? durationNumber * 60000 : NaN;
+    let end = rawEnd ? parseCsvTimestamp(rawEnd) : NaN;
+    if (!Number.isFinite(end) && Number.isFinite(durationMs) && durationMs > 0) end = start + durationMs;
+    const rawSide = value(row, 'Side').toLowerCase();
+    const side = ['left','right','both'].includes(rawSide) ? rawSide : (rawSide === 'l' ? 'left' : rawSide === 'r' ? 'right' : '');
+
+    if (Number.isFinite(end) && end > start && end <= now + 60000) {
+      const elapsedMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : end - start;
+      if (type === 'sleep') {
+        return {status:'record', type, start, item:{
+          id:makeId('sleep', end), startedAt:start, endedAt:end, durationMs:Math.max(0, elapsedMs)
+        }};
+      }
+      let leftMs = 0, rightMs = 0, lastSide = null, importedAggregate = false;
+      if (side === 'left') { leftMs = elapsedMs; lastSide = 'left'; }
+      else if (side === 'right') { rightMs = elapsedMs; lastSide = 'right'; }
+      else if (side === 'both') importedAggregate = true;
+      return {status:'record', type, start, item:{
+        id:makeId('breast', end), startedAt:start, endedAt:end, leftMs, rightMs,
+        totalMs:Math.max(0, elapsedMs), lastSide, importedSide:side, importedAggregate
+      }};
+    }
+
+    if (!rawEnd && !rawDuration && type === 'sleep') {
+      return {status:'open-sleep', type, start, item:{id:makeId('sleep'), start}};
+    }
+    if (!rawEnd && !rawDuration && type === 'breast' && allowOpenFeed && (side === 'left' || side === 'right')) {
+      return {status:'open-feed', type, start, side};
+    }
+    return {status:'invalid'};
+  }
+
+  function sortRecordHistories() {
+    state.history.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
+    state.sleepHistory.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
+    state.growthHistory.sort((a,b) => Number(b.timestamp) - Number(a.timestamp));
+    state.mealHistory.sort((a,b) => Number(b.startedAt) - Number(a.startedAt));
+    recalculateLastFeed();
+  }
+
   async function importCsvFile(file) {
     if (!file) return;
     let rows;
@@ -872,64 +944,15 @@
 
     for (const row of rows.slice(1)) {
       if (!row.length || row.every(cell => String(cell ?? '').trim() === '')) continue;
-      const type = value(row, 'Type').toLowerCase();
-      if (!['breast','sleep','growth','meal'].includes(type)) { unsupported++; continue; }
-      const start = parseCsvTimestamp(value(row, 'Timestamp'), value(row, 'Date'), value(row, 'Time'));
-      if (!Number.isFinite(start) || start > now) { invalid++; continue; }
-      if (type === 'growth') {
-        const weightRaw = value(row, 'Weight'), heightRaw = value(row, 'Height'), headRaw = value(row, 'Head Circ');
-        const item = {
-          id: value(row, 'Record ID') || `growth-${start}-${Math.random().toString(36).slice(2,7)}`, timestamp: start,
-          weight: canonicalGrowthValue(weightRaw, value(row, 'Weight Unit'), 'weight'),
-          height: canonicalGrowthValue(heightRaw, value(row, 'Height Unit'), 'height'),
-          headCirc: canonicalGrowthValue(headRaw, value(row, 'Head Circ Unit'), 'headCirc')
-        };
-        if (item.weight == null && item.height == null && item.headCirc == null) { invalid++; continue; }
-        pendingGrowth.push(item);
-        continue;
-      }
-      if (type === 'meal') { // only the start time matters; the end is always start + 15 minutes
-        pendingMeals.push({ id: value(row, 'Record ID') || `import-meal-${start}`, startedAt: start, endedAt: start + MEAL_MS, durationMs: MEAL_MS });
-        continue;
-      }
-      const rawEnd = value(row, 'End Timestamp');
-      const rawDuration = value(row, 'Duration (min)');
-      const durationNumber = rawDuration === '' ? NaN : Number(rawDuration);
-      const durationMs = Number.isFinite(durationNumber) && durationNumber >= 0 ? durationNumber * 60000 : NaN;
-      let end = rawEnd ? parseCsvTimestamp(rawEnd) : NaN;
-      if (!Number.isFinite(end) && Number.isFinite(durationMs) && durationMs > 0) end = start + durationMs;
-      const rawSide = value(row, 'Side').toLowerCase();
-      const side = ['left','right','both'].includes(rawSide) ? rawSide : (rawSide === 'l' ? 'left' : rawSide === 'r' ? 'right' : '');
-
-      if (Number.isFinite(end) && end > start && end <= now + 60000) {
-        const elapsedMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : end - start;
-        if (type === 'sleep') {
-          pendingSleeps.push({
-            id: value(row, 'Record ID') || `import-sleep-${start}-${end}`, startedAt: start, endedAt: end,
-            durationMs: Math.max(0, elapsedMs)
-          });
-        } else {
-          let leftMs = 0, rightMs = 0, lastSide = null, importedAggregate = false;
-          if (side === 'left') { leftMs = elapsedMs; lastSide = 'left'; }
-          else if (side === 'right') { rightMs = elapsedMs; lastSide = 'right'; }
-          else if (side === 'both') {
-            // The interoperable CSV has one combined duration, not a left/right split.
-            // Keep it combined instead of inventing side-specific values.
-            importedAggregate = true;
-          }
-          pendingFeeds.push({
-            id: value(row, 'Record ID') || `import-breast-${start}-${end}`, startedAt: start, endedAt: end,
-            leftMs, rightMs, totalMs: Math.max(0, elapsedMs), lastSide, importedSide: side,
-            importedAggregate
-          });
-        }
-      } else if (!rawEnd && !rawDuration) {
-        if (type === 'sleep') openSleeps.push({start});
-        else if (side === 'left' || side === 'right') openFeeds.push({start, side});
-        else invalid++;
-      } else {
-        invalid++;
-      }
+      const parsed = parseCsvRecordRow(row, value, {idMode:'manual', allowOpenFeed:true, now});
+      if (parsed.status === 'unsupported') { unsupported++; continue; }
+      if (parsed.status === 'invalid') { invalid++; continue; }
+      if (parsed.status === 'open-sleep') { openSleeps.push({start:parsed.start}); continue; }
+      if (parsed.status === 'open-feed') { openFeeds.push({start:parsed.start, side:parsed.side}); continue; }
+      if (parsed.type === 'breast') pendingFeeds.push(parsed.item);
+      else if (parsed.type === 'sleep') pendingSleeps.push(parsed.item);
+      else if (parsed.type === 'meal') pendingMeals.push(parsed.item);
+      else if (parsed.type === 'growth') pendingGrowth.push(parsed.item);
     }
 
     // Only the newest unclosed row can represent an active timer.
@@ -979,11 +1002,7 @@
         state.segmentStartedAt = now;
       } else duplicates++;
     }
-    state.history.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
-    state.sleepHistory.sort((a,b) => Number(b.endedAt) - Number(a.endedAt));
-    state.growthHistory.sort((a,b) => Number(b.timestamp) - Number(a.timestamp));
-    state.mealHistory.sort((a,b) => Number(b.startedAt) - Number(a.startedAt));
-    recalculateLastFeed();
+    sortRecordHistories();
     persistExtended();
     await saveChain;
     render();
@@ -1118,7 +1137,7 @@
   const readCfg = name => { try { return localStorage.getItem(CFG_KEYS[name]) || ''; } catch (_) { return ''; } };
   const cfg = { clientId: readCfg('clientId'), folderId: readCfg('folderId') };
   const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
-  const SYNC_KINDS = { feed: 'history', sleep: 'sleepHistory', growth: 'growthHistory', meal: 'mealHistory' };
+  const RECORD_COLLECTIONS = { feed: 'history', sleep: 'sleepHistory', growth: 'growthHistory', meal: 'mealHistory' };
   const BACKUP_PREFIX = 'littlefeed-';
   let syncBusy = false, gisPromise = null, tokenClient = null, pendingToken = null;
   let accessToken = null, tokenExpiry = 0, account = null;
@@ -1144,8 +1163,8 @@
   function ensureRecordIds() {
     const used = new Set();
     const now = Date.now();
-    for (const kind of Object.keys(SYNC_KINDS)) {
-      for (const rec of state[SYNC_KINDS[kind]]) {
+    for (const kind of Object.keys(RECORD_COLLECTIONS)) {
+      for (const rec of state[RECORD_COLLECTIONS[kind]]) {
         if (!rec || typeof rec !== 'object') continue;
         let id = rec.id == null ? '' : String(rec.id);
         if (!id || used.has(id)) {
@@ -1251,9 +1270,8 @@
     const boundary = 'lf' + Math.random().toString(36).slice(2);
     const meta = JSON.stringify({ name, parents: [cfg.folderId], mimeType });
     const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mimeType}; charset=UTF-8\r\n\r\n${text}\r\n--${boundary}--`;
-    const res = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,createdTime',
+    await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,createdTime',
       { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
-    return res.json();
   }
   function backupFilenameTimestamp(file) {
     const match = /^littlefeed-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(\d{3})?Z?/i.exec(String(file.name || ''));
@@ -1340,7 +1358,7 @@
     const timestamp = Math.max(Date.now(), Number(existingFiles[existingFiles.length - 1]?.backupTimestamp || 0) + 1);
     const name = `${BACKUP_PREFIX}${backupFilenameStamp(timestamp)}.csv`;
     showToast(`Backing up ${newRecords.length} new record${newRecords.length === 1 ? '' : 's'}…`);
-    const file = await driveUpload(name, csv, 'text/csv');
+    await driveUpload(name, csv, 'text/csv');
     state.sync.lastBackupAt = Date.now();
     persistExtended(); await saveChain;
     showToast(`Backed up ${newRecords.length} new records to ${name}`);
@@ -1359,54 +1377,19 @@
     const now = Date.now();
     for (const row of rows.slice(1)) {
       if (!row.length || row.every(cell => String(cell ?? '').trim() === '')) continue;
-      const type = value(row, 'Type').toLowerCase();
-      if (!['breast','sleep','growth','meal'].includes(type)) { parsed.unsupported++; continue; }
-      const start = parseCsvTimestamp(value(row, 'Timestamp'), value(row, 'Date'), value(row, 'Time'));
-      if (!Number.isFinite(start) || start > now) { parsed.invalid++; continue; }
-      const sourceId = value(row, 'Record ID');
-      if (type === 'growth') {
-        const weight = canonicalGrowthValue(value(row, 'Weight'), value(row, 'Weight Unit'), 'weight');
-        const height = canonicalGrowthValue(value(row, 'Height'), value(row, 'Height Unit'), 'height');
-        const headCirc = canonicalGrowthValue(value(row, 'Head Circ'), value(row, 'Head Circ Unit'), 'headCirc');
-        if (weight == null && height == null && headCirc == null) { parsed.invalid++; continue; }
-        const fingerprint = hashText(`${weight}|${height}|${headCirc}`);
-        const item = {id:sourceId || `import-growth-${start}-${fingerprint}`, timestamp:start, weight, height, headCirc};
-        parsed.growth.push(item); parsed.entries.push({timestamp:start, id:item.id, type});
+      const result = parseCsvRecordRow(row, value, {idMode:'backup', allowOpenFeed:false, now});
+      if (result.status === 'unsupported') { parsed.unsupported++; continue; }
+      if (result.status === 'invalid') { parsed.invalid++; continue; }
+      if (result.status === 'open-sleep') {
+        parsed.openSleeps.push(result.item);
+        parsed.entries.push({timestamp:result.start, id:result.item.id, type:result.type, open:true});
         continue;
       }
-      if (type === 'meal') {
-        const item = {id:sourceId || `import-meal-${start}`, startedAt:start, endedAt:start + MEAL_MS, durationMs:MEAL_MS};
-        parsed.meals.push(item); parsed.entries.push({timestamp:start, id:item.id, type});
-        continue;
-      }
-      const rawEnd = value(row, 'End Timestamp');
-      const rawDuration = value(row, 'Duration (min)');
-      const durationNumber = rawDuration === '' ? NaN : Number(rawDuration);
-      const durationMs = Number.isFinite(durationNumber) && durationNumber >= 0 ? durationNumber * 60000 : NaN;
-      let end = rawEnd ? parseCsvTimestamp(rawEnd) : NaN;
-      if (!Number.isFinite(end) && Number.isFinite(durationMs) && durationMs > 0) end = start + durationMs;
-      const rawSide = value(row, 'Side').toLowerCase();
-      const side = ['left','right','both'].includes(rawSide) ? rawSide : (rawSide === 'l' ? 'left' : rawSide === 'r' ? 'right' : '');
-      if (Number.isFinite(end) && end > start && end <= now + 60000) {
-        const elapsedMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : end - start;
-        if (type === 'sleep') {
-          const item = {id:sourceId || `import-sleep-${start}-${end}`, startedAt:start, endedAt:end, durationMs:Math.max(0, elapsedMs)};
-          parsed.sleeps.push(item); parsed.entries.push({timestamp:start, id:item.id, type});
-        } else {
-          let leftMs = 0, rightMs = 0, lastSide = null, importedAggregate = false;
-          if (side === 'left') { leftMs = elapsedMs; lastSide = 'left'; }
-          else if (side === 'right') { rightMs = elapsedMs; lastSide = 'right'; }
-          else if (side === 'both') importedAggregate = true;
-          const item = {id:sourceId || `import-breast-${start}-${end}`, startedAt:start, endedAt:end,
-            leftMs, rightMs, totalMs:Math.max(0, elapsedMs), lastSide, importedSide:side, importedAggregate};
-          parsed.feeds.push(item); parsed.entries.push({timestamp:start, id:item.id, type});
-        }
-      } else if (!rawEnd && !rawDuration && type === 'sleep') {
-        const item = {id:sourceId || `sleep-${Math.trunc(start)}`, start};
-        parsed.openSleeps.push(item); parsed.entries.push({timestamp:start, id:item.id, type, open:true});
-      } else {
-        parsed.invalid++;
-      }
+      const target = result.type === 'breast' ? parsed.feeds
+        : result.type === 'sleep' ? parsed.sleeps
+        : result.type === 'growth' ? parsed.growth : parsed.meals;
+      target.push(result.item);
+      parsed.entries.push({timestamp:result.start, id:result.item.id, type:result.type});
     }
     return parsed;
   }
@@ -1466,11 +1449,7 @@
       }
     }
 
-    state.history.sort((a, b) => Number(b.endedAt) - Number(a.endedAt));
-    state.sleepHistory.sort((a, b) => Number(b.endedAt) - Number(a.endedAt));
-    state.growthHistory.sort((a, b) => Number(b.timestamp) - Number(a.timestamp));
-    state.mealHistory.sort((a, b) => Number(b.startedAt) - Number(a.startedAt));
-    recalculateLastFeed();
+    sortRecordHistories();
     state.sync.lastLoadAt = Date.now();
     persistExtended(); await saveChain;
     render(); refreshTimelineColumnHistoryIfOpen();
@@ -1484,7 +1463,6 @@
   // --- Menu wiring ---
   function updateSyncMenu() {
     updateDriveStatus();
-    const badge = $('driveBackupBadge'); badge.textContent = ''; badge.hidden = true;
     const when = t => t ? new Date(t).toLocaleString([], {dateStyle:'short', timeStyle:'short'}) : 'never';
     const records = state.history.length + state.sleepHistory.length + state.growthHistory.length + state.mealHistory.length + (state.activeSleepStart ? 1 : 0);
     $('driveNote').textContent = `${account ? `Signed in${account.email ? ` as ${account.email}` : ''}` : 'Not signed in'}\nLocal records: ${records}\nLast backup: ${when(state.sync.lastBackupAt)}\nLast load: ${when(state.sync.lastLoadAt)}`;
@@ -2244,7 +2222,7 @@
       </article>`;
     }).join('');
   }
-  function openTimelineDayHistory(dayStartMs, sourceButton) {
+  function openTimelineDayHistory(dayStartMs) {
     selectedTimelineDayStart = Number(dayStartMs);
     lastHistoryToggle = null;
     ['feedingHistoryPanel','sleepHistoryPanel','mealHistoryPanel','growthHistoryPanel'].forEach(id => { $(id).hidden = true; });
@@ -2847,17 +2825,7 @@
     });
   });
 
-  // PWA installation: use Chrome's native prompt when available, otherwise explain its menu path.
-  let deferredInstallPrompt = null;
-  window.addEventListener('beforeinstallprompt', event => {
-    event.preventDefault();
-    deferredInstallPrompt = event;
-  });
-  window.addEventListener('appinstalled', () => {
-    deferredInstallPrompt = null;
-    showToast('Little Feed is installed! 🦁');
-  });
-
+  // Installation is handled by the browser; the manifest and service worker keep the app installable.
   function closeHeaderMenu() {
     $('headerMenuPopover').hidden = true;
     $('refreshBtn').setAttribute('aria-expanded', 'false');
@@ -2929,7 +2897,7 @@
   $('weekDiagram').addEventListener('click', event => {
     const dayButton = event.target.closest('[data-timeline-day]');
     if (!dayButton) return;
-    openTimelineDayHistory(dayButton.dataset.timelineDay, dayButton);
+    openTimelineDayHistory(dayButton.dataset.timelineDay);
   });
   $('timelineDayHistoryList').addEventListener('click', event => {
     const editFeed = event.target.closest('[data-edit-feed]');
