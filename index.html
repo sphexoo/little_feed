@@ -599,7 +599,7 @@
         <div class="editor-field full"><label for="driveClientId">OAuth client ID</label><input id="driveClientId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="1234-abc.apps.googleusercontent.com"></div>
         <div class="editor-field full"><label for="driveFolderId">Drive folder link or ID</label><input id="driveFolderId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://drive.google.com/drive/folders/…"></div>
       </div>
-      <p class="editor-help"><span id="driveStatus"></span> <button class="drive-link" id="driveSignOutBtn" type="button" hidden>Sign out</button><br>Both values are kept only in this browser. Saving also signs you in to Google. Each backup is a new timestamped CSV snapshot. Loading adds records whose IDs are not already on this device. Deletions are not synchronized; remove rows from Drive CSV files manually when needed.</p>
+      <p class="editor-help"><span id="driveStatus"></span> <button class="drive-link" id="driveSignOutBtn" type="button" hidden>Sign out</button><br>Both values are kept only in this browser. Saving also signs you in to Google. Each backup creates a timestamped CSV containing new or changed records. Loading adds records whose IDs are not already on this device. Deletions are not synchronized; remove rows from Drive CSV files manually when needed.</p>
       <p class="editor-error" id="driveError" role="alert"></p>
       <div class="editor-actions"><button class="editor-cancel" id="driveCancelBtn" type="button">Cancel</button><button class="editor-save" type="submit">Save</button></div>
     </form>
@@ -638,10 +638,21 @@
     'Diaper Type','Rash','Food','Allergen Tags','Medication','Dose','Vaccine','Vaccine Site',
     'Vaccine Lot','Vaccine Place','Temperature','Temp Unit','Temp Method','Weight','Weight Unit',
     'Height','Height Unit','Head Circ','Head Circ Unit','Severity','Quality','Drink Type',
-    'Milestone','Category','Label','Notes','Source','Record ID'
+    'Milestone','Category','Label','Notes','Source','Record ID',
+    'Created At','Updated At','Revision','Record Hash'
   ];
+  const CSV_RECORD_ID_COLUMN = CSV_HEADERS.indexOf('Record ID');
+  const CSV_CREATED_AT_COLUMN = CSV_HEADERS.indexOf('Created At');
+  const CSV_UPDATED_AT_COLUMN = CSV_HEADERS.indexOf('Updated At');
+  const CSV_REVISION_COLUMN = CSV_HEADERS.indexOf('Revision');
+  const CSV_RECORD_HASH_COLUMN = CSV_HEADERS.indexOf('Record Hash');
   let db = null;
-  let saveChain = Promise.resolve();
+  let databaseOpening = null;
+  let saveChain = Promise.resolve(true);
+  let lastFailedSnapshot = null;
+  let lastSaveError = null;
+  let storageReadFailed = false;
+  let persistentStorageEnabled = false;
 
   // CSV import/export supports 'breast', 'sleep', 'meal', and 'growth' records; each row carries a stable Record ID.
   function csvEscape(value) {
@@ -696,7 +707,20 @@
     return Number.isFinite(d.getTime()) ? d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'}) : '';
   }
 
-  function newCsvRow(type, startAt, endAt, durationMs, side = '', recordId = '') {
+  function csvDataFingerprint(row) {
+    return hashText(JSON.stringify(row.slice(0, CSV_RECORD_ID_COLUMN)));
+  }
+
+  function writeCsvRecordMetadata(row, record) {
+    row[CSV_RECORD_ID_COLUMN] = record?.id == null ? '' : String(record.id);
+    row[CSV_CREATED_AT_COLUMN] = Number(record?.createdAt) || '';
+    row[CSV_UPDATED_AT_COLUMN] = Number(record?.updatedAt) || '';
+    row[CSV_REVISION_COLUMN] = Math.max(1, Number(record?.revision) || 1);
+    row[CSV_RECORD_HASH_COLUMN] = csvDataFingerprint(row);
+    return row;
+  }
+
+  function newCsvRow(type, startAt, endAt, durationMs, side = '', recordId = '', record = null) {
     const row = Array(CSV_HEADERS.length).fill('');
     row[0] = type;
     row[1] = localOffsetIso(startAt);
@@ -705,7 +729,7 @@
     row[4] = endAt == null ? '' : localOffsetIso(endAt);
     row[5] = durationMs == null ? '' : String(Math.max(0, Math.round(Number(durationMs) / 60000)));
     row[8] = side || '';
-    row[row.length - 1] = recordId == null ? '' : String(recordId);
+    writeCsvRecordMetadata(row, record || {id:recordId, createdAt:startAt, updatedAt:startAt, revision:1});
     // Source and all unrelated scheme columns intentionally remain blank.
     return row;
   }
@@ -725,37 +749,110 @@
     if (item.weight != null && item.weight !== '' && Number.isFinite(Number(item.weight))) { row[22] = String(item.weight); row[23] = 'kg'; }
     if (item.height != null && item.height !== '' && Number.isFinite(Number(item.height))) { row[24] = String(item.height); row[25] = 'cm'; }
     if (item.headCirc != null && item.headCirc !== '' && Number.isFinite(Number(item.headCirc))) { row[26] = String(item.headCirc); row[27] = 'cm'; }
-    row[row.length - 1] = item.id == null ? '' : String(item.id);
+    writeCsvRecordMetadata(row, item);
     return row;
   }
 
+  function recordEventTimestamp(kind, item) {
+    const timestamp = Number(kind === 'growth' ? item.timestamp : item.startedAt ?? item.endedAt);
+    return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
+  }
+
+  function recordDataFingerprint(kind, item) {
+    let row;
+    if (kind === 'growth') row = newGrowthCsvRow(item);
+    else if (kind === 'feed' || kind === 'breast') {
+      const start = Number(item.startedAt || (Number(item.endedAt) - Number(item.totalMs || 0)));
+      const end = Number(item.endedAt);
+      row = newCsvRow('breast', start, end, Number(item.totalMs) || Number(item.leftMs || 0) + Number(item.rightMs || 0), getFeedSide(item), item.id);
+    } else if (kind === 'sleep') {
+      const start = Number(item.startedAt ?? item.start);
+      const end = Number(item.endedAt);
+      row = newCsvRow('sleep', start, Number.isFinite(end) && end > start ? end : null,
+        Number(item.durationMs) || (Number.isFinite(end) && end > start ? end - start : null), '', item.id);
+    } else {
+      const start = Number(item.startedAt);
+      row = newCsvRow('meal', start, start + MEAL_MS, MEAL_MS, '', item.id);
+    }
+    return csvDataFingerprint(row);
+  }
+
+  function reconcileRecordMetadata(legacyMigration = false) {
+    ensureRecordIds();
+    const now = Date.now();
+    for (const [kind, collection] of Object.entries(RECORD_COLLECTIONS)) {
+      for (const item of state[collection]) {
+        if (!item || typeof item !== 'object') continue;
+        const eventTime = recordEventTimestamp(kind, item);
+        const hasMetadata = Number(item.createdAt) > 0 && Number(item.updatedAt) > 0 && Number(item.revision) >= 1;
+        if (!hasMetadata) {
+          item.createdAt = legacyMigration ? eventTime : now;
+          item.updatedAt = legacyMigration ? eventTime : now;
+          item.revision = 1;
+          item._backupLegacy = !!legacyMigration;
+        } else {
+          item.createdAt = Number(item.createdAt);
+          item.updatedAt = Number(item.updatedAt);
+          item.revision = Math.max(1, Math.floor(Number(item.revision) || 1));
+          item._backupLegacy = !!item._backupLegacy;
+        }
+        const fingerprint = recordDataFingerprint(kind, item);
+        if (typeof item._backupHash !== 'string' || !item._backupHash) {
+          item._backupHash = fingerprint;
+        } else if (item._backupHash !== fingerprint) {
+          item.updatedAt = Math.max(now, item.updatedAt + 1);
+          item.revision += 1;
+          item._backupLegacy = false;
+          item._backupHash = fingerprint;
+        }
+      }
+    }
+  }
+
   function collectCsvRecords(includeActiveSleep = true) {
-    ensureRecordIds(); // assign stable ids before rows are built
+    reconcileRecordMetadata(); // assign stable ids and detect edits before building rows
     const records = [];
     for (const item of state.history) {
       const start = Number(item.startedAt || (Number(item.endedAt) - Number(item.totalMs || 0)));
       const end = Number(item.endedAt);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-      records.push({start, id:String(item.id), row:newCsvRow('breast', start, end,
-        Number(item.totalMs) || Number(item.leftMs || 0) + Number(item.rightMs || 0), getFeedSide(item), item.id)});
+      const row = newCsvRow('breast', start, end,
+        Number(item.totalMs) || Number(item.leftMs || 0) + Number(item.rightMs || 0), getFeedSide(item), item.id, item);
+      records.push({start, id:String(item.id), row, fingerprint:row[CSV_RECORD_HASH_COLUMN],
+        updatedAt:Number(item.updatedAt) || start, revision:Number(item.revision) || 1, legacy:!!item._backupLegacy, item});
     }
     for (const item of state.sleepHistory) {
       const start = Number(item.startedAt), end = Number(item.endedAt);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-      records.push({start, id:String(item.id), row:newCsvRow('sleep', start, end, Number(item.durationMs) || end - start, '', item.id)});
+      const row = newCsvRow('sleep', start, end, Number(item.durationMs) || end - start, '', item.id, item);
+      records.push({start, id:String(item.id), row, fingerprint:row[CSV_RECORD_HASH_COLUMN],
+        updatedAt:Number(item.updatedAt) || start, revision:Number(item.revision) || 1, legacy:!!item._backupLegacy, item});
     }
     for (const item of state.growthHistory) {
       const timestamp = Number(item.timestamp);
-      if (Number.isFinite(timestamp)) records.push({start:timestamp, id:String(item.id), row:newGrowthCsvRow(item)});
+      if (Number.isFinite(timestamp)) {
+        const row = newGrowthCsvRow(item);
+        records.push({start:timestamp, id:String(item.id), row, fingerprint:row[CSV_RECORD_HASH_COLUMN],
+          updatedAt:Number(item.updatedAt) || timestamp, revision:Number(item.revision) || 1, legacy:!!item._backupLegacy, item});
+      }
     }
     for (const item of state.mealHistory) {
       const start = Number(item.startedAt);
-      if (Number.isFinite(start)) records.push({start, id:String(item.id), row:newCsvRow('meal', start, start + MEAL_MS, MEAL_MS, '', item.id)});
+      if (Number.isFinite(start)) {
+        const row = newCsvRow('meal', start, start + MEAL_MS, MEAL_MS, '', item.id, item);
+        records.push({start, id:String(item.id), row, fingerprint:row[CSV_RECORD_HASH_COLUMN],
+          updatedAt:Number(item.updatedAt) || start, revision:Number(item.revision) || 1, legacy:!!item._backupLegacy, item});
+      }
     }
     // An in-progress sleep gets the same stable id it will have when it is completed.
     if (includeActiveSleep && state.activeSleepStart) {
       const start = Number(state.activeSleepStart);
-      if (Number.isFinite(start)) { const id = `sleep-${Math.trunc(start)}`; records.push({start, id, row:newCsvRow('sleep', start, null, null, '', id)}); }
+      if (Number.isFinite(start)) {
+        const id = `sleep-${Math.trunc(start)}`;
+        const activeRecord = {id, createdAt:start, updatedAt:start, revision:1};
+        const row = newCsvRow('sleep', start, null, null, '', id, activeRecord);
+        records.push({start, id, row, fingerprint:row[CSV_RECORD_HASH_COLUMN], updatedAt:start, revision:1, legacy:false, item:activeRecord});
+      }
     }
     records.sort((a,b) => a.start - b.start || String(a.id).localeCompare(String(b.id)));
     return records;
@@ -768,8 +865,7 @@
 
   async function exportCsv() {
     const records = collectCsvRecords(true);
-    persistExtended();
-    await saveChain;
+    const savedLocally = await persistExtended();
     const csv = serializeCsvRecords(records);
     const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
@@ -781,7 +877,7 @@
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast(`Exported ${records.length} records`);
+    showToast(savedLocally ? `Exported ${records.length} records` : `Exported ${records.length} records · local save failed`);
   }
 
   function parseCsvTimestamp(value, dateValue = '', timeValue = '') {
@@ -844,9 +940,23 @@
     return Math.abs(Number(a.timestamp) - Number(b.timestamp)) < 1500 && ['weight','height','headCirc'].every(key => growthMeasurementEqual(a,b,key));
   }
 
+  function applyImportedRecordMetadata(item, kind, row, value, start, {idMode, now, hasRevisionMetadata}) {
+    const sourceCreated = Number(value(row, 'Created At'));
+    const sourceUpdated = Number(value(row, 'Updated At'));
+    const sourceRevision = Number(value(row, 'Revision'));
+    const legacyBackup = idMode === 'backup' && (!hasRevisionMetadata || !(sourceUpdated > 0) || !(sourceRevision >= 1));
+    const fallbackTime = legacyBackup ? start : now;
+    item.createdAt = sourceCreated > 0 ? sourceCreated : fallbackTime;
+    item.updatedAt = sourceUpdated > 0 ? sourceUpdated : fallbackTime;
+    item.revision = sourceRevision >= 1 ? Math.floor(sourceRevision) : 1;
+    item._backupLegacy = legacyBackup;
+    item._backupHash = recordDataFingerprint(kind, item);
+    return item;
+  }
+
   // Convert one compatible CSV row into the same normalized record shape for both import paths.
   // The caller controls fallback-ID policy and whether an unfinished feeding timer is accepted.
-  function parseCsvRecordRow(row, value, {idMode = 'manual', allowOpenFeed = false, now = Date.now()} = {}) {
+  function parseCsvRecordRow(row, value, {idMode = 'manual', allowOpenFeed = false, now = Date.now(), hasRevisionMetadata = false} = {}) {
     const type = value(row, 'Type').toLowerCase();
     if (!['breast','sleep','growth','meal'].includes(type)) return {status:'unsupported'};
     const start = parseCsvTimestamp(value(row, 'Timestamp'), value(row, 'Date'), value(row, 'Time'));
@@ -872,15 +982,15 @@
       const headCirc = canonicalGrowthValue(value(row, 'Head Circ'), value(row, 'Head Circ Unit'), 'headCirc');
       if (weight == null && height == null && headCirc == null) return {status:'invalid'};
       const fingerprint = `${weight}|${height}|${headCirc}`;
-      return {status:'record', type, start, item:{
-        id:makeId('growth', null, fingerprint), timestamp:start, weight, height, headCirc
-      }};
+      const item = {id:makeId('growth', null, fingerprint), timestamp:start, weight, height, headCirc};
+      applyImportedRecordMetadata(item, type, row, value, start, {idMode, now, hasRevisionMetadata});
+      return {status:'record', type, start, item};
     }
 
     if (type === 'meal') {
-      return {status:'record', type, start, item:{
-        id:makeId('meal'), startedAt:start, endedAt:start + MEAL_MS, durationMs:MEAL_MS
-      }};
+      const item = {id:makeId('meal'), startedAt:start, endedAt:start + MEAL_MS, durationMs:MEAL_MS};
+      applyImportedRecordMetadata(item, type, row, value, start, {idMode, now, hasRevisionMetadata});
+      return {status:'record', type, start, item};
     }
 
     const rawEnd = value(row, 'End Timestamp');
@@ -895,22 +1005,26 @@
     if (Number.isFinite(end) && end > start && end <= now + 60000) {
       const elapsedMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : end - start;
       if (type === 'sleep') {
-        return {status:'record', type, start, item:{
-          id:makeId('sleep', end), startedAt:start, endedAt:end, durationMs:Math.max(0, elapsedMs)
-        }};
+        const item = {id:makeId('sleep', end), startedAt:start, endedAt:end, durationMs:Math.max(0, elapsedMs)};
+        applyImportedRecordMetadata(item, type, row, value, start, {idMode, now, hasRevisionMetadata});
+        return {status:'record', type, start, item};
       }
       let leftMs = 0, rightMs = 0, lastSide = null, importedAggregate = false;
       if (side === 'left') { leftMs = elapsedMs; lastSide = 'left'; }
       else if (side === 'right') { rightMs = elapsedMs; lastSide = 'right'; }
       else if (side === 'both') importedAggregate = true;
-      return {status:'record', type, start, item:{
+      const item = {
         id:makeId('breast', end), startedAt:start, endedAt:end, leftMs, rightMs,
         totalMs:Math.max(0, elapsedMs), lastSide, importedSide:side, importedAggregate
-      }};
+      };
+      applyImportedRecordMetadata(item, type, row, value, start, {idMode, now, hasRevisionMetadata});
+      return {status:'record', type, start, item};
     }
 
     if (!rawEnd && !rawDuration && type === 'sleep') {
-      return {status:'open-sleep', type, start, item:{id:makeId('sleep'), start}};
+      const item = {id:makeId('sleep'), start};
+      applyImportedRecordMetadata(item, type, row, value, start, {idMode, now, hasRevisionMetadata});
+      return {status:'open-sleep', type, start, item};
     }
     if (!rawEnd && !rawDuration && type === 'breast' && allowOpenFeed && (side === 'left' || side === 'right')) {
       return {status:'open-feed', type, start, side};
@@ -943,10 +1057,11 @@
     const openFeeds = [], openSleeps = [];
     let unsupported = 0, invalid = 0;
     const now = Date.now();
+    const hasRevisionMetadata = col('Created At') >= 0 && col('Updated At') >= 0 && col('Revision') >= 0;
 
     for (const row of rows.slice(1)) {
       if (!row.length || row.every(cell => String(cell ?? '').trim() === '')) continue;
-      const parsed = parseCsvRecordRow(row, value, {idMode:'manual', allowOpenFeed:true, now});
+      const parsed = parseCsvRecordRow(row, value, {idMode:'manual', allowOpenFeed:true, now, hasRevisionMetadata});
       if (parsed.status === 'unsupported') { unsupported++; continue; }
       if (parsed.status === 'invalid') { invalid++; continue; }
       if (parsed.status === 'open-sleep') { openSleeps.push({start:parsed.start}); continue; }
@@ -971,6 +1086,11 @@
     const approved = confirm(`Import ${pendingFeeds.length} feeding records, ${pendingSleeps.length} sleep sessions, ${pendingMeals.length} meals, and ${pendingGrowth.length} growth records?\n\nExisting data will be kept. Exact duplicates will be skipped.\nUnsupported entry types (such as diaper) will be ignored.\n${incomingOpenSleep ? 'The CSV also contains an active sleep timer. ' : ''}${incomingOpenFeed ? 'The CSV also contains an active feeding timer. ' : ''}`);
     if (!approved) return;
 
+    if (!await persistExtended()) {
+      alert('The CSV was not imported because existing local changes could not be saved first. Check the browser storage warning and try again.');
+      return;
+    }
+    const rollbackSnapshot = persistedStateSnapshot();
     let addedFeeds = 0, addedSleeps = 0, duplicates = 0;
     for (const item of pendingFeeds) {
       if (hasRecordId(item.id) || state.history.some(existing => sameSession(existing, item))) { duplicates++; continue; }
@@ -1005,8 +1125,13 @@
       } else duplicates++;
     }
     sortRecordHistories();
-    persistExtended();
-    await saveChain;
+    const importSaved = await persistExtended();
+    if (!importSaved) {
+      applySavedState(rollbackSnapshot);
+      render();
+      alert('The CSV was not imported because Little Feed could not save the changes to this device. Your previous local data has been restored in the app. Check browser storage and try again.');
+      return;
+    }
     render();
     const details = `Imported ${addedFeeds} feeding, ${addedSleeps} sleep, ${addedMeals} meal, and ${addedGrowth} growth records${duplicates ? `; ${duplicates} duplicate/active record(s) skipped` : ''}${unsupported ? `; ${unsupported} unsupported row(s) ignored` : ''}${invalid ? `; ${invalid} invalid row(s) skipped` : ''}.`;
     showToast(`Imported ${addedFeeds + addedSleeps + addedMeals + addedGrowth} records`);
@@ -1031,12 +1156,26 @@
       };
       request.onsuccess = () => {
         const database = request.result;
-        database.onversionchange = () => database.close();
+        database.onversionchange = () => {
+          database.close();
+          if (db === database) db = null;
+          setStorageStatus('Another app version changed the local database. Save again to reconnect.', true);
+        };
+        database.onclose = () => { if (db === database) db = null; };
         resolve(database);
       };
       request.onerror = () => reject(request.error || new Error('Could not open IndexedDB.'));
       request.onblocked = () => reject(new Error('IndexedDB is blocked by another open app tab. Close other Little Feed tabs and try again.'));
     });
+  }
+
+  async function ensureDatabaseConnection() {
+    if (db) return db;
+    if (!databaseOpening) {
+      databaseOpening = openDatabase().then(opened => { db = opened; return opened; })
+        .finally(() => { databaseOpening = null; });
+    }
+    return databaseOpening;
   }
 
   function readDatabaseState() {
@@ -1051,15 +1190,74 @@
     });
   }
 
+  function validatePersistedStateSnapshot(snapshot) {
+    const seenIds = new Set();
+    const collections = [
+      ['history', 'feeding'], ['sleepHistory', 'sleep'],
+      ['growthHistory', 'growth'], ['mealHistory', 'meal']
+    ];
+    for (const [key, kind] of collections) {
+      if (!Array.isArray(snapshot[key])) throw new Error(`Local data integrity check failed: ${key} is not a record list.`);
+      for (const item of snapshot[key]) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error(`Local data integrity check failed: ${kind} contains an invalid record.`);
+        const id = String(item.id ?? '').trim();
+        if (!id) throw new Error(`Local data integrity check failed: a ${kind} record has no ID.`);
+        if (seenIds.has(id)) throw new Error(`Local data integrity check failed: duplicate record ID ${id}.`);
+        seenIds.add(id);
+        const eventTime = kind === 'growth' ? Number(item.timestamp)
+          : kind === 'meal' ? Number(item.startedAt)
+          : Number(item.startedAt || (kind === 'feeding' ? Number(item.endedAt) - Number(item.totalMs || 0) : NaN));
+        if (!Number.isFinite(eventTime) || eventTime <= 0) throw new Error(`Local data integrity check failed: ${kind} record ${id} has an invalid timestamp.`);
+        if (!(Number(item.createdAt) > 0) || !(Number(item.updatedAt) > 0) || !(Number(item.revision) >= 1) || !String(item._backupHash || '')) {
+          throw new Error(`Local data integrity check failed: ${kind} record ${id} has incomplete revision metadata.`);
+        }
+        if (kind === 'feeding' && (!Number.isFinite(Number(item.endedAt)) || Number(item.endedAt) <= eventTime)) {
+          throw new Error(`Local data integrity check failed: feeding record ${id} has an invalid end time.`);
+        }
+        if (kind === 'sleep' && (!Number.isFinite(Number(item.endedAt)) || Number(item.endedAt) <= Number(item.startedAt))) {
+          throw new Error(`Local data integrity check failed: sleep record ${id} has an invalid end time.`);
+        }
+        if (kind === 'growth' && !['weight','height','headCirc'].some(field => item[field] != null && Number.isFinite(Number(item[field])) && Number(item[field]) > 0)) {
+          throw new Error(`Local data integrity check failed: growth record ${id} has no valid measurement.`);
+        }
+      }
+    }
+    if (snapshot.activeSleepStart != null && (!Number.isFinite(Number(snapshot.activeSleepStart)) || Number(snapshot.activeSleepStart) <= 0)) {
+      throw new Error('Local data integrity check failed: active sleep has an invalid start time.');
+    }
+    if (snapshot.activeFeed && (!(Number(snapshot.activeFeed.startedAt) > 0)
+      || !Number.isFinite(Number(snapshot.activeFeed.leftMs)) || !Number.isFinite(Number(snapshot.activeFeed.rightMs)))) {
+      throw new Error('Local data integrity check failed: active feeding timer is incomplete.');
+    }
+    if (snapshot.sync?.pendingBackup) {
+      const pending = snapshot.sync.pendingBackup;
+      if (!pending.name || !/\.csv$/i.test(pending.name) || !pending.csv || !pending.payloadHash
+        || !Array.isArray(pending.recordIds) || !Array.isArray(pending.records)
+        || pending.recordIds.length !== pending.recordCount || pending.records.length !== pending.recordCount
+        || pending.records.some((record, index) => String(record.id) !== String(pending.recordIds[index]) || !record.fingerprint)) {
+        throw new Error('Local data integrity check failed: pending Drive backup is incomplete.');
+      }
+    }
+    return true;
+  }
+
   function writeDatabaseState(snapshot) {
     return new Promise((resolve, reject) => {
       let transaction;
       try { transaction = db.transaction(DB_STORE, 'readwrite'); }
-      catch (error) { reject(error); return; }
-      transaction.objectStore(DB_STORE).put({ ...snapshot, id: DB_RECORD_ID, savedAt: Date.now() });
+      catch (error) {
+        if (error?.name === 'InvalidStateError' || error?.name === 'NotFoundError') db = null;
+        reject(error); return;
+      }
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error || new Error('Could not save data to IndexedDB.'));
       transaction.onabort = () => reject(transaction.error || new Error('Saving data was interrupted.'));
+      try {
+        transaction.objectStore(DB_STORE).put({ ...snapshot, id: DB_RECORD_ID, savedAt: Date.now() });
+      } catch (error) {
+        try { transaction.abort(); } catch (_) {}
+        reject(error);
+      }
     });
   }
 
@@ -1073,6 +1271,7 @@
     state.mealHistory = Array.isArray(saved.mealHistory) ? saved.mealHistory : [];
     state.activeSleepStart = Number(saved.activeSleepStart) || null;
     state.sync = normalizeSync(saved.sync);
+    state.leftMs = 0; state.rightMs = 0; state.active = null; state.startedAt = null; state.segmentStartedAt = null;
     if (saved.activeFeed && typeof saved.activeFeed === 'object') {
       state.leftMs = Math.max(0, Number(saved.activeFeed.leftMs) || 0);
       state.rightMs = Math.max(0, Number(saved.activeFeed.rightMs) || 0);
@@ -1106,25 +1305,50 @@
     el.classList.toggle('warning', warning);
   }
 
+  function storageReadyMessage() {
+    return persistentStorageEnabled
+      ? 'Saved on this device with IndexedDB · persistent storage enabled'
+      : 'Saved on this device with IndexedDB · browser storage can still be cleared';
+  }
+
+  function storageFailureMessage(error) {
+    const name = String(error?.name || '');
+    if (name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+      return 'Could not save: browser storage is full. Export your CSV and free up device storage before continuing.';
+    }
+    if (storageReadFailed) return 'Could not safely read existing local data. Saving is paused to avoid overwriting it.';
+    return `Could not save changes to this device: ${error?.message || 'unknown IndexedDB error'}. Keep this page open and try again.`;
+  }
+
   async function initializeStorage() {
     try {
-      db = await openDatabase();
-      const saved = await readDatabaseState();
+      await ensureDatabaseConnection();
+      let saved;
+      try { saved = await readDatabaseState(); }
+      catch (error) {
+        storageReadFailed = true;
+        throw error;
+      }
       if (saved) applySavedState(saved);
-      let persistent = false;
+      reconcileRecordMetadata(true); // one-time migration for records created before revision metadata existed
+
       try {
-        if (navigator.storage?.persisted) persistent = await navigator.storage.persisted();
-        if (!persistent && navigator.storage?.persist) persistent = await navigator.storage.persist();
+        if (navigator.storage?.persisted) persistentStorageEnabled = await navigator.storage.persisted();
+        if (!persistentStorageEnabled && navigator.storage?.persist) {
+          persistentStorageEnabled = await navigator.storage.persist();
+        }
       } catch (_) {
-        // Persistent-storage requests are optional; IndexedDB still works without a grant.
+        persistentStorageEnabled = false;
       }
 
-      setStorageStatus(persistent
-        ? 'Saved on this device with IndexedDB · persistent storage enabled'
-        : 'Saved on this device with IndexedDB · browser storage can still be cleared');
+      setStorageStatus(storageReadyMessage());
+      const migrationSaved = await persistExtended();
+      if (!migrationSaved) console.warn('Little Feed opened, but the initial local migration could not be saved.');
     } catch (error) {
-      db = null;
-      setStorageStatus('IndexedDB is unavailable here. Changes may not persist; open this app in a regular Safari tab or add it to your Home Screen.', true);
+      if (!db) {
+        storageReadFailed = true; // Without a completed read, never risk writing over an unknown existing snapshot.
+        setStorageStatus('IndexedDB could not be opened. Local changes are not saved; export CSV and reload when browser storage is available.', true);
+      } else setStorageStatus(storageFailureMessage(error), true);
       console.warn('Little Feed storage initialization failed:', error);
     }
   }
@@ -1144,7 +1368,7 @@
   let syncBusy = false, gisPromise = null, tokenClient = null, pendingToken = null;
   let accessToken = null, tokenExpiry = 0, account = null;
 
-  function hashText(s) { // cyrb53: deterministic fallback ID fingerprint for older CSV rows
+  function hashText(s) { // compact deterministic hash for record content and legacy CSV fallback IDs
     let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
     for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); }
     h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
@@ -1153,12 +1377,20 @@
   }
   function normalizeSync(s) {
     const o = s && typeof s === 'object' ? s : {};
-    // Backup files are intentionally re-scanned on every load so manually deleted
-    // local records can always be restored from Drive. No per-file imported flag.
-    return { lastBackupAt:Number(o.lastBackupAt) || 0, lastLoadAt:Number(o.lastLoadAt) || 0 };
+    const pending = o.pendingBackup && typeof o.pendingBackup === 'object' ? o.pendingBackup : null;
+    const pendingBackup = pending && typeof pending.name === 'string' && typeof pending.csv === 'string'
+      && typeof pending.payloadHash === 'string' && Array.isArray(pending.recordIds)
+      ? {name:pending.name, csv:pending.csv, payloadHash:pending.payloadHash,
+          recordCount:Math.max(0, Number(pending.recordCount) || 0), recordIds:pending.recordIds.map(String),
+          records:Array.isArray(pending.records) ? pending.records.filter(record => record && record.id != null).map(record => ({id:String(record.id), fingerprint:String(record.fingerprint || '')})) : [],
+          createdAt:Number(pending.createdAt) || Date.now()}
+      : null;
+    return {lastBackupAt:Number(o.lastBackupAt) || 0, lastLoadAt:Number(o.lastLoadAt) || 0, pendingBackup};
   }
   function snapshotSync() {
-    return { lastBackupAt:state.sync.lastBackupAt, lastLoadAt:state.sync.lastLoadAt };
+    const pending = state.sync.pendingBackup;
+    return {lastBackupAt:state.sync.lastBackupAt, lastLoadAt:state.sync.lastLoadAt,
+      pendingBackup:pending ? {...pending, recordIds:[...pending.recordIds], records:(pending.records || []).map(record => ({...record}))} : null};
   }
 
   // Every record has one globally unique, persistent ID. Missing/duplicate IDs are repaired locally.
@@ -1168,7 +1400,7 @@
     for (const kind of Object.keys(RECORD_COLLECTIONS)) {
       for (const rec of state[RECORD_COLLECTIONS[kind]]) {
         if (!rec || typeof rec !== 'object') continue;
-        let id = rec.id == null ? '' : String(rec.id);
+        let id = rec.id == null ? '' : String(rec.id).trim();
         if (!id || used.has(id)) {
           id = `${kind}-${now}-${Math.random().toString(36).slice(2, 10)}`;
           while (used.has(id)) id = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -1272,8 +1504,11 @@
     const boundary = 'lf' + Math.random().toString(36).slice(2);
     const meta = JSON.stringify({ name, parents: [cfg.folderId], mimeType });
     const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mimeType}; charset=UTF-8\r\n\r\n${text}\r\n--${boundary}--`;
-    await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,createdTime',
+    const response = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,createdTime',
       { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
+    const created = await response.json();
+    if (!created?.id) throw new Error('Google Drive did not return a file ID after upload. The backup may exist; retrying will check its timestamped filename before uploading again.');
+    return created;
   }
   function backupFilenameTimestamp(file) {
     const match = /^littlefeed-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(\d{3})?Z?/i.exec(String(file.name || ''));
@@ -1314,56 +1549,136 @@
     return out;
   }
 
-  function compareBackupEntries(a, b) {
-    return Number(a.timestamp) - Number(b.timestamp) || String(a.id || '').localeCompare(String(b.id || ''));
+  function compareBackupRevision(a, b) {
+    return Number(a.updatedAt) - Number(b.updatedAt) || Number(a.revision) - Number(b.revision);
   }
 
-  async function latestBackedUpEntry(files) {
-    // The newest CSV is an append-only segment. Read it first and use its final data row
-    // as the cursor. An empty (headers-only) file falls back to the previous non-empty one.
-    for (let i = files.length - 1; i >= 0; i--) {
-      const file = files[i];
+  async function readDriveBackupIndex(files) {
+    const downloads = await mapPool(files, 4, async file => {
       const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&supportsAllDrives=true`);
       const parsed = parseBackupCsv(await response.text());
-      if (parsed.entries.length) return parsed.entries[parsed.entries.length - 1];
+      if (parsed.invalid || parsed.unsupported) {
+        throw new Error(`contains ${parsed.invalid} invalid and ${parsed.unsupported} unsupported row(s)`);
+      }
+      return parsed;
+    });
+    const index = new Map(), failed = [];
+    for (let i = 0; i < files.length; i++) {
+      const result = downloads[i];
+      if (result.e) { failed.push(`${files[i].name}: ${result.e.message}`); continue; }
+      for (const entry of result.v.entries) {
+        if (!entry.id) continue;
+        const candidate = {...entry, fileName:files[i].name};
+        const previous = index.get(entry.id);
+        if (!previous || compareBackupRevision(candidate, previous) >= 0) index.set(entry.id, candidate);
+      }
     }
-    return null;
+    if (failed.length) {
+      throw new Error(`Cannot safely create an incremental backup because ${failed.length} existing CSV file(s) could not be read. No new backup was uploaded.\n${failed.slice(0,3).join('\n')}${failed.length > 3 ? `\n…and ${failed.length - 3} more` : ''}`);
+    }
+    return index;
   }
 
-  // --- Backup: create a new CSV containing only records after the last row already in Drive. ---
+  async function verifyDriveBackup(fileId, pending) {
+    const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`);
+    const downloaded = await response.text();
+    if (hashText(downloaded) !== pending.payloadHash) throw new Error('The uploaded CSV could not be verified: its downloaded contents do not match the upload. The pending backup has been kept for retry.');
+    const parsed = parseBackupCsv(downloaded);
+    if (parsed.invalid || parsed.unsupported) throw new Error(`The uploaded CSV verification found ${parsed.invalid} invalid and ${parsed.unsupported} unsupported row(s). The pending backup has been kept for retry.`);
+    if (!Array.isArray(pending.records) || pending.records.length !== pending.recordCount || pending.recordIds.length !== pending.recordCount) {
+      throw new Error('The pending upload manifest is incomplete. It has been kept for retry.');
+    }
+    if (parsed.entries.length !== pending.recordCount) throw new Error(`The uploaded CSV verification found ${parsed.entries.length} records instead of ${pending.recordCount}. The pending backup has been kept for retry.`);
+    const actual = new Map(parsed.entries.map(entry => [entry.id, entry.fingerprint]));
+    for (const record of pending.records) {
+      if (actual.get(record.id) !== record.fingerprint) throw new Error(`The uploaded CSV is missing or has a changed record (${record.id}). The pending backup has been kept for retry.`);
+    }
+    return true;
+  }
+
+  async function finishPendingBackup() {
+    const pending = state.sync.pendingBackup;
+    if (!pending) return false;
+    const existingFiles = await driveListBackups();
+    const sameNameFiles = existingFiles.filter(file => file.name === pending.name);
+    let verifiedExisting = false, lastVerifyError = null;
+    for (const file of sameNameFiles) {
+      try { await verifyDriveBackup(file.id, pending); verifiedExisting = true; break; }
+      catch (error) { lastVerifyError = error; }
+    }
+    if (!verifiedExisting) {
+      if (sameNameFiles.length) throw new Error(`A Drive file named ${pending.name} already exists but does not match the pending upload. No duplicate was created. ${lastVerifyError?.message || ''}`);
+      const uploaded = await driveUpload(pending.name, pending.csv, 'text/csv');
+      await verifyDriveBackup(uploaded.id, pending);
+    }
+
+    const previousPending = state.sync.pendingBackup;
+    const previousBackupAt = state.sync.lastBackupAt;
+    for (const id of pending.recordIds) {
+      for (const collection of Object.values(RECORD_COLLECTIONS)) {
+        const item = state[collection].find(record => String(record.id) === id);
+        if (item) item._backupLegacy = false;
+      }
+    }
+    state.sync.pendingBackup = null;
+    state.sync.lastBackupAt = Date.now();
+    const saved = await persistExtended();
+    if (!saved) {
+      state.sync.pendingBackup = previousPending;
+      state.sync.lastBackupAt = previousBackupAt;
+      throw new Error('The Drive CSV was uploaded and verified, but the local backup status could not be saved. The pending upload has been retained; run Backup again to verify it without creating a duplicate.');
+    }
+    showToast(`Backed up and verified ${pending.recordCount} record${pending.recordCount === 1 ? '' : 's'} in ${pending.name}`);
+    return true;
+  }
+
+  // --- Backup: append new or changed record revisions, not just later event timestamps. ---
   async function backupToDrive() {
     ensureConfig();
-    ensureRecordIds();
-    persistExtended();
-    await saveChain;
+    if (!await persistExtended()) throw new Error('Backup stopped because local changes could not be saved first. Check the storage warning and retry.');
     await ensureToken();
 
-    showToast('Checking the latest Drive backup…');
+    if (state.sync.pendingBackup) {
+      showToast('Finishing the previous verified backup…');
+      await finishPendingBackup();
+      return;
+    }
+
+    showToast('Checking existing Drive backups…');
     const existingFiles = await driveListBackups();
-    const cursor = existingFiles.length ? await latestBackedUpEntry(existingFiles) : null;
+    const remoteIndex = existingFiles.length ? await readDriveBackupIndex(existingFiles) : new Map();
     const records = collectCsvRecords(false); // only finalized records are backed up; in-progress timers can change
-    const newRecords = cursor
-      ? records.filter(record => {
-          const entry = {timestamp:record.start, id:record.id};
-          const completedOpenSleep = cursor.open && cursor.type === 'sleep' && record.id === cursor.id &&
-            record.start === Number(cursor.timestamp) && !!String(record.row[4] || '').trim();
-          return compareBackupEntries(entry, cursor) > 0 || completedOpenSleep;
-        })
-      : records;
+    const newRecords = [], conflicts = [];
+    for (const record of records) {
+      const remote = remoteIndex.get(record.id);
+      if (!remote) { newRecords.push(record); continue; }
+      if (record.fingerprint === remote.fingerprint) continue;
+      const localIsNewer = record.updatedAt > remote.updatedAt || record.revision > remote.revision;
+      const migratedLegacyEdit = record.legacy && record.revision <= 1 && remote.revision <= 1 && record.updatedAt >= remote.updatedAt;
+      if (localIsNewer || migratedLegacyEdit) newRecords.push(record);
+      else conflicts.push(record.id);
+    }
 
     if (!newRecords.length) {
-      showToast('No newer records to back up');
+      showToast(conflicts.length
+        ? `No backup created · ${conflicts.length} record conflict(s) need restoring first`
+        : 'No new or changed records to back up');
+      if (conflicts.length) alert(`${conflicts.length} local record(s) differ from a newer Drive revision. No backup was created to avoid overwriting newer data. Load from Drive before editing those records on this device.`);
       return;
     }
 
     const csv = serializeCsvRecords(newRecords);
     const timestamp = Math.max(Date.now(), Number(existingFiles[existingFiles.length - 1]?.backupTimestamp || 0) + 1);
     const name = `${BACKUP_PREFIX}${backupFilenameStamp(timestamp)}.csv`;
-    showToast(`Backing up ${newRecords.length} new record${newRecords.length === 1 ? '' : 's'}…`);
-    await driveUpload(name, csv, 'text/csv');
-    state.sync.lastBackupAt = Date.now();
-    persistExtended(); await saveChain;
-    showToast(`Backed up ${newRecords.length} new records to ${name}`);
+    state.sync.pendingBackup = {
+      name, csv, payloadHash:hashText(csv), recordCount:newRecords.length,
+      recordIds:newRecords.map(record => record.id),
+      records:newRecords.map(record => ({id:record.id, fingerprint:record.fingerprint})),
+      createdAt:Date.now()
+    };
+    if (!await persistExtended()) throw new Error('Backup was not uploaded because its retry-safe upload record could not be saved locally. Check browser storage and retry.');
+    showToast(`Backing up ${newRecords.length} new or changed record${newRecords.length === 1 ? '' : 's'}…`);
+    await finishPendingBackup();
   }
 
   function parseBackupCsv(text) {
@@ -1375,23 +1690,28 @@
       throw new Error('The file does not contain the required Type and Timestamp/Date columns.');
     }
     const value = (row, name) => { const i = col(name); return i < 0 ? '' : String(row[i] ?? '').trim(); };
+    const hasRevisionMetadata = col('Created At') >= 0 && col('Updated At') >= 0 && col('Revision') >= 0;
     const parsed = {entries:[], feeds:[], sleeps:[], growth:[], meals:[], openSleeps:[], unsupported:0, invalid:0};
     const now = Date.now();
     for (const row of rows.slice(1)) {
       if (!row.length || row.every(cell => String(cell ?? '').trim() === '')) continue;
-      const result = parseCsvRecordRow(row, value, {idMode:'backup', allowOpenFeed:false, now});
+      const result = parseCsvRecordRow(row, value, {idMode:'backup', allowOpenFeed:false, now, hasRevisionMetadata});
       if (result.status === 'unsupported') { parsed.unsupported++; continue; }
       if (result.status === 'invalid') { parsed.invalid++; continue; }
       if (result.status === 'open-sleep') {
         parsed.openSleeps.push(result.item);
-        parsed.entries.push({timestamp:result.start, id:result.item.id, type:result.type, open:true});
+        parsed.entries.push({timestamp:result.start, id:result.item.id, type:result.type, open:true,
+          updatedAt:Number(result.item.updatedAt) || result.start, revision:Number(result.item.revision) || 1,
+          fingerprint:result.item._backupHash, legacy:!!result.item._backupLegacy});
         continue;
       }
       const target = result.type === 'breast' ? parsed.feeds
         : result.type === 'sleep' ? parsed.sleeps
         : result.type === 'growth' ? parsed.growth : parsed.meals;
       target.push(result.item);
-      parsed.entries.push({timestamp:result.start, id:result.item.id, type:result.type});
+      parsed.entries.push({timestamp:result.start, id:result.item.id, type:result.type,
+        updatedAt:Number(result.item.updatedAt) || result.start, revision:Number(result.item.revision) || 1,
+        fingerprint:result.item._backupHash, legacy:!!result.item._backupLegacy});
     }
     return parsed;
   }
@@ -1426,7 +1746,9 @@
   }
 
   async function loadFromDrive() {
+    if (!await persistExtended()) throw new Error('Restore stopped because existing local changes could not be saved first. Check the storage warning and retry.');
     await ensureToken();
+    const rollbackSnapshot = persistedStateSnapshot();
     showToast('Checking Drive for CSV backups…');
     // Always inspect every CSV. A file may need to restore a record that was
     // imported previously and subsequently deleted from this device.
@@ -1453,7 +1775,12 @@
 
     sortRecordHistories();
     state.sync.lastLoadAt = Date.now();
-    persistExtended(); await saveChain;
+    const restoreSaved = await persistExtended();
+    if (!restoreSaved) {
+      applySavedState(rollbackSnapshot);
+      render();
+      throw new Error('Drive records were read, but the local database could not save them. The pre-restore local data has been restored in memory; check browser storage and try again.');
+    }
     render(); refreshTimelineColumnHistoryIfOpen();
     showToast(`Loaded ${counts.added} new records · skipped ${counts.duplicates} already present`);
     if (failed.length) {
@@ -2506,7 +2833,7 @@
     const startedAt = sleepStartPreview ?? state.activeSleepStart;
     sleepStartPreview = null;
     const item = {
-      id: `sleep-${Math.trunc(startedAt)}`,
+      id: `sleep-${Math.trunc(state.activeSleepStart)}`,
       startedAt,
       endedAt: now,
       durationMs: Math.max(0, now - startedAt)
@@ -2535,14 +2862,39 @@
     persistExtended(); render(); showToast('Feed saved — you’re doing great 🤍');
   }
   function persistExtended() {
-    ensureRecordIds(); // assign stable record ids; deletions are not synchronized
-    if (!db) return;
+    reconcileRecordMetadata(); // assign IDs/revisions and detect any record edit before snapshotting
     const snapshot = persistedStateSnapshot();
-    saveChain = saveChain.then(() => writeDatabaseState(snapshot)).catch(error => {
+    lastFailedSnapshot = snapshot;
+    const write = async () => {
+      if (storageReadFailed) throw new Error('Existing saved data could not be read. Saving is paused to protect the database from being overwritten.');
+      validatePersistedStateSnapshot(snapshot);
+      await ensureDatabaseConnection();
+      await writeDatabaseState(snapshot);
+      lastFailedSnapshot = null;
+      lastSaveError = null;
+      setStorageStatus(storageReadyMessage());
+      return true;
+    };
+    const operation = saveChain.then(write, write).catch(error => {
+      const firstFailure = !lastSaveError || lastSaveError.message !== error.message;
+      lastSaveError = error;
+      lastFailedSnapshot = snapshot; // Keep the latest recoverable in-memory snapshot for a later retry.
+      setStorageStatus(storageFailureMessage(error), true);
       console.warn('Little Feed could not save to IndexedDB:', error);
-      setStorageStatus('Could not save changes to IndexedDB. Keep this page open and check browser storage settings.', true);
+      if (firstFailure) showToast('Could not save locally · your changes remain open for retry');
+      return false;
     });
+    saveChain = operation;
+    return operation;
   }
+
+  function retryPendingSave() {
+    if (lastFailedSnapshot) persistExtended();
+  }
+  window.addEventListener('online', retryPendingSave);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') retryPendingSave();
+  });
   function reset() {
     if (totalElapsed() && !confirm('Reset this timer without saving the feed?')) return;
     state.leftMs = 0; state.rightMs = 0; state.active = null; state.startedAt = null; state.segmentStartedAt = null;
