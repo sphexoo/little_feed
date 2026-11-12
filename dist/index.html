@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#f8f5f0">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,6 +19,8 @@
     --feed-tint: #f3f7f1; --feed-tint-strong: #edf4eb; --sleep-tint: #eff7fc; --sleep-tint-strong: #e2f1fa; --sleep-accent: #4d84ab; --sleep-accent-dark: #2e6287; --sleep-accent-light: #dceefa; --sleep-accent-mid: #9dc8e5; --sleep-accent-border: #c7e0ef; --line: #ece7df; --shadow: 0 10px 30px rgba(67, 61, 49, .06); --meal-tint:#fdf6ee; --meal-tint-strong:#fbeedd; --meal-accent:#c9894f; --meal-accent-dark:#8f5a2c; --meal-accent-light:#f7e4cd; --meal-accent-mid:#e5b98a; --meal-accent-border:#efd6b8;
   }
   * { box-sizing: border-box; }
+  /* Keep mobile gestures for scrolling, but prevent page pinch-zoom. */
+  html, body { touch-action: pan-x pan-y; }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
   button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .app { width: min(100%, 520px); min-height: 100dvh; margin: 0 auto; padding: max(22px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom)); }
