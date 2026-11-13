@@ -619,14 +619,15 @@
   };
   let selectedTrendDays = 1;
   let selectedGrowthSeries = 'weight';
-  let lastTrendsRenderSecond = -1;
   let toastTimer = null;
   let lastHistoryToggle = null;
-  let lastTimelineRenderSecond = -1;
   let editorContext = null;
   let sleepStartPreview = null;
   let selectedTimelineDayStart = null;
   let lastTimelineCursorDateKey = '';
+  let lastAgingDisplayMinute = -1;
+  let lastActiveTimelineMinute = -1;
+  let lastActiveTrendsMinute = -1;
 
   const DB_NAME = 'LittleFeedDatabase';
   const DB_VERSION = 1;
@@ -2152,29 +2153,45 @@
     render();
     showToast(`${capitalize(side)} side ${deltaMinutes > 0 ? '+1' : '−1'} minute`);
   }
-  // UI rendering. Renderers read state but do not mutate stored records.
-  function render() {
+  // Refresh only the live timer controls. This function is safe to call every second: it
+  // does not rebuild record lists, charts, history or other large DOM sections.
+  function renderLiveTimers(refreshAgingLabels = false) {
     const left = elapsed('left'), right = elapsed('right');
-    $('leftTime').textContent = fmt(left); $('rightTime').textContent = fmt(right);
-    $('mainClock').textContent = fmt(totalElapsed());
+    const total = left + right;
+    $('leftTime').textContent = fmt(left);
+    $('rightTime').textContent = fmt(right);
+    $('mainClock').textContent = fmt(total);
     $('leftBtn').classList.toggle('active', state.active === 'left');
     $('rightBtn').classList.toggle('active', state.active === 'right');
     $('leftTile').classList.toggle('active', state.active === 'left');
     $('rightTile').classList.toggle('active', state.active === 'right');
     $('leftBtn').querySelector('.side-hint').textContent = state.active === 'left' ? 'Currently feeding' : (left ? 'Tap to switch / resume' : 'Tap to start');
     $('rightBtn').querySelector('.side-hint').textContent = state.active === 'right' ? 'Currently feeding' : (right ? 'Tap to switch / resume' : 'Tap to start');
-    $('statusPill').textContent = state.active ? `FEEDING · ${state.active.toUpperCase()}` : (totalElapsed() ? 'TIMER PAUSED' : 'READY WHEN YOU ARE');
-    renderFeedCaption();
-    $('finishBtn').disabled = totalElapsed() === 0;
-    $('finishBtn').style.opacity = totalElapsed() === 0 ? '.55' : '1';
-    renderLast(); renderHistory(); renderSleep(); renderSleepHistory(); renderMeal(); renderMealHistory(); renderGrowth();
+    $('statusPill').textContent = state.active ? `FEEDING · ${state.active.toUpperCase()}` : (total ? 'TIMER PAUSED' : 'READY WHEN YOU ARE');
+    $('finishBtn').disabled = total === 0;
+    $('finishBtn').style.opacity = total === 0 ? '.55' : '1';
+    renderSleep(false);
+    if (refreshAgingLabels) {
+      renderFeedCaption();
+      if (!state.activeSleepStart) renderAwakeCaption();
+      renderMeal();
+      lastAgingDisplayMinute = Math.floor(Date.now() / 60000);
+    }
+  }
+
+  // Full render is reserved for actual state/UI changes, not the one-second timer tick.
+  function render() {
+    renderLiveTimers(true);
+    renderLast();
+    renderHistory();
+    renderSleepHistory();
+    renderMealHistory();
+    renderGrowth();
     if (!$('timelinePanel').hidden) {
-      const second = Math.floor(Date.now() / 1000);
-      if (second !== lastTimelineRenderSecond) { lastTimelineRenderSecond = second; renderTimeline(); }
+      renderTimeline();
     }
     if (!$('trendsPanel').hidden) {
-      const second = Math.floor(Date.now() / 1000);
-      if (second !== lastTrendsRenderSecond) { lastTrendsRenderSecond = second; renderTrends(); }
+      renderTrends();
     }
   }
   function elapsedAgeLabel(milliseconds) {
@@ -2347,12 +2364,14 @@
         if (item.leftMs > 0) parts.push(`Left ${fmt(item.leftMs)}`);
         if (item.rightMs > 0) parts.push(`Right ${fmt(item.rightMs)}`);
       }
-      const last = item.lastSide ? `${capitalize(item.lastSide)} was last` : (item.importedSide === 'both' ? 'Last side not specified in CSV' : 'Side not recorded');
+      const lastSide = item.lastSide == null ? '' : String(item.lastSide);
+      const last = lastSide ? `${capitalize(lastSide)} was last` : (item.importedSide === 'both' ? 'Last side not specified in CSV' : 'Side not recorded');
+      const id = safeAttr(item.id);
       return `<article class="card history-item">
         <div class="history-mark">🍼</div>
-        <div class="history-main"><div class="history-date">${dateText}</div><div class="history-meta">${parts.join(' · ') || 'Duration not recorded'}<br>${last}</div></div>
-        <div class="history-duration">${fmt(item.totalMs)}<small>total</small></div>
-        <div class="record-actions"><button class="edit-record" type="button" data-edit-feed="${item.id}">Edit</button><button class="delete" type="button" aria-label="Delete feed" data-delete="${item.id}">Delete</button></div>
+        <div class="history-main"><div class="history-date">${safeHtml(dateText)}</div><div class="history-meta">${safeHtml(parts.join(' · ') || 'Duration not recorded')}<br>${safeHtml(last)}</div></div>
+        <div class="history-duration">${safeHtml(fmt(item.totalMs))}<small>total</small></div>
+        <div class="record-actions"><button class="edit-record" type="button" data-edit-feed="${id}">Edit</button><button class="delete" type="button" aria-label="Delete feed" data-delete="${id}">Delete</button></div>
       </article>`;
     }).join('');
   }
@@ -2385,7 +2404,7 @@
     const ratio = Math.max(0, Math.min(1, Number(minutes) / SLEEP_SLIDER_MAX_MINUTES));
     return Math.round(Math.sqrt(ratio) * SLEEP_SLIDER_STEPS);
   }
-  function renderSleep() {
+  function renderSleep(updateAwakeCaption = true) {
     const sleeping = !!state.activeSleepStart;
     const now = Date.now();
     const displayStart = sleeping ? (sleepStartPreview ?? Number(state.activeSleepStart)) : null;
@@ -2395,7 +2414,7 @@
     if (sleeping) {
       $('sleepCaption').textContent = 'Adjust the start time below if you began tracking late.';
       $('sleepCaption').classList.remove('elapsed-state');
-    } else {
+    } else if (updateAwakeCaption) {
       renderAwakeCaption();
     }
     $('sleepStartRow').hidden = !sleeping;
@@ -2476,7 +2495,7 @@
         <div class="history-mark sleep-history-mark">🌙</div>
         <div class="history-main"><div class="history-date">${dateText}</div><div class="history-meta">${timeRange}${sameDay ? '' : ' · overnight'}</div></div>
         <div class="history-duration">${humanDuration(item.durationMs)}<small>asleep</small></div>
-        <div class="record-actions"><button class="edit-record" type="button" data-edit-sleep="${item.id}">Edit</button><button class="delete" type="button" aria-label="Delete sleep record" data-sleep-delete="${item.id}">Delete</button></div>
+        <div class="record-actions"><button class="edit-record" type="button" data-edit-sleep="${safeAttr(item.id)}">Edit</button><button class="delete" type="button" aria-label="Delete sleep record" data-sleep-delete="${safeAttr(item.id)}">Delete</button></div>
       </article>`;
     }).join('');
   }
@@ -2594,6 +2613,7 @@
     const oldScrollLeft = scroller.scrollLeft;
     const wasInitialized = state.timelineInitialized;
     const now = Date.now();
+    lastActiveTimelineMinute = Math.floor(now / 60000);
     const today = new Date(); today.setHours(0,0,0,0);
     const days = [];
     for (let i = state.timelineDaysCount - 1; i >= 0; i--) {
@@ -3014,6 +3034,7 @@
     </article>`;
   }
   function renderTrends() {
+    lastActiveTrendsMinute = Math.floor(Date.now() / 60000);
     const now = new Date();
     const days = selectedTrendDays;
     const currentWindow = trendWindow(days, now);
@@ -3068,8 +3089,8 @@
     $('trackTabBtn').tabIndex = track ? 0 : -1;
     $('timelineTabBtn').tabIndex = timeline ? 0 : -1;
     $('trendsTabBtn').tabIndex = trends ? 0 : -1;
-    if (timeline) { lastTimelineRenderSecond = Math.floor(Date.now() / 1000); renderTimeline(); }
-    if (trends) { lastTrendsRenderSecond = Math.floor(Date.now() / 1000); renderTrends(); }
+    if (timeline) renderTimeline();
+    if (trends) renderTrends();
   }
 
   // User actions for timers and record changes.
@@ -3166,8 +3187,11 @@
     const date = new Date(n);
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
   }
+  function safeHtml(value) {
+    return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
   function safeAttr(value) {
-    return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return safeHtml(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
   function editField(label, name, type, value, options = {}) {
     const full = options.full ? ' full' : '';
@@ -3488,7 +3512,6 @@
         option.setAttribute('aria-selected', String(option === button));
         option.tabIndex = option === button ? 0 : -1;
       });
-      lastTrendsRenderSecond = -1;
       renderTrends();
     };
     button.addEventListener('click', selectPeriod);
@@ -3707,12 +3730,17 @@
     render();
     setInterval(() => {
       updateTimelineNowCursor();
-      if (state.active || state.activeSleepStart) {
-        render();
-      } else {
+      renderLiveTimers(false);
+      const minute = Math.floor(Date.now() / 60000);
+      if (minute !== lastAgingDisplayMinute) {
         renderFeedCaption();
-        renderAwakeCaption();
+        if (!state.activeSleepStart) renderAwakeCaption();
         renderMeal();
+        lastAgingDisplayMinute = minute;
+      }
+      if (state.active || state.activeSleepStart) {
+        if (!$('timelinePanel').hidden && minute !== lastActiveTimelineMinute) renderTimeline();
+        if (!$('trendsPanel').hidden && minute !== lastActiveTrendsMinute) renderTrends();
       }
     }, 1000);
   });
