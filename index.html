@@ -625,6 +625,9 @@
   let sleepStartPreview = null;
   let selectedTimelineDayStart = null;
   let lastTimelineCursorDateKey = '';
+  // Day-keyed event index shared by the timeline and its day-detail view.
+  // Rebuilt whenever the visible timeline is rendered after a data change.
+  let timelineEventIndex = new Map();
   let lastAgingDisplayMinute = -1;
   let lastActiveTimelineMinute = -1;
   let lastActiveTrendsMinute = -1;
@@ -2605,6 +2608,66 @@
   }
 
   // Timeline rendering and horizontal history expansion.
+  // Each record is visited once and added only to the calendar-day buckets it overlaps.
+  // This replaces the previous per-day full scan of every event (O(days × records)).
+  function buildTimelineEventIndex(days, now) {
+    const byDay = new Map(days.map(day => [day.start.getTime(), []]));
+    const events = [];
+    let oldestEvent = Infinity;
+    if (!days.length) return {byDay, events, oldestEvent};
+
+    const rangeStart = days[0].start.getTime();
+    const rangeEnd = days[days.length - 1].end.getTime();
+    const add = event => {
+      if (!Number.isFinite(event.start) || !Number.isFinite(event.end) || event.end <= event.start) return;
+      events.push(event);
+      if (event.start < oldestEvent) oldestEvent = event.start;
+      // Skip indexing records outside the currently visible date range.
+      if (event.end <= rangeStart || event.start >= rangeEnd) return;
+
+      // Clamp old/long-running sessions to the visible range. Advance using
+      // calendar dates (not 24-hour milliseconds) to handle DST transitions.
+      const firstVisibleTimestamp = Math.max(event.start, rangeStart);
+      let day = new Date(firstVisibleTimestamp);
+      day.setHours(0, 0, 0, 0);
+      while (day.getTime() < event.end && day.getTime() < rangeEnd) {
+        const bucket = byDay.get(day.getTime());
+        if (bucket) bucket.push(event);
+        day.setDate(day.getDate() + 1);
+      }
+    };
+
+    state.sleepHistory.forEach(item => {
+      const start = Number(item.startedAt), end = Number(item.endedAt);
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start)
+        add({type:'sleep', kind:'sleep', start, end, label:'Sleep', id:item.id, item});
+    });
+    if (state.activeSleepStart) {
+      add({type:'sleep', kind:'active-sleep', start:Number(state.activeSleepStart), end:now,
+        label:'Sleep in progress', ongoing:true});
+    }
+
+    state.history.forEach(item => {
+      const end = Number(item.endedAt);
+      const start = Number(feedStartTimestamp(item));
+      if (Number.isFinite(start) && Number.isFinite(end) && end > start)
+        add({type:'feed', kind:'feed', start, end,
+          label:`Feeding · ${capitalize(item.lastSide || 'side')} was last`, id:item.id, item});
+    });
+    if (state.active && state.startedAt) {
+      add({type:'feed', kind:'active-feed', start:Number(state.startedAt), end:now,
+        label:`Feeding in progress · ${capitalize(state.active)} side`, ongoing:true});
+    }
+
+    state.mealHistory.forEach(item => {
+      const start = Number(item.startedAt);
+      if (Number.isFinite(start))
+        add({type:'meal', kind:'meal', start, end:start + MEAL_MS, label:'Meal', id:item.id, item});
+    });
+
+    return {byDay, events, oldestEvent};
+  }
+
   function renderTimeline() {
     const host = $('weekDiagram');
     const scroller = $('timelineScroller');
@@ -2622,29 +2685,9 @@
       days.push({start, end});
     }
 
-    const events = [];
-    state.sleepHistory.forEach(item => {
-      const start = Number(item.startedAt), end = Number(item.endedAt);
-      if (Number.isFinite(start) && Number.isFinite(end) && end > start)
-        events.push({type:'sleep', start, end, label:'Sleep', id:item.id});
-    });
-    if (state.activeSleepStart) {
-      events.push({type:'sleep', start:Number(state.activeSleepStart), end:now, label:'Sleep in progress', ongoing:true});
-    }
-    state.history.forEach(item => {
-      const end = Number(item.endedAt);
-      const start = Number(item.startedAt || (end - Number(item.totalMs || 0)));
-      if (Number.isFinite(start) && Number.isFinite(end) && end > start)
-        events.push({type:'feed', start, end, label:`Feeding · ${capitalize(item.lastSide || 'side')} was last`, id:item.id});
-    });
-    if (state.active && state.startedAt) {
-      events.push({type:'feed', start:Number(state.startedAt), end:now, label:`Feeding in progress · ${capitalize(state.active)} side`, ongoing:true});
-    }
-
-    state.mealHistory.forEach(item => {
-      const start = Number(item.startedAt);
-      if (Number.isFinite(start)) events.push({type:'meal', start, end:start + MEAL_MS, label:'Meal', id:item.id});
-    });
+    const indexed = buildTimelineEventIndex(days, now);
+    timelineEventIndex = indexed.byDay;
+    const events = indexed.events;
 
     // Keep a fixed 24-hour vertical scale: midnight at the top, 24:00 at the bottom.
     const timeLabels = [];
@@ -2659,9 +2702,13 @@
     let sleepCount = 0, feedCount = 0, mealCount = 0;
     const cursorDateKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
     lastTimelineCursorDateKey = cursorDateKey;
-    const rows = days.map(({start:dayStart, end:dayEnd}) => {
-      const dayStartMs = dayStart.getTime(), dayEndMs = dayEnd.getTime();
-      const dayEvents = events.filter(e => e.end > dayStartMs && e.start < dayEndMs);
+    const clockNow = new Date(now);
+    const currentMinute = clockNow.getHours() * 60 + clockNow.getMinutes() + clockNow.getSeconds() / 60 + clockNow.getMilliseconds() / 60000;
+    const rows = days.map(({start:dayStart}) => {
+      const dayStartMs = dayStart.getTime();
+      const dayEvents = timelineEventIndex.get(dayStartMs) || [];
+      const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+      const dayEndMs = dayEnd.getTime();
       const plotBlocks = dayEvents.map(e => {
         const segStart = Math.max(e.start, dayStartMs);
         const segEnd = Math.min(e.end, dayEndMs);
@@ -2685,10 +2732,6 @@
         return `<span class="timeline-block ${e.type}${e.ongoing ? ' ongoing' : ''}" style="top:${topPct.toFixed(3)}%;height:${height.toFixed(3)}%" title="${title}" aria-label="${title}"></span>`;
       }).join('');
       const isToday = isSameDay(dayStart, today);
-      // `now` is the numeric render timestamp used for interval clipping; convert it
-      // before reading clock fields so the cursor cannot interrupt timeline rendering.
-      const clockNow = new Date(now);
-      const currentMinute = clockNow.getHours() * 60 + clockNow.getMinutes() + clockNow.getSeconds() / 60 + clockNow.getMilliseconds() / 60000;
       const nowCursor = isToday
         ? `<span class="timeline-now-line" style="top:${(currentMinute / 1440 * 100).toFixed(3)}%" title="Current time · ${clockNow.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}"></span>`
         : '';
@@ -2704,11 +2747,11 @@
 
     host.innerHTML = rows;
     const oldestDate = days[0].start;
-    const oldestEvent = events.reduce((min, e) => Math.min(min, e.start), Infinity);
+    const oldestEvent = indexed.oldestEvent;
     const canLoadEarlier = Number.isFinite(oldestEvent) && oldestEvent < oldestDate.getTime();
     scroller.dataset.canLoadEarlier = canLoadEarlier ? 'true' : 'false';
     $('timelineSummary').textContent = `${state.timelineDaysCount} days · ${sleepCount} sleep blocks · ${feedCount} feed blocks · ${mealCount} meals`;
-    const hasPeriodData = events.some(e => e.end > days[0].start.getTime() && e.start < days[days.length-1].end.getTime());
+    const hasPeriodData = days.some(day => (timelineEventIndex.get(day.start.getTime()) || []).length > 0);
     $('timelineEmpty').hidden = hasPeriodData;
 
     if (!wasInitialized) {
@@ -2724,19 +2767,9 @@
 
   function timelineEntriesForDay(dayStartMs) {
     const dayStart = Number(dayStartMs);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
-    const startLimit = dayStart;
-    const endLimit = dayEnd.getTime();
-    const entries = [];
-    const add = entry => {
-      if (Number.isFinite(entry.start) && Number.isFinite(entry.end) && entry.end > entry.start && entry.end > startLimit && entry.start < endLimit) entries.push(entry);
-    };
-    state.sleepHistory.forEach(item => add({kind:'sleep', id:item.id, item, start:Number(item.startedAt), end:Number(item.endedAt)}));
-    state.history.forEach(item => add({kind:'feed', id:item.id, item, start:Number(feedStartTimestamp(item)), end:Number(item.endedAt)}));
-    state.mealHistory.forEach(item => add({kind:'meal', id:item.id, item, start:Number(item.startedAt), end:Number(item.startedAt) + MEAL_MS}));
-    if (state.activeSleepStart) add({kind:'active-sleep', start:Number(state.activeSleepStart), end:Date.now(), ongoing:true});
-    if (state.active && state.startedAt) add({kind:'active-feed', start:Number(state.startedAt), end:Date.now(), ongoing:true});
+    const entries = (timelineEventIndex.get(dayStart) || []).map(event => ({
+      kind:event.kind, id:event.id, item:event.item, start:event.start, end:event.end, ongoing:!!event.ongoing
+    }));
     return entries.sort((a,b) => a.start-b.start || a.end-b.end || a.kind.localeCompare(b.kind));
   }
   function timelineEntryDateTime(timestamp) {
