@@ -50,6 +50,8 @@
   .header-menu-item { display:flex; align-items:center; gap:10px; width:100%; min-height:42px; padding:10px 11px; border:0; border-radius:10px; background:transparent; color:var(--ink); text-align:left; font-size:12px; font-weight:700; white-space:nowrap; }
   .header-menu-item:hover, .header-menu-item:focus-visible { outline:none; background:var(--sage-light); }
   .header-menu-icon { display:inline-grid; place-items:center; width:18px; color:var(--sage-dark); font-size:15px; }
+  .auto-backup-state { margin-left:auto; padding:3px 7px; border-radius:99px; background:#eee9e1; color:var(--muted); font-size:9px; font-weight:850; letter-spacing:.5px; }
+  .auto-backup-state.enabled { background:var(--sage-light); color:var(--sage-dark); }
   .drive-link { border:0; background:none; padding:0; color:var(--sage-dark); font:inherit; font-weight:750; text-decoration:underline; }
   .header-menu-note { padding:6px 11px 4px; color:var(--muted); font-size:10.5px; line-height:1.45; white-space:pre-line; overflow-wrap:anywhere; }
   .header-menu-separator { height:1px; margin:4px 5px; background:var(--line); }
@@ -341,8 +343,12 @@
           <button class="header-menu-item" id="menuRefreshAction" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↻</span>Update page</button>
           <div class="header-menu-separator" role="separator"></div>
           <button class="header-menu-item" id="driveSettingsBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">☁</span><span>Google Drive settings</span></button>
-          <button class="header-menu-item" id="driveBackupBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇧</span><span>Back up to Drive</span></button>
-          <button class="header-menu-item" id="driveLoadBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇩</span><span>Load from Drive</span></button>
+          <button class="header-menu-item" id="sheetsAutoBackupToggle" type="button" role="menuitemcheckbox" aria-checked="false"><span class="header-menu-icon" aria-hidden="true">◷</span><span>Automatic Sheets backup</span><span class="auto-backup-state" id="sheetsAutoBackupState">OFF</span></button>
+          <button class="header-menu-item" id="sheetsBackupBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇧</span><span>Back up to Google Sheets</span></button>
+          <button class="header-menu-item" id="sheetsLoadBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇩</span><span>Load from Google Sheets</span></button>
+          <div class="header-menu-separator" role="separator"></div>
+          <button class="header-menu-item" id="driveBackupBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">▤</span><span>Back up CSV archive to Drive</span></button>
+          <button class="header-menu-item" id="driveLoadBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">▥</span><span>Load CSV archives from Drive</span></button>
           <div class="header-menu-note" id="driveNote"></div>
           <div class="header-menu-separator" role="separator"></div>
           <button class="header-menu-item" id="importCsvBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↑</span>Import CSV</button>
@@ -596,13 +602,22 @@
     <div class="growth-chart-top"><div><div class="editor-kicker">Little Feed · Backup</div><h2 id="driveTitle">Google Drive</h2></div><button class="growth-chart-close" id="driveCloseBtn" type="button" aria-label="Close Google Drive settings">×</button></div>
     <form id="driveForm" novalidate autocomplete="off">
       <div class="editor-fields">
-        <div class="editor-field full"><label for="driveClientId">OAuth client ID</label><input id="driveClientId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="1234-abc.apps.googleusercontent.com"></div>
-        <div class="editor-field full"><label for="driveFolderId">Drive folder link or ID</label><input id="driveFolderId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://drive.google.com/drive/folders/…"></div>
+        <div class="editor-field full"><label for="driveClientId">Google OAuth client ID</label><input id="driveClientId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="1234-abc.apps.googleusercontent.com"></div>
+        <div class="editor-field full"><label for="driveFolderId">Drive folder link or ID (for CSV archives)</label><input id="driveFolderId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://drive.google.com/drive/folders/…"></div>
+        <div class="editor-field full"><label for="driveSpreadsheetId">Google Sheets spreadsheet link or ID (optional)</label><input id="driveSpreadsheetId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Leave blank to find or create Little Feed Backup"></div>
       </div>
-      <p class="editor-help"><span id="driveStatus"></span> <button class="drive-link" id="driveSignOutBtn" type="button" hidden>Sign out</button><br>Both values are kept only in this browser. Saving also signs you in to Google. Each backup creates a timestamped CSV containing new or changed records. Loading adds records whose IDs are not already on this device. Deletions are not synchronized; remove rows from Drive CSV files manually when needed.</p>
+      <p class="editor-help"><span id="driveStatus"></span> <button class="drive-link" id="driveSignOutBtn" type="button" hidden>Sign out</button><br>Settings are stored only in this browser. A single Google spreadsheet named “Little Feed Backup” is found or created in the selected folder and shared by devices using that folder. Enable the Google Sheets API in the same Google Cloud project as your OAuth client. Sheets backups append new record revisions; the existing CSV archive backup and restore remain available separately. Deletions are never synchronized.</p>
       <p class="editor-error" id="driveError" role="alert"></p>
       <div class="editor-actions"><button class="editor-cancel" id="driveCancelBtn" type="button">Cancel</button><button class="editor-save" type="submit">Save</button></div>
     </form>
+  </section>
+</div>
+<div class="growth-chart-backdrop" id="autoSheetsBackupBackdrop" hidden>
+  <section class="growth-chart-modal" role="dialog" aria-modal="true" aria-labelledby="autoSheetsBackupTitle">
+    <div class="growth-chart-top"><div><div class="editor-kicker">Little Feed · Daily backup</div><h2 id="autoSheetsBackupTitle">Backup is due</h2></div><button class="growth-chart-close" id="autoSheetsBackupCloseBtn" type="button" aria-label="Close backup reminder">×</button></div>
+    <p class="editor-help">Automatic Google Sheets backup is enabled on this device. The first app start after 12:00 each day asks you to authorize the backup. Google may show a sign-in or access prompt.</p>
+    <p class="editor-error" id="autoSheetsBackupError" role="alert"></p>
+    <div class="editor-actions"><button class="editor-cancel" id="autoSheetsBackupLaterBtn" type="button">Later</button><button class="editor-save" id="autoSheetsBackupNowBtn" type="button">Back up now</button></div>
   </section>
 </div>
 <div class="toast" id="toast" role="status"></div>
@@ -613,9 +628,9 @@
   const state = {
     history: [], leftMs: 0, rightMs: 0, active: null,
     startedAt: null, segmentStartedAt: null, lastSide: null,
-    sleepHistory: [], activeSleepStart: null, growthHistory: [], mealHistory: [],
+    sleepHistory: [], activeSleepStart: null, activeSleepId: null, growthHistory: [], mealHistory: [],
     timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false,
-    sync: { lastBackupAt: 0, lastLoadAt: 0 }
+    sync: { lastBackupAt: 0, lastLoadAt: 0, lastSheetsBackupAt: 0, pendingSheetBackup: null }
   };
   let selectedTrendDays = 1;
   let selectedGrowthSeries = 'weight';
@@ -861,6 +876,10 @@
     }
   }
 
+  function activeSleepRecordId() {
+    return state.activeSleepId || (state.activeSleepStart ? `sleep-${Math.trunc(Number(state.activeSleepStart))}` : '');
+  }
+
   function collectCsvRecords(includeActiveSleep = true) {
     reconcileRecordMetadata(); // assign stable ids and detect edits before building rows
     const records = [];
@@ -900,8 +919,10 @@
     if (includeActiveSleep && state.activeSleepStart) {
       const start = Number(state.activeSleepStart);
       if (Number.isFinite(start)) {
-        const id = `sleep-${Math.trunc(start)}`;
-        const activeRecord = {id, createdAt:start, updatedAt:start, revision:1};
+        const id = activeSleepRecordId() || `sleep-${Math.trunc(start)}`;
+        // Include the start time on the synthetic record so its semantic fingerprint
+        // matches the open-sleep CSV row and can be verified after Sheets restore.
+        const activeRecord = {id, start, createdAt:start, updatedAt:start, revision:1};
         const row = newCsvRow('sleep', start, null, null, '', id, activeRecord);
         records.push({start, id, row, fingerprint:recordDataFingerprint('sleep', activeRecord), updatedAt:start, revision:1, item:activeRecord});
       }
@@ -1110,7 +1131,7 @@
       const parsed = parseCsvRecordRow(row, value, {allowOpenFeed:true, now});
       if (parsed.status === 'unsupported') { unsupported++; continue; }
       if (parsed.status === 'invalid') { invalid++; continue; }
-      if (parsed.status === 'open-sleep') { openSleeps.push({start:parsed.start}); continue; }
+      if (parsed.status === 'open-sleep') { openSleeps.push({start:parsed.start, id:parsed.item?.id || `sleep-${Math.trunc(parsed.start)}`}); continue; }
       if (parsed.status === 'open-feed') { openFeeds.push({start:parsed.start, side:parsed.side}); continue; }
       if (parsed.type === 'breast') pendingFeeds.push(parsed.item);
       else if (parsed.type === 'sleep') pendingSleeps.push(parsed.item);
@@ -1157,7 +1178,7 @@
       state.growthHistory.push(item); addedGrowth++;
     }
     if (incomingOpenSleep) {
-      if (!state.activeSleepStart) state.activeSleepStart = incomingOpenSleep.start;
+      if (!state.activeSleepStart) { state.activeSleepStart = incomingOpenSleep.start; state.activeSleepId = incomingOpenSleep.id; }
       else duplicates++;
     }
     if (incomingOpenFeed) {
@@ -1284,6 +1305,15 @@
         throw new Error('Local data integrity check failed: pending Drive backup is incomplete.');
       }
     }
+    if (snapshot.sync?.pendingSheetBackup) {
+      const pending = snapshot.sync.pendingSheetBackup;
+      if (!pending.batchId || !pending.spreadsheetId || !Array.isArray(pending.rows)
+        || pending.rows.length !== pending.recordCount || !pending.recordCount || !pending.payloadHash
+        || hashText(JSON.stringify(pending.rows)) !== pending.payloadHash
+        || pending.rows.some(row => !Array.isArray(row) || row.length !== SHEET_RECORD_HEADERS.length || String(row[SHEET_BATCH_ID_COLUMN]) !== pending.batchId)) {
+        throw new Error('Local data integrity check failed: pending Google Sheets backup is incomplete.');
+      }
+    }
     return true;
   }
 
@@ -1316,6 +1346,9 @@
     state.growthHistory = Array.isArray(saved.growthHistory) ? saved.growthHistory : [];
     state.mealHistory = Array.isArray(saved.mealHistory) ? saved.mealHistory : [];
     state.activeSleepStart = Number(saved.activeSleepStart) || null;
+    state.activeSleepId = state.activeSleepStart
+      ? (typeof saved.activeSleepId === 'string' && saved.activeSleepId ? saved.activeSleepId : `sleep-${Math.trunc(state.activeSleepStart)}`)
+      : null;
     state.sync = normalizeSync(saved.sync);
     state.leftMs = 0; state.rightMs = 0; state.active = null; state.startedAt = null; state.segmentStartedAt = null;
     if (saved.activeFeed && typeof saved.activeFeed === 'object') {
@@ -1337,6 +1370,7 @@
       mealHistory: state.mealHistory.map(item => ({ ...item })),
       sync: snapshotSync(),
       activeSleepStart: state.activeSleepStart,
+      activeSleepId: state.activeSleepId || null,
       activeFeed: (state.startedAt || state.leftMs || state.rightMs || state.active) ? {
         leftMs: state.leftMs, rightMs: state.rightMs, active: state.active,
         startedAt: state.startedAt, segmentStartedAt: state.segmentStartedAt
@@ -1400,16 +1434,31 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Google Drive backups are timestamped incremental CSV revision files. Restore merges by ID and revision; deletions are never synced.
+  // Google Drive CSV archives remain available; the new Sheets backup appends revision rows to one shared spreadsheet. Restore merges by ID/revision; deletions are never synced.
   // ---------------------------------------------------------------------------
   // The OAuth client ID and shared folder ID are NOT in this file. They are asked for at first sign-in
   // and kept in this browser's localStorage only (menu: "Drive settings" changes them).
-  const CFG_KEYS = { clientId: 'littlefeed.googleClientId', folderId: 'littlefeed.driveFolderId' };
+  const CFG_KEYS = { clientId: 'littlefeed.googleClientId', folderId: 'littlefeed.driveFolderId', sheetId: 'littlefeed.sheetsSpreadsheetId' };
+  const AUTO_SHEETS_KEYS = { enabled:'littlefeed.autoSheetsBackupEnabled', lastDate:'littlefeed.autoSheetsBackupLastDate' };
   const readCfg = name => { try { return localStorage.getItem(CFG_KEYS[name]) || ''; } catch (_) { return ''; } };
-  const cfg = { clientId: readCfg('clientId'), folderId: readCfg('folderId') };
-  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
+  const cfg = { clientId: readCfg('clientId'), folderId: readCfg('folderId'), sheetId: readCfg('sheetId') };
+  const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'; // This scope is accepted by Sheets API methods used below.
   const RECORD_COLLECTIONS = { feed: 'history', sleep: 'sleepHistory', growth: 'growthHistory', meal: 'mealHistory' };
   const BACKUP_PREFIX = 'littlefeed-';
+  const SHEETS_SPREADSHEET_NAME = 'Little Feed Backup';
+  const SHEETS_RECORD_TAB = 'Records';
+  const SHEETS_BATCH_TAB = 'Batches';
+  const SHEET_RECORD_HEADERS = [...CSV_HEADERS, 'Backup Batch ID', 'Semantic Fingerprint'];
+  const SHEET_BATCH_HEADERS = ['Batch ID', 'Created At', 'Record Count', 'Payload Hash'];
+  const SHEET_BATCH_ID_COLUMN = CSV_HEADERS.length;
+  const SHEET_SEMANTIC_HASH_COLUMN = CSV_HEADERS.length + 1;
+  let sheetsMetaCache = null;
+  let autoSheetsPromptShownDate = '';
+  let resumeAutoSheetsBackupAfterSettings = false;
+  const autoSheetsBackupEnabled = () => { try { return localStorage.getItem(AUTO_SHEETS_KEYS.enabled) === '1'; } catch (_) { return false; } };
+  const setAutoSheetsBackupEnabled = enabled => { try { localStorage.setItem(AUTO_SHEETS_KEYS.enabled, enabled ? '1' : '0'); } catch (_) {} updateSyncMenu(); };
+  const autoSheetsBackupLastDate = () => { try { return localStorage.getItem(AUTO_SHEETS_KEYS.lastDate) || ''; } catch (_) { return ''; } };
+  const setAutoSheetsBackupLastDate = date => { try { localStorage.setItem(AUTO_SHEETS_KEYS.lastDate, date); } catch (_) {} };
   let syncBusy = false, gisPromise = null, tokenClient = null, pendingToken = null;
   let accessToken = null, tokenExpiry = 0, account = null;
 
@@ -1434,12 +1483,22 @@
           })) : [],
           createdAt:Number(pending.createdAt) || Date.now()}
       : null;
-    return {lastBackupAt:Number(o.lastBackupAt) || 0, lastLoadAt:Number(o.lastLoadAt) || 0, pendingBackup};
+    const sheetPending = o.pendingSheetBackup && typeof o.pendingSheetBackup === 'object' ? o.pendingSheetBackup : null;
+    const pendingSheetBackup = sheetPending && typeof sheetPending.batchId === 'string' && typeof sheetPending.spreadsheetId === 'string'
+      && Array.isArray(sheetPending.rows) && typeof sheetPending.payloadHash === 'string'
+      ? {batchId:sheetPending.batchId, spreadsheetId:sheetPending.spreadsheetId, createdAt:Number(sheetPending.createdAt) || Date.now(), hasConflicts:!!sheetPending.hasConflicts,
+          recordCount:Math.max(0, Number(sheetPending.recordCount) || 0), payloadHash:sheetPending.payloadHash,
+          rows:sheetPending.rows.map(row => Array.isArray(row) ? row.map(value => String(value ?? '')) : [])}
+      : null;
+    return {lastBackupAt:Number(o.lastBackupAt) || 0, lastLoadAt:Number(o.lastLoadAt) || 0,
+      lastSheetsBackupAt:Number(o.lastSheetsBackupAt) || 0, pendingBackup, pendingSheetBackup};
   }
   function snapshotSync() {
-    const pending = state.sync.pendingBackup;
+    const pending = state.sync.pendingBackup, sheetPending = state.sync.pendingSheetBackup;
     return {lastBackupAt:state.sync.lastBackupAt, lastLoadAt:state.sync.lastLoadAt,
-      pendingBackup:pending ? {...pending, recordIds:[...pending.recordIds], records:(pending.records || []).map(record => ({...record}))} : null};
+      lastSheetsBackupAt:state.sync.lastSheetsBackupAt || 0,
+      pendingBackup:pending ? {...pending, recordIds:[...pending.recordIds], records:(pending.records || []).map(record => ({...record}))} : null,
+      pendingSheetBackup:sheetPending ? {...sheetPending, rows:sheetPending.rows.map(row => [...row])} : null};
   }
 
   // Every record has one globally unique, persistent ID. Missing/duplicate IDs are repaired locally.
@@ -1467,18 +1526,33 @@
     const id = m ? m[1] : t;
     return /^[A-Za-z0-9_-]{10,}$/.test(id) ? id : '';
   }
-  function applyConfig(clientIdText, folderText) { // validates and stores; throws on invalid input
+  function parseSpreadsheetId(text) {
+    const value = String(text || '').trim();
+    if (!value) return '';
+    const match = value.match(/\/spreadsheets\/d\/([A-Za-z0-9_-]+)/) || value.match(/[?&]id=([A-Za-z0-9_-]+)/);
+    const id = match ? match[1] : value;
+    return /^[A-Za-z0-9_-]{20,}$/.test(id) ? id : '';
+  }
+  function applyConfig(clientIdText, folderText, spreadsheetText = '') { // validates and stores; throws on invalid input
     const clientId = String(clientIdText || '').trim();
     if (!/^[\w.-]+\.apps\.googleusercontent\.com$/.test(clientId)) throw new Error('That does not look like a Google OAuth client ID (it ends with .apps.googleusercontent.com).');
     const folderId = parseFolderId(folderText);
     if (!folderId) throw new Error('That does not look like a Google Drive folder link or ID.');
-    if (cfg.folderId && folderId !== cfg.folderId) { // new folder: reset the local file checkpoint
+    const spreadsheetId = parseSpreadsheetId(spreadsheetText);
+    if (String(spreadsheetText || '').trim() && !spreadsheetId) throw new Error('That does not look like a Google Sheets spreadsheet link or ID.');
+    if (cfg.folderId && folderId !== cfg.folderId) {
       state.sync.lastBackupAt = 0; state.sync.lastLoadAt = 0;
+      if (!spreadsheetId) cfg.sheetId = '';
       persistExtended();
     }
     if (clientId !== cfg.clientId) { tokenClient = null; accessToken = null; tokenExpiry = 0; account = null; }
-    cfg.clientId = clientId; cfg.folderId = folderId;
-    try { localStorage.setItem(CFG_KEYS.clientId, clientId); localStorage.setItem(CFG_KEYS.folderId, folderId); } catch (_) {}
+    cfg.clientId = clientId; cfg.folderId = folderId; cfg.sheetId = spreadsheetId;
+    sheetsMetaCache = null;
+    try {
+      localStorage.setItem(CFG_KEYS.clientId, clientId);
+      localStorage.setItem(CFG_KEYS.folderId, folderId);
+      if (cfg.sheetId) localStorage.setItem(CFG_KEYS.sheetId, cfg.sheetId); else localStorage.removeItem(CFG_KEYS.sheetId);
+    } catch (_) {}
   }
   function ensureConfig() {
     if (cfg.clientId && cfg.folderId) return;
@@ -1588,6 +1662,384 @@
       .filter(file => file.backupTimestamp > 0)
       .sort((a, b) => a.backupTimestamp - b.backupTimestamp ||
         Date.parse(a.createdTime || '') - Date.parse(b.createdTime || '') || String(a.id).localeCompare(String(b.id)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Single-spreadsheet Google Sheets revision log. The existing CSV archive
+  // backup/restore remains unchanged and available from the menu.
+  // Records and Batches are appended together in one atomic Sheets batchUpdate.
+  // ---------------------------------------------------------------------------
+  function sheetColumnName(indexZero) {
+    let n = indexZero + 1, result = '';
+    while (n > 0) { const remainder = (n - 1) % 26; result = String.fromCharCode(65 + remainder) + result; n = Math.floor((n - 1) / 26); }
+    return result;
+  }
+  const SHEET_RECORD_ID_RANGE = `Records!${sheetColumnName(CSV_RECORD_ID_COLUMN)}:${sheetColumnName(CSV_RECORD_ID_COLUMN)}`;
+  const SHEET_TYPE_RANGE = 'Records!A:A';
+  const SHEET_META_RANGE = `Records!${sheetColumnName(CSV_RECORD_ID_COLUMN)}:${sheetColumnName(SHEET_SEMANTIC_HASH_COLUMN)}`;
+  function sheetApiUrl(path) { return `https://sheets.googleapis.com/v4/${path}`; }
+  async function sheetsGet(spreadsheetId, range) {
+    const params = new URLSearchParams({valueRenderOption:'UNFORMATTED_VALUE', majorDimension:'ROWS'});
+    return (await driveFetch(`${sheetApiUrl(`spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}`)}?${params}`)).json();
+  }
+  async function sheetsBatchGet(spreadsheetId, ranges) {
+    const params = new URLSearchParams({valueRenderOption:'UNFORMATTED_VALUE', majorDimension:'ROWS'});
+    for (const range of ranges) params.append('ranges', range);
+    return (await driveFetch(`${sheetApiUrl(`spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchGet`)}?${params}`)).json();
+  }
+  async function sheetsBatchUpdateValues(spreadsheetId, data) {
+    return (await driveFetch(sheetApiUrl(`spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchUpdate`), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({valueInputOption:'RAW', data})
+    })).json();
+  }
+  function persistSpreadsheetId(id) {
+    cfg.sheetId = String(id || '');
+    try { if (cfg.sheetId) localStorage.setItem(CFG_KEYS.sheetId, cfg.sheetId); } catch (_) {}
+    sheetsMetaCache = null;
+    if ($('driveSpreadsheetId')) $('driveSpreadsheetId').value = cfg.sheetId;
+  }
+  async function moveSpreadsheetToBackupFolder(spreadsheetId) {
+    const file = await (await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(spreadsheetId)}?fields=id,parents&supportsAllDrives=true`)).json();
+    const parents = Array.isArray(file.parents) ? file.parents : [];
+    if (parents.includes(cfg.folderId)) return;
+    const params = new URLSearchParams({addParents:cfg.folderId, supportsAllDrives:'true'});
+    if (parents.length) params.set('removeParents', parents.join(','));
+    await driveFetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(spreadsheetId)}?${params}`, {
+      method:'PATCH', headers:{'Content-Type':'application/json'}, body:'{}'
+    });
+  }
+  async function createSheetsBackupSpreadsheet() {
+    const body = {
+      properties:{title:SHEETS_SPREADSHEET_NAME},
+      sheets:[
+        {properties:{sheetId:0,title:SHEETS_RECORD_TAB,gridProperties:{frozenRowCount:1}}},
+        {properties:{sheetId:1,title:SHEETS_BATCH_TAB,gridProperties:{frozenRowCount:1}}}
+      ]
+    };
+    const created = await (await driveFetch(`${sheetApiUrl('spreadsheets')}?fields=spreadsheetId,spreadsheetUrl,sheets(properties(sheetId,title))`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    })).json();
+    if (!created.spreadsheetId) throw new Error('Google Sheets did not return a spreadsheet ID.');
+    persistSpreadsheetId(created.spreadsheetId);
+    const headerData = [
+      {range:`${SHEETS_RECORD_TAB}!A1:${sheetColumnName(SHEET_SEMANTIC_HASH_COLUMN)}1`, values:[SHEET_RECORD_HEADERS]},
+      {range:`${SHEETS_BATCH_TAB}!A1:D1`, values:[SHEET_BATCH_HEADERS]}
+    ];
+    await sheetsBatchUpdateValues(created.spreadsheetId, headerData);
+    try { await moveSpreadsheetToBackupFolder(created.spreadsheetId); }
+    catch (error) {
+      throw new Error(`The backup spreadsheet was created (${created.spreadsheetId}) but could not be moved into the selected Drive folder. It remains saved in this browser; move it into that folder manually so other devices can find it. ${error.message || error}`);
+    }
+    return created;
+  }
+  async function findSheetsBackupSpreadsheet() {
+    const params = new URLSearchParams({
+      q:`'${cfg.folderId}' in parents and trashed = false and mimeType = 'application/vnd.google-apps.spreadsheet' and name = '${SHEETS_SPREADSHEET_NAME}'`,
+      fields:'files(id,name,mimeType,modifiedTime)', pageSize:'100', supportsAllDrives:'true', includeItemsFromAllDrives:'true', corpora:'allDrives'
+    });
+    const data = await (await driveFetch(`https://www.googleapis.com/drive/v3/files?${params}`)).json();
+    const matches = data.files || [];
+    if (matches.length > 1) throw new Error(`Found ${matches.length} spreadsheets named “${SHEETS_SPREADSHEET_NAME}” in this folder. Paste the correct spreadsheet link or ID into Google Drive settings to avoid using the wrong backup.`);
+    return matches[0] || null;
+  }
+  async function validateSheetsBackupSpreadsheet(spreadsheetId, meta) {
+    const sheetMap = new Map((meta.sheets || []).map(sheet => [sheet.properties?.title, Number(sheet.properties?.sheetId)]));
+    if (!sheetMap.has(SHEETS_RECORD_TAB) || !sheetMap.has(SHEETS_BATCH_TAB)) {
+      throw new Error(`The selected Google spreadsheet must contain tabs named “${SHEETS_RECORD_TAB}” and “${SHEETS_BATCH_TAB}”. Leave the spreadsheet setting blank to let Little Feed create a compatible spreadsheet automatically.`);
+    }
+    const check = await sheetsBatchGet(spreadsheetId, [`${SHEETS_RECORD_TAB}!A1:${sheetColumnName(SHEET_SEMANTIC_HASH_COLUMN)}1`, `${SHEETS_BATCH_TAB}!A1:D1`]);
+    const recordHeader = check.valueRanges?.[0]?.values?.[0] || [];
+    const batchHeader = check.valueRanges?.[1]?.values?.[0] || [];
+    if (JSON.stringify(recordHeader.map(String)) !== JSON.stringify(SHEET_RECORD_HEADERS)
+      || JSON.stringify(batchHeader.map(String)) !== JSON.stringify(SHEET_BATCH_HEADERS)) {
+      throw new Error('The Google spreadsheet does not have the expected Little Feed backup headers. Do not edit the header rows; choose another spreadsheet or create a new one.');
+    }
+    return {id:spreadsheetId, url:meta.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
+      recordsSheetId:sheetMap.get(SHEETS_RECORD_TAB), batchesSheetId:sheetMap.get(SHEETS_BATCH_TAB)};
+  }
+  async function ensureSheetsBackupSpreadsheet() {
+    ensureConfig();
+    if (sheetsMetaCache && sheetsMetaCache.id === cfg.sheetId) return sheetsMetaCache;
+    let id = cfg.sheetId;
+    if (!id) {
+      const found = await findSheetsBackupSpreadsheet();
+      if (found) { id = found.id; persistSpreadsheetId(id); }
+      else {
+        const created = await createSheetsBackupSpreadsheet();
+        id = created.spreadsheetId;
+      }
+    }
+    let meta;
+    try {
+      meta = await (await driveFetch(`${sheetApiUrl(`spreadsheets/${encodeURIComponent(id)}`)}?fields=spreadsheetId,spreadsheetUrl,sheets(properties(sheetId,title))`)).json();
+    } catch (error) {
+      if (cfg.sheetId === id) throw new Error(`Could not open the configured Google Sheets backup (${id}). Check its access and the spreadsheet ID. ${error.message || error}`);
+      throw error;
+    }
+    sheetsMetaCache = await validateSheetsBackupSpreadsheet(id, meta);
+    updateSyncMenu();
+    return sheetsMetaCache;
+  }
+  function makeSheetCells(values) {
+    return {values:values.map(value => ({userEnteredValue:{stringValue:String(value ?? '')}}))};
+  }
+  async function appendSheetsBatch(meta, pending) {
+    const requests = [
+      {appendCells:{sheetId:meta.recordsSheetId, rows:pending.rows.map(makeSheetCells), fields:'userEnteredValue'}},
+      {appendCells:{sheetId:meta.batchesSheetId, rows:[makeSheetCells([pending.batchId, String(pending.createdAt), String(pending.recordCount), pending.payloadHash])], fields:'userEnteredValue'}}
+    ];
+    await driveFetch(sheetApiUrl(`spreadsheets/${encodeURIComponent(meta.id)}:batchUpdate`), {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({requests})
+    });
+  }
+  function normalizeSheetRow(row, expectedLength) {
+    const out = Array.from({length:expectedLength}, (_, index) => String(row?.[index] ?? ''));
+    if (Array.isArray(row) && row.length > expectedLength) throw new Error(`Spreadsheet row has ${row.length} columns; expected ${expectedLength}.`);
+    return out;
+  }
+  async function verifySheetsPendingBatch(meta, pending) {
+    const batchData = await sheetsGet(meta.id, `${SHEETS_BATCH_TAB}!A1:D`);
+    const batchRows = batchData.values || [];
+    if (JSON.stringify((batchRows[0] || []).map(String)) !== JSON.stringify(SHEET_BATCH_HEADERS)) throw new Error('The Google Sheets batch log header is missing or changed.');
+    const matches = [];
+    for (let i = 1; i < batchRows.length; i++) {
+      if (String(batchRows[i]?.[0] || '') === pending.batchId) matches.push({index:i - 1, row:batchRows[i]});
+    }
+    if (!matches.length) return false;
+    if (matches.length !== 1) throw new Error(`Backup batch ${pending.batchId} appears more than once in Google Sheets. No additional rows were appended.`);
+    const found = matches[0];
+    if (Number(found.row[2]) !== pending.recordCount || String(found.row[3] || '') !== pending.payloadHash) {
+      throw new Error(`Google Sheets contains a different manifest for batch ${pending.batchId}. The pending backup is retained and no duplicate was appended.`);
+    }
+    let precedingRows = 0;
+    for (let i = 1; i < found.index + 1; i++) {
+      const priorCount = Number(batchRows[i]?.[2]);
+      if (!Number.isInteger(priorCount) || priorCount < 1) throw new Error(`The Google Sheets batch log has an invalid record count at row ${i + 1}.`);
+      precedingRows += priorCount;
+    }
+    const startRow = 2 + precedingRows;
+    const endRow = startRow + pending.recordCount - 1;
+    const data = await sheetsGet(meta.id, `${SHEETS_RECORD_TAB}!A${startRow}:${sheetColumnName(SHEET_SEMANTIC_HASH_COLUMN)}${endRow}`);
+    const actualRows = data.values || [];
+    if (actualRows.length !== pending.recordCount) throw new Error(`Google Sheets batch ${pending.batchId} has ${actualRows.length} rows instead of ${pending.recordCount}.`);
+    for (let i = 0; i < pending.recordCount; i++) {
+      const actual = normalizeSheetRow(actualRows[i], SHEET_RECORD_HEADERS.length);
+      const expected = normalizeSheetRow(pending.rows[i], SHEET_RECORD_HEADERS.length);
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(`Google Sheets verification found changed data in batch ${pending.batchId}, record ${i + 1}. The pending backup remains available for retry.`);
+      const csvRow = actual.slice(0, CSV_HEADERS.length);
+      if (actual[SHEET_BATCH_ID_COLUMN] !== pending.batchId || actual[CSV_RECORD_HASH_COLUMN] !== csvDataFingerprint(csvRow)) {
+        throw new Error(`Google Sheets verification failed its record hash or batch ID check in batch ${pending.batchId}.`);
+      }
+    }
+    return true;
+  }
+  async function finishPendingSheetsBackup({automatic = false} = {}) {
+    const pending = state.sync.pendingSheetBackup;
+    if (!pending) return false;
+    const meta = await ensureSheetsBackupSpreadsheet();
+    if (pending.spreadsheetId !== meta.id) throw new Error('A Sheets backup is pending for a different spreadsheet. Restore that spreadsheet ID in settings before retrying, so the saved batch is not lost.');
+    let verified = await verifySheetsPendingBatch(meta, pending);
+    if (!verified) {
+      await appendSheetsBatch(meta, pending);
+      verified = await verifySheetsPendingBatch(meta, pending);
+    }
+    if (!verified) throw new Error('Google Sheets did not confirm the appended backup batch. The pending batch has been kept for retry.');
+    const previousPending = state.sync.pendingSheetBackup;
+    const previousLastBackup = state.sync.lastSheetsBackupAt;
+    state.sync.pendingSheetBackup = null;
+    state.sync.lastSheetsBackupAt = Date.now();
+    if (!await persistExtended()) {
+      state.sync.pendingSheetBackup = previousPending;
+      state.sync.lastSheetsBackupAt = previousLastBackup;
+      throw new Error('The Sheets batch was uploaded and verified, but its local completion status could not be saved. The pending batch is retained; retrying will verify it without appending a duplicate.');
+    }
+    // Any successful Sheets backup (manual or prompted) satisfies today's local daily backup.
+    if (!pending.hasConflicts) setAutoSheetsBackupLastDate(localDateKey(new Date()));
+    showToast(`Backed up and verified ${pending.recordCount} record revision${pending.recordCount === 1 ? '' : 's'} in Google Sheets`);
+    updateSyncMenu();
+    return true;
+  }
+  function foldRemoteBackupEntries(entries, sourcePrefix = 'Sheets batch') {
+    const index = new Map(), conflicts = new Map();
+    for (const entry of entries) {
+      const candidate = {...entry, fileName:entry.fileName || `${sourcePrefix} ${entry.batchId || ''}`};
+      const conflict = conflicts.get(entry.id);
+      if (conflict) {
+        if (conflict.typeConflict) { conflict.files.add(candidate.fileName); continue; }
+        if (candidate.revision > conflict.revision) { conflicts.delete(entry.id); index.set(entry.id, candidate); }
+        else if (candidate.revision === conflict.revision && !conflict.variants.includes(candidate.fingerprint)) {
+          conflict.variants.push(candidate.fingerprint); conflict.files.add(candidate.fileName);
+        }
+        continue;
+      }
+      const previous = index.get(entry.id);
+      if (!previous) { index.set(entry.id, candidate); continue; }
+      if (candidate.type !== previous.type) {
+        conflicts.set(entry.id, {revision:Math.max(candidate.revision, previous.revision), typeConflict:true,
+          variants:[previous.fingerprint, candidate.fingerprint], files:new Set([previous.fileName, candidate.fileName])});
+        index.delete(entry.id);
+      } else if (candidate.revision > previous.revision) index.set(entry.id, candidate);
+      else if (candidate.revision === previous.revision) {
+        if (candidate.fingerprint !== previous.fingerprint) {
+          conflicts.set(entry.id, {revision:candidate.revision, variants:[previous.fingerprint, candidate.fingerprint], files:new Set([previous.fileName, candidate.fileName])});
+          index.delete(entry.id);
+        } else if (candidate.updatedAt > previous.updatedAt) index.set(entry.id, candidate);
+      }
+    }
+    return {index, conflicts, failed:[]};
+  }
+  async function readSheetsBackupIndex(meta) {
+    const data = await sheetsBatchGet(meta.id, [SHEET_TYPE_RANGE, SHEET_META_RANGE]);
+    const typeRows = data.valueRanges?.[0]?.values || [];
+    const metadataRows = data.valueRanges?.[1]?.values || [];
+    if (String(typeRows[0]?.[0] || '') !== 'Type' || String(metadataRows[0]?.[0] || '') !== 'Record ID') {
+      throw new Error('The Google Sheets Records header is invalid.');
+    }
+    const entries = [];
+    const rowCount = Math.max(typeRows.length, metadataRows.length);
+    for (let i = 1; i < rowCount; i++) {
+      const typeRaw = String(typeRows[i]?.[0] || '').trim().toLowerCase();
+      const type = typeRaw === 'breast' ? 'feed' : typeRaw;
+      const row = metadataRows[i] || [];
+      const id = String(row[0] || '').trim();
+      if (!id || !RECORD_COLLECTIONS[type]) throw new Error(`The Google Sheets backup has an invalid Type or Record ID at data row ${i + 1}.`);
+      const createdAt = Number(row[1]), updatedAt = Number(row[2]), revision = Number(row[3]);
+      const csvHash = String(row[4] || ''), batchId = String(row[5] || ''), fingerprint = String(row[6] || '');
+      if (!(createdAt > 0) || !(updatedAt > 0) || !Number.isInteger(revision) || revision < 1 || !csvHash || !batchId || !fingerprint) {
+        throw new Error(`Google Sheets revision metadata is incomplete for record ${id}.`);
+      }
+      entries.push({id, type, open:false, createdAt, updatedAt, revision, csvHash, batchId, fingerprint, record:null, timestamp:updatedAt});
+    }
+    return foldRemoteBackupEntries(entries);
+  }
+  function parseSheetsRecordRow(rowValues, lineNumber, batchId) {
+    const fullRow = normalizeSheetRow(rowValues, SHEET_RECORD_HEADERS.length);
+    if (fullRow[SHEET_BATCH_ID_COLUMN] !== batchId) throw new Error(`Row ${lineNumber} has a mismatched Backup Batch ID.`);
+    const row = fullRow.slice(0, CSV_HEADERS.length);
+    const value = (values, name) => { const i = CSV_HEADERS.findIndex(header => header.toLowerCase() === name.toLowerCase()); return i < 0 ? '' : String(values[i] ?? '').trim(); };
+    const id = value(row, 'Record ID');
+    if (!id) throw new Error(`Row ${lineNumber} has no Record ID.`);
+    const createdAt = Number(value(row, 'Created At')), updatedAt = Number(value(row, 'Updated At')), revision = Number(value(row, 'Revision'));
+    if (!(createdAt > 0) || !(updatedAt > 0) || !Number.isInteger(revision) || revision < 1) throw new Error(`Row ${lineNumber} has invalid revision metadata.`);
+    if (value(row, 'Record Hash') !== csvDataFingerprint(row)) throw new Error(`Row ${lineNumber} failed its CSV Record Hash check.`);
+    const result = parseCsvRecordRow(row, value, {allowOpenFeed:false, now:Date.now()});
+    if (result.status !== 'record' && result.status !== 'open-sleep') throw new Error(`Row ${lineNumber} is not a valid Little Feed record (${result.status}).`);
+    result.item.createdAt = createdAt; result.item.updatedAt = updatedAt; result.item.revision = revision;
+    result.item._backupHash = recordDataFingerprint(result.type, result.item); result.item._backupHashVersion = 2;
+    const semantic = fullRow[SHEET_SEMANTIC_HASH_COLUMN];
+    if (!semantic || semantic !== result.item._backupHash) throw new Error(`Row ${lineNumber} failed its semantic fingerprint check.`);
+    return {id, type:result.type === 'breast' ? 'feed' : result.type, open:result.status === 'open-sleep',
+      timestamp:result.start, createdAt, updatedAt, revision, fingerprint:semantic, record:result.item, batchId};
+  }
+  async function readAllSheetsBackupRecords(meta) {
+    const data = await sheetsBatchGet(meta.id, [`${SHEETS_RECORD_TAB}!A1:${sheetColumnName(SHEET_SEMANTIC_HASH_COLUMN)}`, `${SHEETS_BATCH_TAB}!A1:D`]);
+    const rows = data.valueRanges?.[0]?.values || [], manifestRows = data.valueRanges?.[1]?.values || [];
+    if (JSON.stringify((rows[0] || []).map(String)) !== JSON.stringify(SHEET_RECORD_HEADERS)
+      || JSON.stringify((manifestRows[0] || []).map(String)) !== JSON.stringify(SHEET_BATCH_HEADERS)) throw new Error('The Google Sheets backup headers are missing or have changed.');
+    const manifests = new Map();
+    for (let i = 1; i < manifestRows.length; i++) {
+      const row = manifestRows[i] || [], id = String(row[0] || ''), count = Number(row[2]), hash = String(row[3] || '');
+      if (!id || !Number.isInteger(count) || count < 1 || !hash || manifests.has(id)) throw new Error(`The Google Sheets batch manifest has invalid or duplicate data at row ${i + 1}.`);
+      manifests.set(id, {count, hash});
+    }
+    const grouped = new Map();
+    for (let i = 1; i < rows.length; i++) {
+      const row = normalizeSheetRow(rows[i], SHEET_RECORD_HEADERS.length), batchId = row[SHEET_BATCH_ID_COLUMN];
+      if (!batchId) throw new Error(`Google Sheets record row ${i + 1} has no Backup Batch ID.`);
+      if (!grouped.has(batchId)) grouped.set(batchId, []);
+      grouped.get(batchId).push(row);
+    }
+    const entries = [], failed = [];
+    for (const [batchId, batchRows] of grouped) {
+      try {
+        const manifest = manifests.get(batchId);
+        if (!manifest) throw new Error('No batch manifest exists.');
+        if (manifest.count !== batchRows.length) throw new Error(`Manifest says ${manifest.count} rows but found ${batchRows.length}.`);
+        if (hashText(JSON.stringify(batchRows)) !== manifest.hash) throw new Error('Batch payload hash does not match.');
+        const parsed = batchRows.map((row, index) => parseSheetsRecordRow(row, index + 2, batchId));
+        entries.push(...parsed);
+      } catch (error) { failed.push(`${batchId}: ${error.message || error}`); }
+    }
+    for (const [batchId] of manifests) if (!grouped.has(batchId)) failed.push(`${batchId}: manifest exists but its records are missing.`);
+    const result = foldRemoteBackupEntries(entries);
+    result.failed = failed;
+    return result;
+  }
+  async function backupToSheets({automatic = false} = {}) {
+    ensureConfig();
+    if (!await persistExtended()) throw new Error('Google Sheets backup stopped because local changes could not be saved first.');
+    await ensureToken();
+    const meta = await ensureSheetsBackupSpreadsheet();
+    if (state.sync.pendingSheetBackup) {
+      showToast('Verifying the previous pending Sheets backup…');
+      await finishPendingSheetsBackup({automatic});
+    }
+    showToast('Checking Google Sheets revision index…');
+    const remoteData = await readSheetsBackupIndex(meta);
+    const records = collectCsvRecords(true);
+    const newRecords = [], conflicts = [], metadataChanged = false;
+    for (const record of records) {
+      const remoteConflict = remoteData.conflicts.get(record.id);
+      if (remoteConflict) {
+        if (!remoteConflict.typeConflict && record.revision > remoteConflict.revision) newRecords.push(record);
+        else conflicts.push(record.id);
+        continue;
+      }
+      const remote = remoteData.index.get(record.id);
+      if (!remote) { newRecords.push(record); continue; }
+      if (record.fingerprint === remote.fingerprint) {
+        if (record.item && remote.revision > record.revision) {
+          record.item.createdAt = remote.createdAt; record.item.updatedAt = remote.updatedAt; record.item.revision = remote.revision;
+          record.item._backupHash = remote.fingerprint; record.item._backupHashVersion = 2; metadataChanged = true;
+        }
+        continue;
+      }
+      if (record.revision > remote.revision) newRecords.push(record);
+      else conflicts.push(record.id);
+    }
+    if (!newRecords.length) {
+      if (metadataChanged && !await persistExtended()) throw new Error('Could not save the revision metadata adopted from Google Sheets.');
+      if (conflicts.length === 0) {
+        state.sync.lastSheetsBackupAt = Date.now();
+        if (!await persistExtended()) throw new Error('No records needed uploading, but the local backup status could not be saved.');
+        setAutoSheetsBackupLastDate(localDateKey(new Date()));
+      }
+      showToast(conflicts.length ? `No Sheets backup · ${conflicts.length} conflict(s) need resolving` : 'Google Sheets is already up to date');
+      if (conflicts.length) alert(`${conflicts.length} record(s) have unresolved revision conflicts and were not backed up.\n\n${conflicts.slice(0,10).join('\n')}`);
+      return;
+    }
+    const batchId = `lfb-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+    const rows = newRecords.map(record => record.row.slice(0, CSV_HEADERS.length).map(value => String(value ?? '')).concat([batchId, record.fingerprint]));
+    const payloadHash = hashText(JSON.stringify(rows));
+    state.sync.pendingSheetBackup = {batchId, spreadsheetId:meta.id, createdAt:Date.now(), hasConflicts:conflicts.length > 0, rows, recordCount:rows.length, payloadHash};
+    if (!await persistExtended()) throw new Error('Sheets backup was not sent because its retry-safe batch could not be saved locally.');
+    await finishPendingSheetsBackup({automatic});
+    if (conflicts.length) alert(`${conflicts.length} record(s) were not appended because their Drive/Sheets revisions conflict with local contents. Resolve them before backing them up.\n\n${conflicts.slice(0,10).join('\n')}`);
+  }
+  async function loadFromSheets() {
+    ensureConfig();
+    if (!await persistExtended()) throw new Error('Sheets restore stopped because existing local changes could not be saved first.');
+    await ensureToken();
+    const meta = await ensureSheetsBackupSpreadsheet();
+    const rollbackSnapshot = persistedStateSnapshot();
+    showToast('Verifying and reading Google Sheets backup…');
+    const remoteData = await readAllSheetsBackupRecords(meta);
+    const counts = {added:0, updated:0, unchanged:0, metadataUpdated:0, keptLocalNewer:0, conflicts:0};
+    const conflictDetails = mergeDriveBackupIndex(remoteData, counts);
+    sortRecordHistories();
+    state.sync.lastLoadAt = Date.now();
+    const saved = await persistExtended();
+    if (!saved) {
+      applySavedState(rollbackSnapshot); render();
+      throw new Error('Google Sheets records were read, but the local database could not save them. Existing local data has been restored in memory.');
+    }
+    render(); refreshTimelineColumnHistoryIfOpen();
+    showToast(`Sheets restore: ${counts.added} added · ${counts.updated} updated · ${counts.unchanged + counts.keptLocalNewer} unchanged`);
+    const messages = [];
+    if (remoteData.failed.length) messages.push(`Some Sheets backup batches failed integrity checks and were skipped:\n${remoteData.failed.slice(0,8).join('\n')}`);
+    if (conflictDetails.length) messages.push(`${conflictDetails.length} record conflict(s) were preserved without overwriting local or remote copies:\n${conflictDetails.slice(0,12).join('\n')}`);
+    if (messages.length) alert(messages.join('\n\n'));
   }
 
   async function mapPool(items, limit, fn) {
@@ -1923,7 +2375,7 @@
       }
     }
     if (state.activeSleepStart) {
-      const start = Number(state.activeSleepStart), id = `sleep-${Math.trunc(start)}`;
+      const start = Number(state.activeSleepStart), id = activeSleepRecordId() || `sleep-${Math.trunc(start)}`;
       if (!index.has(id)) {
         const record = {id, start, createdAt:start, updatedAt:start, revision:1};
         index.set(id, {id, type:'sleep', open:true, record, createdAt:start, updatedAt:start,
@@ -1935,8 +2387,8 @@
 
   function removeLocalBackupRecord(entry) {
     if (entry.open) {
-      const activeId = state.activeSleepStart ? `sleep-${Math.trunc(Number(state.activeSleepStart))}` : '';
-      if (activeId === entry.id) state.activeSleepStart = null;
+      const activeId = activeSleepRecordId();
+      if (activeId === entry.id) { state.activeSleepStart = null; state.activeSleepId = null; }
       return;
     }
     const collection = RECORD_COLLECTIONS[entry.type];
@@ -1949,15 +2401,17 @@
   function applyRemoteBackupRecord(entry) {
     const collection = RECORD_COLLECTIONS[entry.type];
     if (entry.open) {
-      if (state.activeSleepStart && `sleep-${Math.trunc(Number(state.activeSleepStart))}` !== entry.id) {
+      if (state.activeSleepStart && activeSleepRecordId() !== entry.id) {
         throw new Error('Another sleep timer is already active locally.');
       }
       state.activeSleepStart = Number(entry.record.start ?? entry.record.startedAt);
+      state.activeSleepId = entry.id;
       return;
     }
     if (!collection) throw new Error(`Unsupported record type ${entry.type}.`);
-    if (entry.type === 'sleep' && state.activeSleepStart
-      && `sleep-${Math.trunc(Number(state.activeSleepStart))}` === entry.id) state.activeSleepStart = null;
+    if (entry.type === 'sleep' && state.activeSleepStart && activeSleepRecordId() === entry.id) {
+      state.activeSleepStart = null; state.activeSleepId = null;
+    }
     state[collection].push({...entry.record});
   }
 
@@ -2071,7 +2525,61 @@
     updateDriveStatus();
     const when = t => t ? new Date(t).toLocaleString([], {dateStyle:'short', timeStyle:'short'}) : 'never';
     const records = state.history.length + state.sleepHistory.length + state.growthHistory.length + state.mealHistory.length + (state.activeSleepStart ? 1 : 0);
-    $('driveNote').textContent = `${account ? `Signed in${account.email ? ` as ${account.email}` : ''}` : 'Not signed in'}\nLocal records: ${records}\nLast backup: ${when(state.sync.lastBackupAt)}\nLast load: ${when(state.sync.lastLoadAt)}`;
+    const enabled = autoSheetsBackupEnabled();
+    if ($('sheetsAutoBackupToggle')) {
+      $('sheetsAutoBackupToggle').setAttribute('aria-checked', enabled ? 'true' : 'false');
+      $('sheetsAutoBackupState').textContent = enabled ? 'ON' : 'OFF';
+      $('sheetsAutoBackupState').classList.toggle('enabled', enabled);
+    }
+    $('driveNote').textContent = `${account ? `Signed in${account.email ? ` as ${account.email}` : ''}` : 'Not signed in'}\nLocal records: ${records}\nCSV archive backup: ${when(state.sync.lastBackupAt)}\nSheets backup: ${when(state.sync.lastSheetsBackupAt)}\nSheets: ${cfg.sheetId ? 'configured' : 'found or created on first use'}\nAutomatic backup on this device: ${enabled ? 'ON' : 'OFF'}`;
+  }
+
+  function localDateKey(date = new Date()) {
+    const pad = value => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
+  }
+  function closeAutoSheetsBackupPrompt() {
+    $('autoSheetsBackupBackdrop').hidden = true;
+    if ($('historyBackdrop').hidden && $('editorBackdrop').hidden && $('growthChartBackdrop').hidden && $('driveBackdrop').hidden) document.body.style.overflow = '';
+  }
+  function maybePromptForAutomaticSheetsBackup() {
+    if (!autoSheetsBackupEnabled()) return;
+    const now = new Date(), today = localDateKey(now);
+    if (now.getHours() < 12 || autoSheetsBackupLastDate() === today || autoSheetsPromptShownDate === today) return;
+    autoSheetsPromptShownDate = today;
+    $('autoSheetsBackupError').textContent = '';
+    $('autoSheetsBackupBackdrop').hidden = false;
+    document.body.style.overflow = 'hidden';
+    $('autoSheetsBackupNowBtn').disabled = true;
+    $('autoSheetsBackupNowBtn').textContent = 'Preparing Google sign-in…';
+    loadGis().then(() => {
+      $('autoSheetsBackupNowBtn').disabled = false;
+      $('autoSheetsBackupNowBtn').textContent = 'Back up now';
+    }).catch(error => {
+      $('autoSheetsBackupNowBtn').disabled = false;
+      $('autoSheetsBackupNowBtn').textContent = 'Try backup';
+      $('autoSheetsBackupError').textContent = error.message || String(error);
+    });
+  }
+  function runSheetsSyncFromUserGesture(label, fn) {
+    if (syncBusy) { showToast('Google sync is already running…'); return; }
+    if (!cfg.clientId || !cfg.folderId) { openDriveDialog(); return; }
+    if (!gisReady()) {
+      loadGis().then(() => showToast('Google sign-in is ready. Tap the Sheets action again.'))
+        .catch(error => alert(`${label} could not start: ${error.message || error}`));
+      return;
+    }
+    syncBusy = true;
+    // Request the OAuth token immediately in the click handler, before any other async work,
+    // so Google Identity Services can display its authorization prompt.
+    const authorization = accessToken && Date.now() < tokenExpiry
+      ? Promise.resolve(accessToken)
+      : signIn(account ? '' : 'select_account');
+    authorization.then(() => fn()).catch(error => {
+      if (error && error.silent) return;
+      console.warn(`Little Feed: ${label} failed`, error);
+      alert(`${label} failed: ${error.message || error}`);
+    }).finally(() => { syncBusy = false; updateSyncMenu(); });
   }
 
   async function runSync(label, fn) {
@@ -2082,16 +2590,37 @@
     finally { syncBusy = false; updateSyncMenu(); }
   }
   $('refreshBtn').addEventListener('click', () => { updateSyncMenu(); if (navigator.onLine) loadGis().catch(() => {}); });
-  $('driveBackupBtn').addEventListener('click', () => { closeHeaderMenu(); runSync('Backup', backupToDrive); });
-  $('driveLoadBtn').addEventListener('click', () => { closeHeaderMenu(); runSync('Load', loadFromDrive); });
+  $('sheetsAutoBackupToggle').addEventListener('click', () => {
+    const enabled = !autoSheetsBackupEnabled();
+    setAutoSheetsBackupEnabled(enabled);
+    showToast(enabled ? 'Automatic Sheets backup enabled on this device' : 'Automatic Sheets backup disabled on this device');
+  });
+  $('sheetsBackupBtn').addEventListener('click', () => { closeHeaderMenu(); runSheetsSyncFromUserGesture('Sheets backup', () => backupToSheets()); });
+  $('sheetsLoadBtn').addEventListener('click', () => { closeHeaderMenu(); runSheetsSyncFromUserGesture('Sheets restore', () => loadFromSheets()); });
+  $('driveBackupBtn').addEventListener('click', () => { closeHeaderMenu(); runSync('CSV archive backup', backupToDrive); });
+  $('driveLoadBtn').addEventListener('click', () => { closeHeaderMenu(); runSync('CSV archive restore', loadFromDrive); });
+  $('autoSheetsBackupCloseBtn').addEventListener('click', closeAutoSheetsBackupPrompt);
+  $('autoSheetsBackupLaterBtn').addEventListener('click', closeAutoSheetsBackupPrompt);
+  $('autoSheetsBackupBackdrop').addEventListener('click', event => { if (event.target === $('autoSheetsBackupBackdrop')) closeAutoSheetsBackupPrompt(); });
+  $('autoSheetsBackupNowBtn').addEventListener('click', () => {
+    closeAutoSheetsBackupPrompt();
+    if (!cfg.clientId || !cfg.folderId) {
+      resumeAutoSheetsBackupAfterSettings = true;
+      openDriveDialog();
+      $('driveError').textContent = 'Save your Google OAuth client ID and Drive folder first. The daily Sheets backup will start after sign-in.';
+      return;
+    }
+    runSheetsSyncFromUserGesture('Automatic Sheets backup', () => backupToSheets({automatic:true}));
+  });
 
   // --- Google Drive window (same look as the growth chart window) ---
   function updateDriveStatus() {
-    $('driveStatus').textContent = account ? `Signed in${account.email ? ` as ${account.email}` : ''}.` : 'Not signed in.';
+    const signed = account ? `Signed in${account.email ? ` as ${account.email}` : ''}.` : 'Not signed in.';
+    $('driveStatus').textContent = signed + (cfg.sheetId ? ` Sheets backup: https://docs.google.com/spreadsheets/d/${cfg.sheetId}/edit` : ' Sheets backup will be found or created in the selected folder on first use.');
     $('driveSignOutBtn').hidden = !account;
   }
   function openDriveDialog() {
-    $('driveClientId').value = cfg.clientId; $('driveFolderId').value = cfg.folderId;
+    $('driveClientId').value = cfg.clientId; $('driveFolderId').value = cfg.folderId; $('driveSpreadsheetId').value = cfg.sheetId;
     $('driveError').textContent = '';
     updateDriveStatus();
     $('driveBackdrop').hidden = false;
@@ -2111,15 +2640,28 @@
   $('driveForm').addEventListener('submit', event => {
     event.preventDefault();
     if (syncBusy) return;
-    try { applyConfig($('driveClientId').value, $('driveFolderId').value); }
+    try { applyConfig($('driveClientId').value, $('driveFolderId').value, $('driveSpreadsheetId').value); }
     catch (error) { $('driveError').textContent = error.message; return; }
     $('driveError').textContent = '';
-    if (account && accessToken) { closeDriveDialog(); showToast('Drive settings saved'); return; }
-    syncBusy = true; // saving also signs in; the Google pop-up opens straight from this click
+    if (account && accessToken && Date.now() < tokenExpiry) {
+      closeDriveDialog(); showToast('Google settings saved');
+      if (resumeAutoSheetsBackupAfterSettings) {
+        resumeAutoSheetsBackupAfterSettings = false;
+        runSheetsSyncFromUserGesture('Automatic Sheets backup', () => backupToSheets({automatic:true}));
+      }
+      return;
+    }
+    syncBusy = true; // User click starts OAuth immediately.
     signIn('select_account')
       .then(() => { closeDriveDialog(); showToast(`Signed in${account && account.email ? ` as ${account.email}` : ''}`); })
       .catch(error => { $('driveError').textContent = `Settings saved, but sign-in failed: ${error.message || error}`; })
-      .finally(() => { syncBusy = false; updateSyncMenu(); });
+      .finally(() => {
+        syncBusy = false; updateSyncMenu();
+        if (resumeAutoSheetsBackupAfterSettings && account && accessToken && Date.now() < tokenExpiry) {
+          resumeAutoSheetsBackupAfterSettings = false;
+          runSheetsSyncFromUserGesture('Automatic Sheets backup', () => backupToSheets({automatic:true}));
+        }
+      });
   });
 
   // Timer calculations and presentation.
@@ -3304,6 +3846,7 @@
     if (!state.activeSleepStart) {
       sleepStartPreview = null;
       state.activeSleepStart = now;
+      state.activeSleepId = `sleep-${Math.trunc(now)}`;
       persistExtended();
       render();
       showToast('Sleep timer started 🌙');
@@ -3312,13 +3855,20 @@
     const startedAt = sleepStartPreview ?? state.activeSleepStart;
     sleepStartPreview = null;
     const item = {
-      id: `sleep-${Math.trunc(state.activeSleepStart)}`,
+      id: activeSleepRecordId() || `sleep-${Math.trunc(state.activeSleepStart)}`,
       startedAt,
       endedAt: now,
-      durationMs: Math.max(0, now - startedAt)
+      durationMs: Math.max(0, now - startedAt),
+      createdAt: Number(state.activeSleepStart),
+      updatedAt: now,
+      // Completing a previously backed-up open sleep is a new revision.
+      revision: 2
     };
+    item._backupHash = recordDataFingerprint('sleep', item);
+    item._backupHashVersion = 2;
     state.sleepHistory.unshift(item);
     state.activeSleepStart = null;
+    state.activeSleepId = null;
     persistExtended();
     render();
     showToast('Sleep saved — hope you both got some rest 🤍');
@@ -3341,6 +3891,8 @@
     persistExtended(); render(); showToast('Feed saved — you’re doing great 🤍');
   }
   function persistExtended() {
+    if (state.activeSleepStart && !state.activeSleepId) state.activeSleepId = `sleep-${Math.trunc(Number(state.activeSleepStart))}`;
+    if (!state.activeSleepStart) state.activeSleepId = null;
     reconcileRecordMetadata(); // assign IDs/revisions and detect any record edit before snapshotting
     const snapshot = persistedStateSnapshot();
     lastFailedSnapshot = snapshot;
@@ -3985,6 +4537,8 @@
       state.lastSide = newest.lastSide; state.lastSideAt = newest.endedAt;
     }
     render();
+    updateSyncMenu();
+    maybePromptForAutomaticSheetsBackup();
     setInterval(() => {
       updateTimelineNowCursor();
       renderLiveTimers(false);
