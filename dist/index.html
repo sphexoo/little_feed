@@ -626,11 +626,31 @@
   let selectedTimelineDayStart = null;
   let lastTimelineCursorDateKey = '';
   // Day-keyed event index shared by the timeline and its day-detail view.
-  // Rebuilt whenever the visible timeline is rendered after a data change.
+  // The index covers all recorded days and is cached until record data or the local date changes.
   let timelineEventIndex = new Map();
+  let timelineActiveEvents = [];
+  let timelineOldestEvent = Infinity;
+  let timelineDataVersion = 0;
+  let timelineIndexVersion = -1;
+  let timelineIndexDateKey = '';
+  let timelineRenderSignature = '';
+  let timelineVisibleCounts = {sleep:0, feed:0, meal:0};
+  let timelineVisibleHasData = false;
+  let timelineWarmupPending = false;
   let lastAgingDisplayMinute = -1;
   let lastActiveTimelineMinute = -1;
   let lastActiveTrendsMinute = -1;
+
+  // Reuse Intl formatters rather than constructing formatters for every timeline block/column.
+  const TIMELINE_FORMAT = {
+    time: new Intl.DateTimeFormat(undefined, {hour:'2-digit', minute:'2-digit'}),
+    weekdayShort: new Intl.DateTimeFormat(undefined, {weekday:'short'}),
+    monthDay: new Intl.DateTimeFormat(undefined, {month:'numeric', day:'numeric'}),
+    fullDate: new Intl.DateTimeFormat(undefined, {weekday:'long', month:'long', day:'numeric', year:'numeric'}),
+    historyDate: new Intl.DateTimeFormat(undefined, {month:'short', day:'numeric', year:'numeric'}),
+    historyDateLong: new Intl.DateTimeFormat(undefined, {weekday:'long', month:'long', day:'numeric', year:'numeric'})
+  };
+  const timelineFormat = (name, value) => TIMELINE_FORMAT[name].format(value instanceof Date ? value : new Date(Number(value)));
 
   const DB_NAME = 'LittleFeedDatabase';
   const DB_VERSION = 1;
@@ -2184,6 +2204,7 @@
 
   // Full render is reserved for actual state/UI changes, not the one-second timer tick.
   function render() {
+    invalidateTimelineIndex();
     renderLiveTimers(true);
     renderLast();
     renderHistory();
@@ -2192,6 +2213,10 @@
     renderGrowth();
     if (!$('timelinePanel').hidden) {
       renderTimeline();
+    } else {
+      // Prepare the cached day index while the user remains on Track, so History
+      // can open immediately after data has finished loading or changing.
+      scheduleTimelineIndexWarmup();
     }
     if (!$('trendsPanel').hidden) {
       renderTrends();
@@ -2608,32 +2633,67 @@
   }
 
   // Timeline rendering and horizontal history expansion.
-  // Each record is visited once and added only to the calendar-day buckets it overlaps.
-  // This replaces the previous per-day full scan of every event (O(days × records)).
-  function buildTimelineEventIndex(days, now) {
-    const byDay = new Map(days.map(day => [day.start.getTime(), []]));
-    const events = [];
-    let oldestEvent = Infinity;
-    if (!days.length) return {byDay, events, oldestEvent};
+  // Build a complete day index once per data version. Subsequent tab switches,
+  // day selections and seven-day expansions use Map lookups instead of rescanning
+  // every record. Indexing advances with calendar dates, preserving DST behavior.
+  function localTimelineDateKey(date) {
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  }
 
-    const rangeStart = days[0].start.getTime();
-    const rangeEnd = days[days.length - 1].end.getTime();
-    const add = event => {
+  function invalidateTimelineIndex() {
+    timelineDataVersion++;
+    timelineIndexVersion = -1;
+    timelineRenderSignature = '';
+  }
+
+  function scheduleTimelineIndexWarmup() {
+    const todayKey = localTimelineDateKey(new Date());
+    if (timelineWarmupPending || (timelineIndexVersion === timelineDataVersion && timelineIndexDateKey === todayKey)) return;
+    timelineWarmupPending = true;
+    const version = timelineDataVersion;
+    const warm = () => {
+      timelineWarmupPending = false;
+      // A user interaction may already have built a newer index while this was queued.
+      if (version !== timelineDataVersion) {
+        if ($('timelinePanel').hidden) scheduleTimelineIndexWarmup();
+        return;
+      }
+      if (!$('timelinePanel').hidden || (timelineIndexVersion === version && timelineIndexDateKey === localTimelineDateKey(new Date()))) return;
+      ensureTimelineEventIndex(Date.now());
+    };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(warm, {timeout:1600});
+    else setTimeout(warm, 650);
+  }
+
+  function buildTimelineEventIndex(now) {
+    const byDay = new Map();
+    const events = [];
+    const activeEvents = [];
+    let oldestEvent = Infinity;
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    const dayAfterToday = new Date(today);
+    dayAfterToday.setDate(dayAfterToday.getDate() + 1);
+    const latestDayExclusive = dayAfterToday.getTime();
+
+    const add = (event, isActive = false) => {
       if (!Number.isFinite(event.start) || !Number.isFinite(event.end) || event.end <= event.start) return;
       events.push(event);
+      if (isActive) activeEvents.push(event);
       if (event.start < oldestEvent) oldestEvent = event.start;
-      // Skip indexing records outside the currently visible date range.
-      if (event.end <= rangeStart || event.start >= rangeEnd) return;
+      // Future-dated records are not shown in the current timeline.
+      if (event.start >= latestDayExclusive) return;
 
-      // Clamp old/long-running sessions to the visible range. Advance using
-      // calendar dates (not 24-hour milliseconds) to handle DST transitions.
-      const firstVisibleTimestamp = Math.max(event.start, rangeStart);
-      let day = new Date(firstVisibleTimestamp);
-      day.setHours(0, 0, 0, 0);
-      while (day.getTime() < event.end && day.getTime() < rangeEnd) {
-        const bucket = byDay.get(day.getTime());
-        if (bucket) bucket.push(event);
-        day.setDate(day.getDate() + 1);
+      const firstDay = new Date(event.start);
+      firstDay.setHours(0, 0, 0, 0);
+      let dayCursor = firstDay;
+      while (dayCursor.getTime() < event.end && dayCursor.getTime() < latestDayExclusive) {
+        const dayKey = dayCursor.getTime();
+        let bucket = byDay.get(dayKey);
+        if (!bucket) { bucket = []; byDay.set(dayKey, bucket); }
+        bucket.push(event);
+        dayCursor = new Date(dayCursor);
+        dayCursor.setDate(dayCursor.getDate() + 1);
       }
     };
 
@@ -2644,7 +2704,7 @@
     });
     if (state.activeSleepStart) {
       add({type:'sleep', kind:'active-sleep', start:Number(state.activeSleepStart), end:now,
-        label:'Sleep in progress', ongoing:true});
+        label:'Sleep in progress', ongoing:true}, true);
     }
 
     state.history.forEach(item => {
@@ -2656,7 +2716,7 @@
     });
     if (state.active && state.startedAt) {
       add({type:'feed', kind:'active-feed', start:Number(state.startedAt), end:now,
-        label:`Feeding in progress · ${capitalize(state.active)} side`, ongoing:true});
+        label:`Feeding in progress · ${capitalize(state.active)} side`, ongoing:true}, true);
     }
 
     state.mealHistory.forEach(item => {
@@ -2665,7 +2725,134 @@
         add({type:'meal', kind:'meal', start, end:start + MEAL_MS, label:'Meal', id:item.id, item});
     });
 
-    return {byDay, events, oldestEvent};
+    return {byDay, events, activeEvents, oldestEvent};
+  }
+
+  function ensureTimelineEventIndex(now = Date.now()) {
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    const dateKey = localTimelineDateKey(today);
+    if (timelineIndexVersion !== timelineDataVersion || timelineIndexDateKey !== dateKey) {
+      const indexed = buildTimelineEventIndex(now);
+      timelineEventIndex = indexed.byDay;
+      timelineActiveEvents = indexed.activeEvents;
+      timelineOldestEvent = indexed.oldestEvent;
+      timelineIndexVersion = timelineDataVersion;
+      timelineIndexDateKey = dateKey;
+      timelineRenderSignature = '';
+    }
+    // Active event objects are shared by every day bucket. Updating their end
+    // time does not require rebuilding the index while the local date is stable.
+    timelineActiveEvents.forEach(event => { event.end = now; });
+    return {today, dateKey};
+  }
+
+  function renderTimelineDayColumn(dayStart, now) {
+    const dayStartMs = dayStart.getTime();
+    const dayEvents = timelineEventIndex.get(dayStartMs) || [];
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+    const dayEndMs = dayEnd.getTime();
+    const clockNow = new Date(now);
+    const currentMinute = clockNow.getHours() * 60 + clockNow.getMinutes() + clockNow.getSeconds() / 60 + clockNow.getMilliseconds() / 60000;
+    let sleepCount = 0, feedCount = 0, mealCount = 0;
+
+    const plotBlocks = dayEvents.map(e => {
+      const segStart = Math.max(e.start, dayStartMs);
+      const segEnd = Math.min(e.end, dayEndMs);
+      if (segEnd <= segStart) return '';
+      const minuteAt = ts => {
+        const d = new Date(ts);
+        return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60 + d.getMilliseconds() / 60000;
+      };
+      const topPct = segStart <= dayStartMs ? 0 : minuteAt(segStart) / 1440 * 100;
+      const bottomPct = segEnd >= dayEndMs ? 100 : minuteAt(segEnd) / 1440 * 100;
+      const heightPct = Math.max(0, bottomPct - topPct);
+      const duration = segEnd - segStart;
+      const time = `${timelineFormat('time', segStart)}–${timelineFormat('time', segEnd)}`;
+      const label = e.type === 'meal'
+        ? `Meal, ${timelineFormat('time', e.start)}`
+        : `${e.label}, ${time}, ${humanDuration(duration)}${e.ongoing ? ', ongoing' : ''}`;
+      if (e.type === 'sleep') sleepCount++;
+      else if (e.type === 'meal') mealCount++;
+      else feedCount++;
+      const title = label.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // Feed bars stay narrower than sleep blocks so simultaneous events remain visible.
+      const height = Math.max(e.type === 'sleep' ? 0.8 : (e.type === 'meal' ? 1 : 0.6), heightPct);
+      return `<span class="timeline-block ${e.type}${e.ongoing ? ' ongoing' : ''}" style="top:${topPct.toFixed(3)}%;height:${height.toFixed(3)}%" title="${title}" aria-label="${title}"></span>`;
+    }).join('');
+
+    const isToday = dayStartMs === ensureTimelineTodayStart(now);
+    const nowCursor = isToday
+      ? `<span class="timeline-now-line" style="top:${(currentMinute / 1440 * 100).toFixed(3)}%" title="Current time · ${timelineFormat('time', clockNow)}"></span>`
+      : '';
+    const weekday = timelineFormat('weekdayShort', dayStart);
+    const daynum = timelineFormat('monthDay', dayStart);
+    const fullDate = timelineFormat('fullDate', dayStart);
+    const safeFullDate = fullDate.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const html = `<button type="button" class="timeline-day${isToday ? ' today-column' : ''}" data-timeline-day="${dayStartMs}" aria-label="${safeFullDate}, ${dayEvents.length} sessions. Open entries for this day" title="Open entries for ${safeFullDate}">
+      <div class="timeline-date"><strong>${isToday ? 'Today' : weekday}</strong>${daynum}</div>
+      <div class="timeline-plot" aria-hidden="true">${plotBlocks}${nowCursor}</div>
+    </button>`;
+    return {html, sleepCount, feedCount, mealCount, eventCount:dayEvents.length};
+  }
+
+  function ensureTimelineTodayStart(now = Date.now()) {
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+    return today.getTime();
+  }
+
+  function countTimelineDays(days) {
+    const counts = {sleep:0, feed:0, meal:0};
+    let hasData = false;
+    for (const day of days) {
+      const dayEvents = timelineEventIndex.get(day.start.getTime()) || [];
+      if (dayEvents.length) hasData = true;
+      for (const event of dayEvents) {
+        if (event.type === 'sleep') counts.sleep++;
+        else if (event.type === 'meal') counts.meal++;
+        else counts.feed++;
+      }
+    }
+    return {counts, hasData};
+  }
+
+  function updateTimelineSummary(days) {
+    // Full recalculation is used only after record changes or the first render.
+    const summary = countTimelineDays(days);
+    timelineVisibleCounts = summary.counts;
+    timelineVisibleHasData = summary.hasData;
+    renderTimelineSummaryState(days[0]?.start);
+  }
+
+  function addTimelineDaysToSummary(days) {
+    // Earlier-day expansion counts only the seven newly added buckets.
+    const summary = countTimelineDays(days);
+    timelineVisibleCounts.sleep += summary.counts.sleep;
+    timelineVisibleCounts.feed += summary.counts.feed;
+    timelineVisibleCounts.meal += summary.counts.meal;
+    timelineVisibleHasData = timelineVisibleHasData || summary.hasData;
+    renderTimelineSummaryState(days[0]?.start);
+  }
+
+  function renderTimelineSummaryState(oldestVisibleDate) {
+    $('timelineSummary').textContent = `${state.timelineDaysCount} days · ${timelineVisibleCounts.sleep} sleep blocks · ${timelineVisibleCounts.feed} feed blocks · ${timelineVisibleCounts.meal} meals`;
+    $('timelineEmpty').hidden = timelineVisibleHasData;
+    const canLoadEarlier = !!oldestVisibleDate && Number.isFinite(timelineOldestEvent) && timelineOldestEvent < oldestVisibleDate.getTime();
+    $('timelineScroller').dataset.canLoadEarlier = canLoadEarlier ? 'true' : 'false';
+  }
+
+  function timelineVisibleDays(today, count) {
+    const days = [];
+    for (let i = count - 1; i >= 0; i--) {
+      const start = new Date(today);
+      start.setDate(today.getDate() - i);
+      const end = new Date(start);
+      end.setDate(start.getDate() + 1);
+      days.push({start, end});
+    }
+    return days;
   }
 
   function renderTimeline() {
@@ -2673,21 +2860,25 @@
     const scroller = $('timelineScroller');
     const axis = $('timeAxis');
     if (!host || !scroller || !axis) return;
-    const oldScrollLeft = scroller.scrollLeft;
-    const wasInitialized = state.timelineInitialized;
     const now = Date.now();
-    lastActiveTimelineMinute = Math.floor(now / 60000);
-    const today = new Date(); today.setHours(0,0,0,0);
-    const days = [];
-    for (let i = state.timelineDaysCount - 1; i >= 0; i--) {
-      const start = new Date(today); start.setDate(today.getDate() - i);
-      const end = new Date(start); end.setDate(start.getDate() + 1);
-      days.push({start, end});
+    const {today, dateKey} = ensureTimelineEventIndex(now);
+    const signature = `${timelineDataVersion}|${dateKey}|${state.timelineDaysCount}`;
+    // When returning to History with unchanged records and range, retain the DOM.
+    // If a live timer advanced while History was hidden, refresh today's column only.
+    if (signature === timelineRenderSignature && host.children.length === state.timelineDaysCount) {
+      const minute = Math.floor(now / 60000);
+      if (timelineActiveEvents.length && lastActiveTimelineMinute !== minute) {
+        const todayColumn = host.querySelector(`[data-timeline-day="${today.getTime()}"]`);
+        if (todayColumn) todayColumn.outerHTML = renderTimelineDayColumn(today, now).html;
+        refreshTimelineColumnHistoryIfOpen();
+        lastActiveTimelineMinute = minute;
+      }
+      return;
     }
 
-    const indexed = buildTimelineEventIndex(days, now);
-    timelineEventIndex = indexed.byDay;
-    const events = indexed.events;
+    const oldScrollLeft = scroller.scrollLeft;
+    lastActiveTimelineMinute = Math.floor(now / 60000);
+    const days = timelineVisibleDays(today, state.timelineDaysCount);
 
     // Keep a fixed 24-hour vertical scale: midnight at the top, 24:00 at the bottom.
     const timeLabels = [];
@@ -2699,72 +2890,35 @@
     }
     axis.innerHTML = `<div class="time-axis-spacer"></div><div class="time-ruler">${timeLabels.join('')}</div>`;
 
-    let sleepCount = 0, feedCount = 0, mealCount = 0;
-    const cursorDateKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
-    lastTimelineCursorDateKey = cursorDateKey;
-    const clockNow = new Date(now);
-    const currentMinute = clockNow.getHours() * 60 + clockNow.getMinutes() + clockNow.getSeconds() / 60 + clockNow.getMilliseconds() / 60000;
-    const rows = days.map(({start:dayStart}) => {
-      const dayStartMs = dayStart.getTime();
-      const dayEvents = timelineEventIndex.get(dayStartMs) || [];
-      const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
-      const dayEndMs = dayEnd.getTime();
-      const plotBlocks = dayEvents.map(e => {
-        const segStart = Math.max(e.start, dayStartMs);
-        const segEnd = Math.min(e.end, dayEndMs);
-        if (segEnd <= segStart) return '';
-        const minuteAt = ts => {
-          const d = new Date(ts);
-          return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60 + d.getMilliseconds() / 60000;
-        };
-        const topPct = segStart <= dayStartMs ? 0 : minuteAt(segStart) / 1440 * 100;
-        const bottomPct = segEnd >= dayEndMs ? 100 : minuteAt(segEnd) / 1440 * 100;
-        const heightPct = Math.max(0, bottomPct - topPct);
-        const duration = segEnd - segStart;
-        const time = `${new Date(segStart).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}–${new Date(segEnd).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
-        const label = e.type === 'meal'
-          ? `Meal, ${new Date(e.start).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`
-          : `${e.label}, ${time}, ${humanDuration(duration)}${e.ongoing ? ', ongoing' : ''}`;
-        if (e.type === 'sleep') sleepCount++; else if (e.type === 'meal') mealCount++; else feedCount++;
-        const title = label.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        // Feed bars stay narrower than sleep blocks so simultaneous events remain visible.
-        const height = Math.max(e.type === 'sleep' ? 0.8 : (e.type === 'meal' ? 1 : 0.6), heightPct);
-        return `<span class="timeline-block ${e.type}${e.ongoing ? ' ongoing' : ''}" style="top:${topPct.toFixed(3)}%;height:${height.toFixed(3)}%" title="${title}" aria-label="${title}"></span>`;
-      }).join('');
-      const isToday = isSameDay(dayStart, today);
-      const nowCursor = isToday
-        ? `<span class="timeline-now-line" style="top:${(currentMinute / 1440 * 100).toFixed(3)}%" title="Current time · ${clockNow.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}"></span>`
-        : '';
-      const weekday = dayStart.toLocaleDateString([], {weekday:'short'});
-      const daynum = dayStart.toLocaleDateString([], {month:'numeric',day:'numeric'});
-      const fullDate = dayStart.toLocaleDateString([], {weekday:'long',month:'long',day:'numeric',year:'numeric'});
-      const safeFullDate = fullDate.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return `<button type="button" class="timeline-day${isToday ? ' today-column' : ''}" data-timeline-day="${dayStartMs}" aria-label="${safeFullDate}, ${dayEvents.length} sessions. Open entries for this day" title="Open entries for ${safeFullDate}">
-        <div class="timeline-date"><strong>${isToday ? 'Today' : weekday}</strong>${daynum}</div>
-        <div class="timeline-plot" aria-hidden="true">${plotBlocks}${nowCursor}</div>
-      </button>`;
-    }).join('');
-
+    const rows = days.map(day => renderTimelineDayColumn(day.start, now).html).join('');
     host.innerHTML = rows;
-    const oldestDate = days[0].start;
-    const oldestEvent = indexed.oldestEvent;
-    const canLoadEarlier = Number.isFinite(oldestEvent) && oldestEvent < oldestDate.getTime();
-    scroller.dataset.canLoadEarlier = canLoadEarlier ? 'true' : 'false';
-    $('timelineSummary').textContent = `${state.timelineDaysCount} days · ${sleepCount} sleep blocks · ${feedCount} feed blocks · ${mealCount} meals`;
-    const hasPeriodData = days.some(day => (timelineEventIndex.get(day.start.getTime()) || []).length > 0);
-    $('timelineEmpty').hidden = hasPeriodData;
+    updateTimelineSummary(days);
+    lastTimelineCursorDateKey = dateKey;
+    timelineRenderSignature = signature;
 
-    if (!wasInitialized) {
+    if (!state.timelineInitialized) {
       state.timelineInitialized = true;
-      requestAnimationFrame(() => {
-        scroller.scrollLeft = scroller.scrollWidth;
-      });
+      requestAnimationFrame(() => { scroller.scrollLeft = scroller.scrollWidth; });
     } else if (!state.extendingTimeline) {
-      // Preserve the user's horizontal position while active timers refresh the drawing.
+      // Preserve the user's horizontal position when existing columns are refreshed.
       scroller.scrollLeft = oldScrollLeft;
     }
   }
 
+  // Refresh only the current day when a live timer advances. All historical
+  // columns continue to use the same cached day buckets.
+  function refreshTimelineActiveMinute(now = Date.now()) {
+    if ($('timelinePanel').hidden) return;
+    const {today, dateKey} = ensureTimelineEventIndex(now);
+    if (dateKey !== lastTimelineCursorDateKey) { renderTimeline(); return; }
+    if (!timelineActiveEvents.length) return;
+    const todayColumn = $('weekDiagram')?.querySelector(`[data-timeline-day="${today.getTime()}"]`);
+    if (todayColumn) todayColumn.outerHTML = renderTimelineDayColumn(today, now).html;
+    // Event membership and per-day block counts do not change while an active
+    // session advances within the same local day; only redraw today's column.
+    refreshTimelineColumnHistoryIfOpen();
+    lastActiveTimelineMinute = Math.floor(now / 60000);
+  }
   function timelineEntriesForDay(dayStartMs) {
     const dayStart = Number(dayStartMs);
     const entries = (timelineEventIndex.get(dayStart) || []).map(event => ({
@@ -2775,7 +2929,7 @@
   function timelineEntryDateTime(timestamp) {
     const date = new Date(Number(timestamp));
     if (!Number.isFinite(date.getTime())) return 'Unknown time';
-    return `${date.toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'})} · ${date.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
+    return `${timelineFormat('historyDate', date)} · ${timelineFormat('time', date)}`;
   }
   function updateTimelineNowCursor() {
     const panel = $('timelinePanel');
@@ -2784,7 +2938,9 @@
     const today = new Date(now); today.setHours(0, 0, 0, 0);
     const dateKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
     if (dateKey !== lastTimelineCursorDateKey) {
-      // Rebuild exactly once when local midnight moves the current-day column.
+      // A new local calendar day changes the buckets needed by active sessions.
+      timelineIndexDateKey = '';
+      timelineRenderSignature = '';
       renderTimeline();
       return;
     }
@@ -2793,14 +2949,14 @@
     if (!marker) return;
     const minutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60 + now.getMilliseconds() / 60000;
     marker.style.top = `${(minutes / 1440 * 100).toFixed(3)}%`;
-    marker.title = `Current time · ${now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+    marker.title = `Current time · ${timelineFormat('time', now)}`;
   }
 
   function renderTimelineColumnHistory() {
     if (selectedTimelineDayStart === null) return;
     const date = new Date(Number(selectedTimelineDayStart));
     if (!Number.isFinite(date.getTime())) return;
-    const dateLabel = date.toLocaleDateString([], {weekday:'long',month:'long',day:'numeric',year:'numeric'});
+    const dateLabel = timelineFormat('historyDateLong', date);
     const list = $('timelineDayHistoryList');
     const entries = timelineEntriesForDay(selectedTimelineDayStart);
     $('timelineDayHistoryTitle').textContent = dateLabel;
@@ -2877,12 +3033,28 @@
     if (!scroller || state.extendingTimeline || scroller.scrollLeft > 35) return;
     if (scroller.dataset.canLoadEarlier !== 'true') return;
     state.extendingTimeline = true;
-    const oldWidth = scroller.scrollWidth;
-    state.timelineDaysCount += 7;
-    renderTimeline();
-    const addedWidth = scroller.scrollWidth - oldWidth;
-    scroller.scrollLeft = Math.max(0, addedWidth);
-    state.extendingTimeline = false;
+    try {
+      const host = $('weekDiagram');
+      const oldWidth = scroller.scrollWidth;
+      const oldCount = state.timelineDaysCount;
+      state.timelineDaysCount += 7;
+      const now = Date.now();
+      const {today} = ensureTimelineEventIndex(now);
+      const earlierDays = [];
+      // Generate only the seven newly visible dates; existing day columns stay in the DOM.
+      for (let i = state.timelineDaysCount - 1; i >= oldCount; i--) {
+        const start = new Date(today);
+        start.setDate(today.getDate() - i);
+        earlierDays.push({start});
+      }
+      host.insertAdjacentHTML('afterbegin', earlierDays.map(day => renderTimelineDayColumn(day.start, now).html).join(''));
+      addTimelineDaysToSummary(earlierDays);
+      timelineRenderSignature = `${timelineDataVersion}|${localTimelineDateKey(today)}|${state.timelineDaysCount}`;
+      const addedWidth = scroller.scrollWidth - oldWidth;
+      scroller.scrollLeft += addedWidth;
+    } finally {
+      state.extendingTimeline = false;
+    }
   }
 
   // Trends are calculated entirely from saved feed and sleep sessions.
@@ -3772,7 +3944,7 @@
         lastAgingDisplayMinute = minute;
       }
       if (state.active || state.activeSleepStart) {
-        if (!$('timelinePanel').hidden && minute !== lastActiveTimelineMinute) renderTimeline();
+        if (!$('timelinePanel').hidden && minute !== lastActiveTimelineMinute) refreshTimelineActiveMinute(Date.now());
         if (!$('trendsPanel').hidden && minute !== lastActiveTrendsMinute) renderTrends();
       }
     }, 1000);
