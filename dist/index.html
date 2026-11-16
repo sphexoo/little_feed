@@ -346,9 +346,6 @@
           <button class="header-menu-item" id="sheetsAutoBackupToggle" type="button" role="menuitemcheckbox" aria-checked="false"><span class="header-menu-icon" aria-hidden="true">◷</span><span>Automatic Sheets backup</span><span class="auto-backup-state" id="sheetsAutoBackupState">OFF</span></button>
           <button class="header-menu-item" id="sheetsBackupBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇧</span><span>Back up to Google Sheets</span></button>
           <button class="header-menu-item" id="sheetsLoadBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">⇩</span><span>Load from Google Sheets</span></button>
-          <div class="header-menu-separator" role="separator"></div>
-          <button class="header-menu-item" id="driveBackupBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">▤</span><span>Back up CSV archive to Drive</span></button>
-          <button class="header-menu-item" id="driveLoadBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">▥</span><span>Load CSV archives from Drive</span></button>
           <div class="header-menu-note" id="driveNote"></div>
           <div class="header-menu-separator" role="separator"></div>
           <button class="header-menu-item" id="importCsvBtn" type="button" role="menuitem"><span class="header-menu-icon" aria-hidden="true">↑</span>Import CSV</button>
@@ -603,10 +600,10 @@
     <form id="driveForm" novalidate autocomplete="off">
       <div class="editor-fields">
         <div class="editor-field full"><label for="driveClientId">Google OAuth client ID</label><input id="driveClientId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="1234-abc.apps.googleusercontent.com"></div>
-        <div class="editor-field full"><label for="driveFolderId">Drive folder link or ID (for CSV archives)</label><input id="driveFolderId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://drive.google.com/drive/folders/…"></div>
+        <div class="editor-field full"><label for="driveFolderId">Drive folder link or ID (for spreadsheet location)</label><input id="driveFolderId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://drive.google.com/drive/folders/…"></div>
         <div class="editor-field full"><label for="driveSpreadsheetId">Google Sheets spreadsheet link or ID (optional)</label><input id="driveSpreadsheetId" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Leave blank to find or create Little Feed Backup"></div>
       </div>
-      <p class="editor-help"><span id="driveStatus"></span> <button class="drive-link" id="driveSignOutBtn" type="button" hidden>Sign out</button><br>Settings are stored only in this browser. A single Google spreadsheet named “Little Feed Backup” is found or created in the selected folder and shared by devices using that folder. Enable the Google Sheets API in the same Google Cloud project as your OAuth client. Sheets backups append new record revisions; the existing CSV archive backup and restore remain available separately. Deletions are never synchronized.</p>
+      <p class="editor-help"><span id="driveStatus"></span> <button class="drive-link" id="driveSignOutBtn" type="button" hidden>Sign out</button><br>Settings are stored only in this browser. A single Google spreadsheet named “Little Feed Backup” is found or created in the selected folder and shared by devices using that folder. Enable the Google Sheets API in the same Google Cloud project as your OAuth client. Google Sheets is the cloud backup and restore destination. Local CSV import and export remain available in the app menu. Deletions are never synchronized.</p>
       <p class="editor-error" id="driveError" role="alert"></p>
       <div class="editor-actions"><button class="editor-cancel" id="driveCancelBtn" type="button">Cancel</button><button class="editor-save" type="submit">Save</button></div>
     </form>
@@ -630,7 +627,7 @@
     startedAt: null, segmentStartedAt: null, lastSide: null,
     sleepHistory: [], activeSleepStart: null, activeSleepId: null, growthHistory: [], mealHistory: [],
     timelineDaysCount: 28, timelineInitialized: false, extendingTimeline: false,
-    sync: { lastBackupAt: 0, lastLoadAt: 0, lastSheetsBackupAt: 0, pendingSheetBackup: null }
+    sync: { lastSheetsBackupAt: 0, pendingSheetBackup: null }
   };
   let selectedTrendDays = 1;
   let selectedGrowthSeries = 'weight';
@@ -1025,8 +1022,8 @@
     return item;
   }
 
-  // Convert one CSV row into the normalized record shape used by manual import and Drive restore.
-  // Drive backups are validated for mandatory IDs and revision metadata before reaching this function.
+  // Convert one CSV row into the normalized record shape used by manual CSV import.
+  // Google Sheets restoration validates revision metadata before using this shared converter.
   function parseCsvRecordRow(row, value, {allowOpenFeed = false, now = Date.now()} = {}) {
     const type = value(row, 'Type').toLowerCase();
     if (!['breast','sleep','growth','meal'].includes(type)) return {status:'unsupported'};
@@ -1296,15 +1293,6 @@
       || !Number.isFinite(Number(snapshot.activeFeed.leftMs)) || !Number.isFinite(Number(snapshot.activeFeed.rightMs)))) {
       throw new Error('Local data integrity check failed: active feeding timer is incomplete.');
     }
-    if (snapshot.sync?.pendingBackup) {
-      const pending = snapshot.sync.pendingBackup;
-      if (!pending.name || !/\.csv$/i.test(pending.name) || !pending.csv || !pending.payloadHash
-        || !Array.isArray(pending.recordIds) || !Array.isArray(pending.records)
-        || pending.recordIds.length !== pending.recordCount || pending.records.length !== pending.recordCount
-        || pending.records.some((record, index) => String(record.id) !== String(pending.recordIds[index]) || !record.fingerprint)) {
-        throw new Error('Local data integrity check failed: pending Drive backup is incomplete.');
-      }
-    }
     if (snapshot.sync?.pendingSheetBackup) {
       const pending = snapshot.sync.pendingSheetBackup;
       if (!pending.batchId || !pending.spreadsheetId || !Array.isArray(pending.rows)
@@ -1434,7 +1422,7 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Google Drive CSV archives remain available; the new Sheets backup appends revision rows to one shared spreadsheet. Restore merges by ID/revision; deletions are never synced.
+  // Google Sheets is the only cloud backup path. Local CSV import/export remains independent.
   // ---------------------------------------------------------------------------
   // The OAuth client ID and shared folder ID are NOT in this file. They are asked for at first sign-in
   // and kept in this browser's localStorage only (menu: "Drive settings" changes them).
@@ -1444,7 +1432,6 @@
   const cfg = { clientId: readCfg('clientId'), folderId: readCfg('folderId'), sheetId: readCfg('sheetId') };
   const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'; // This scope is accepted by Sheets API methods used below.
   const RECORD_COLLECTIONS = { feed: 'history', sleep: 'sleepHistory', growth: 'growthHistory', meal: 'mealHistory' };
-  const BACKUP_PREFIX = 'littlefeed-';
   const SHEETS_SPREADSHEET_NAME = 'Little Feed Backup';
   const SHEETS_RECORD_TAB = 'Records';
   const SHEETS_BATCH_TAB = 'Batches';
@@ -1471,18 +1458,6 @@
   }
   function normalizeSync(s) {
     const o = s && typeof s === 'object' ? s : {};
-    const pending = o.pendingBackup && typeof o.pendingBackup === 'object' ? o.pendingBackup : null;
-    const pendingBackup = pending && typeof pending.name === 'string' && typeof pending.csv === 'string'
-      && typeof pending.payloadHash === 'string' && Array.isArray(pending.recordIds)
-      ? {name:pending.name, csv:pending.csv, payloadHash:pending.payloadHash,
-          recordCount:Math.max(0, Number(pending.recordCount) || 0), recordIds:pending.recordIds.map(String),
-          records:Array.isArray(pending.records) ? pending.records.filter(record => record && record.id != null).map(record => ({
-            id:String(record.id), fingerprint:String(record.fingerprint || ''), csvHash:String(record.csvHash || ''),
-            createdAt:Number(record.createdAt) || 0, updatedAt:Number(record.updatedAt) || 0,
-            revision:Math.max(0, Number(record.revision) || 0)
-          })) : [],
-          createdAt:Number(pending.createdAt) || Date.now()}
-      : null;
     const sheetPending = o.pendingSheetBackup && typeof o.pendingSheetBackup === 'object' ? o.pendingSheetBackup : null;
     const pendingSheetBackup = sheetPending && typeof sheetPending.batchId === 'string' && typeof sheetPending.spreadsheetId === 'string'
       && Array.isArray(sheetPending.rows) && typeof sheetPending.payloadHash === 'string'
@@ -1490,14 +1465,11 @@
           recordCount:Math.max(0, Number(sheetPending.recordCount) || 0), payloadHash:sheetPending.payloadHash,
           rows:sheetPending.rows.map(row => Array.isArray(row) ? row.map(value => String(value ?? '')) : [])}
       : null;
-    return {lastBackupAt:Number(o.lastBackupAt) || 0, lastLoadAt:Number(o.lastLoadAt) || 0,
-      lastSheetsBackupAt:Number(o.lastSheetsBackupAt) || 0, pendingBackup, pendingSheetBackup};
+    return {lastSheetsBackupAt:Number(o.lastSheetsBackupAt) || 0, pendingSheetBackup};
   }
   function snapshotSync() {
-    const pending = state.sync.pendingBackup, sheetPending = state.sync.pendingSheetBackup;
-    return {lastBackupAt:state.sync.lastBackupAt, lastLoadAt:state.sync.lastLoadAt,
-      lastSheetsBackupAt:state.sync.lastSheetsBackupAt || 0,
-      pendingBackup:pending ? {...pending, recordIds:[...pending.recordIds], records:(pending.records || []).map(record => ({...record}))} : null,
+    const sheetPending = state.sync.pendingSheetBackup;
+    return {lastSheetsBackupAt:state.sync.lastSheetsBackupAt || 0,
       pendingSheetBackup:sheetPending ? {...sheetPending, rows:sheetPending.rows.map(row => [...row])} : null};
   }
 
@@ -1541,7 +1513,6 @@
     const spreadsheetId = parseSpreadsheetId(spreadsheetText);
     if (String(spreadsheetText || '').trim() && !spreadsheetId) throw new Error('That does not look like a Google Sheets spreadsheet link or ID.');
     if (cfg.folderId && folderId !== cfg.folderId) {
-      state.sync.lastBackupAt = 0; state.sync.lastLoadAt = 0;
       if (!spreadsheetId) cfg.sheetId = '';
       persistExtended();
     }
@@ -1623,50 +1594,9 @@
     }
     return res;
   }
-  async function driveUpload(name, text, mimeType = 'text/csv') {
-    const boundary = 'lf' + Math.random().toString(36).slice(2);
-    const meta = JSON.stringify({ name, parents: [cfg.folderId], mimeType });
-    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mimeType}; charset=UTF-8\r\n\r\n${text}\r\n--${boundary}--`;
-    const response = await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,createdTime',
-      { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
-    const created = await response.json();
-    if (!created?.id) throw new Error('Google Drive did not return a file ID after upload. The backup may exist; retrying will check its timestamped filename before uploading again.');
-    return created;
-  }
-  function backupFilenameTimestamp(file) {
-    const match = /^littlefeed-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(\d{3})?Z?/i.exec(String(file.name || ''));
-    if (match) {
-      return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]), Number(match[6]), Number(match[7] || 0));
-    }
-    const created = Date.parse(file.createdTime || '');
-    return Number.isFinite(created) ? created : 0;
-  }
-  function backupFilenameStamp(timestamp) {
-    return new Date(timestamp).toISOString().replace(/[-:]/g, '').replace('.', '');
-  }
-  async function driveListBackups() {
-    const files = []; let pageToken = '';
-    do {
-      const params = new URLSearchParams({
-        q: `'${cfg.folderId}' in parents and trashed = false and name contains '${BACKUP_PREFIX}'`,
-        fields: 'nextPageToken,files(id,name,createdTime,mimeType)', pageSize: '1000',
-        supportsAllDrives: 'true', includeItemsFromAllDrives: 'true', corpora: 'allDrives'
-      });
-      if (pageToken) params.set('pageToken', pageToken);
-      const data = await (await driveFetch(`https://www.googleapis.com/drive/v3/files?${params}`)).json();
-      files.push(...(data.files || [])); pageToken = data.nextPageToken || '';
-    } while (pageToken);
-    return files
-      .filter(file => /\.csv$/i.test(file.name || ''))
-      .map(file => ({...file, backupTimestamp:backupFilenameTimestamp(file)}))
-      .filter(file => file.backupTimestamp > 0)
-      .sort((a, b) => a.backupTimestamp - b.backupTimestamp ||
-        Date.parse(a.createdTime || '') - Date.parse(b.createdTime || '') || String(a.id).localeCompare(String(b.id)));
-  }
-
   // ---------------------------------------------------------------------------
-  // Single-spreadsheet Google Sheets revision log. The existing CSV archive
-  // backup/restore remains unchanged and available from the menu.
+  // Single-spreadsheet Google Sheets revision log. Local CSV import/export
+  // remains available separately; Google Sheets is the only cloud backup path.
   // Records and Batches are appended together in one atomic Sheets batchUpdate.
   // ---------------------------------------------------------------------------
   function sheetColumnName(indexZero) {
@@ -2028,7 +1958,6 @@
     const counts = {added:0, updated:0, unchanged:0, metadataUpdated:0, keptLocalNewer:0, conflicts:0};
     const conflictDetails = mergeDriveBackupIndex(remoteData, counts);
     sortRecordHistories();
-    state.sync.lastLoadAt = Date.now();
     const saved = await persistExtended();
     if (!saved) {
       applySavedState(rollbackSnapshot); render();
@@ -2040,324 +1969,6 @@
     if (remoteData.failed.length) messages.push(`Some Sheets backup batches failed integrity checks and were skipped:\n${remoteData.failed.slice(0,8).join('\n')}`);
     if (conflictDetails.length) messages.push(`${conflictDetails.length} record conflict(s) were preserved without overwriting local or remote copies:\n${conflictDetails.slice(0,12).join('\n')}`);
     if (messages.length) alert(messages.join('\n\n'));
-  }
-
-  async function mapPool(items, limit, fn) {
-    const out = new Array(items.length); let next = 0;
-    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (next < items.length) { const i = next++; out[i] = await fn(items[i]).then(v => ({ v }), e => ({ e })); }
-    }));
-    return out;
-  }
-
-  async function readDriveBackupIndex(files, {allowPartial = false} = {}) {
-    const downloads = await mapPool(files, 4, async file => {
-      const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&supportsAllDrives=true`);
-      return parseBackupCsv(await response.text());
-    });
-    const index = new Map(), conflicts = new Map(), failed = [];
-    for (let i = 0; i < files.length; i++) {
-      const result = downloads[i];
-      if (result.e) { failed.push(`${files[i].name}: ${result.e.message}`); continue; }
-      for (const entry of result.v.entries) {
-        const candidate = {...entry, fileName:files[i].name};
-        const conflict = conflicts.get(entry.id);
-        if (conflict) {
-          if (conflict.typeConflict) {
-            conflict.files.add(candidate.fileName);
-            continue;
-          }
-          if (candidate.revision > conflict.revision) {
-            conflicts.delete(entry.id);
-            index.set(entry.id, candidate);
-          } else if (candidate.revision === conflict.revision && !conflict.variants.includes(candidate.fingerprint)) {
-            conflict.variants.push(candidate.fingerprint);
-            conflict.files.add(candidate.fileName);
-          }
-          continue;
-        }
-        const previous = index.get(entry.id);
-        if (!previous) { index.set(entry.id, candidate); continue; }
-        if (candidate.type !== previous.type) {
-          conflicts.set(entry.id, {revision:Math.max(candidate.revision, previous.revision), typeConflict:true,
-            variants:[previous.fingerprint, candidate.fingerprint], files:new Set([previous.fileName, candidate.fileName])});
-          index.delete(entry.id);
-        } else if (candidate.revision > previous.revision) index.set(entry.id, candidate);
-        else if (candidate.revision === previous.revision) {
-          if (candidate.fingerprint !== previous.fingerprint) {
-            conflicts.set(entry.id, {revision:candidate.revision, variants:[previous.fingerprint, candidate.fingerprint], files:new Set([previous.fileName, candidate.fileName])});
-            index.delete(entry.id);
-          } else if (candidate.updatedAt > previous.updatedAt) index.set(entry.id, candidate);
-        }
-      }
-    }
-    if (failed.length && !allowPartial) {
-      throw new Error(`Cannot safely create an incremental backup because ${failed.length} existing CSV file(s) could not be read. No new backup was uploaded.\n${failed.slice(0,3).join('\n')}${failed.length > 3 ? `\n…and ${failed.length - 3} more` : ''}`);
-    }
-    return {index, conflicts, failed};
-  }
-
-  function verifyBackupCsvContents(csvText, pending, sourceLabel) {
-    const fail = message => { throw new Error(`${sourceLabel} ${message}. The pending backup has been kept for retry.`); };
-    let expectedRows, actualRows;
-    try {
-      // Compare parsed CSV cells rather than raw bytes or reconstructed app objects.
-      // This naturally ignores a UTF-8 BOM and CRLF/LF transport normalization.
-      expectedRows = csvParse(pending.csv);
-      actualRows = csvParse(csvText);
-    } catch (error) {
-      fail(`could not be parsed as CSV (${error.message || error})`);
-    }
-    const nonEmptyRows = rows => rows.filter((row, index) => index === 0 || row.some(cell => String(cell ?? '').trim() !== ''));
-    expectedRows = nonEmptyRows(expectedRows || []);
-    actualRows = nonEmptyRows(actualRows || []);
-    if (!expectedRows.length || !actualRows.length) fail('is empty');
-
-    const normalizeHeader = row => row.map((cell, index) => String(cell ?? '').replace(index === 0 ? /^\uFEFF/ : /$^/, '').trim().toLowerCase());
-    const expectedHeaders = normalizeHeader(expectedRows[0]);
-    const actualHeaders = normalizeHeader(actualRows[0]);
-    if (JSON.stringify(expectedHeaders) !== JSON.stringify(actualHeaders)) fail('has different CSV columns from the saved upload');
-    const headers = expectedHeaders;
-    const column = name => headers.indexOf(name.toLowerCase());
-    const typeCol = column('type'), timestampCol = column('timestamp'), idCol = column('record id');
-    const hashCol = column('record hash'), createdCol = column('created at'), updatedCol = column('updated at'), revisionCol = column('revision');
-    if (typeCol < 0 || timestampCol < 0 || idCol < 0) fail('is missing the required Type, Timestamp or Record ID column');
-    if (!Array.isArray(pending.records) || !Array.isArray(pending.recordIds)
-      || pending.records.length !== pending.recordCount || pending.recordIds.length !== pending.recordCount) {
-      throw new Error('The pending upload manifest is incomplete. It has been kept for retry.');
-    }
-    const expectedData = expectedRows.slice(1);
-    const actualData = actualRows.slice(1);
-    if (expectedData.length !== pending.recordCount) {
-      throw new Error(`The saved pending CSV contains ${expectedData.length} records instead of ${pending.recordCount}. It has been kept for retry.`);
-    }
-    if (actualData.length !== pending.recordCount) {
-      fail(`contains ${actualData.length} records instead of ${pending.recordCount}`);
-    }
-
-    const makeIndex = (rows, label) => {
-      const index = new Map();
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        if (row.length !== headers.length) fail(`row ${i + 2} has ${row.length} columns instead of ${headers.length}`);
-        const id = String(row[idCol] ?? '').trim();
-        if (!id) fail(`row ${i + 2} has no Record ID`);
-        if (index.has(id)) fail(`contains duplicate Record ID ${id}`);
-        const type = String(row[typeCol] ?? '').trim().toLowerCase();
-        if (!['breast','sleep','growth','meal'].includes(type)) fail(`contains unsupported record type "${type}"`);
-        if (!Number.isFinite(Date.parse(String(row[timestampCol] ?? '')))) fail(`contains an invalid timestamp for record ${id}`);
-        if (hashCol >= 0 && String(row[hashCol] ?? '').trim()) {
-          const calculated = hashText(JSON.stringify(row.slice(0, idCol)));
-          if (String(row[hashCol]).trim() !== calculated) fail(`contains a corrupt Record Hash for record ${id}`);
-        }
-        index.set(id, row);
-      }
-      return index;
-    };
-    const expectedById = makeIndex(expectedData, 'saved upload');
-    const actualById = makeIndex(actualData, sourceLabel);
-    if (expectedById.size !== pending.recordCount || actualById.size !== pending.recordCount) {
-      fail('contains missing or duplicate record IDs');
-    }
-
-    const manifestIds = new Set(pending.recordIds.map(value => String(value)));
-    if (manifestIds.size !== pending.recordCount || manifestIds.size !== expectedById.size) {
-      throw new Error('The pending upload manifest contains duplicate or missing record IDs. It has been kept for retry.');
-    }
-    for (const record of pending.records) {
-      const id = String(record.id ?? '');
-      if (!id || !manifestIds.has(id)) throw new Error('The pending upload manifest does not match its record ID list. It has been kept for retry.');
-      const expectedRow = expectedById.get(id), actualRow = actualById.get(id);
-      if (!expectedRow || !actualRow) fail(`is missing record ${id}`);
-      // Compare all CSV fields by ID. Row order, BOM and line-ending changes are harmless;
-      // any changed, missing or additional cell remains a verification failure.
-      if (expectedRow.length !== actualRow.length || expectedRow.some((cell, index) => String(cell ?? '') !== String(actualRow[index] ?? ''))) {
-        fail(`contains data that differs from the saved upload for record ${id}`);
-      }
-      const expectedCsvHash = record.csvHash || record.fingerprint; // fallback for a pending upload created by the preceding app build
-      if (expectedCsvHash && hashCol >= 0 && String(actualRow[hashCol]) !== String(expectedCsvHash)) {
-        fail(`contains a changed CSV row hash for ${id}`);
-      }
-      if (record.createdAt > 0 && createdCol >= 0 && Number(actualRow[createdCol]) !== Number(record.createdAt)) {
-        fail(`contains changed creation metadata for record ${id}`);
-      }
-      if (record.updatedAt > 0 && updatedCol >= 0 && Number(actualRow[updatedCol]) !== Number(record.updatedAt)) {
-        fail(`contains changed revision metadata for record ${id}`);
-      }
-      if (record.revision > 0 && revisionCol >= 0 && Number(actualRow[revisionCol]) !== Number(record.revision)) {
-        fail(`contains a changed revision number for record ${id}`);
-      }
-    }
-    if (manifestIds.size !== actualById.size || [...actualById.keys()].some(id => !manifestIds.has(id))) {
-      fail('does not contain exactly the records in the saved upload');
-    }
-    return true;
-  }
-
-  async function verifyDriveBackup(fileId, pending) {
-    // This checksum protects the locally persisted retry payload. Do not compare it
-    // directly to response.text(): UTF-8 decoding strips the CSV's leading BOM.
-    if (pending.payloadHash && hashText(pending.csv) !== pending.payloadHash) {
-      throw new Error('The saved pending CSV has changed since it was prepared. The pending backup has been kept for retry.');
-    }
-    verifyBackupCsvContents(pending.csv, pending, 'The saved pending CSV');
-    const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&supportsAllDrives=true`);
-    const downloaded = await response.text();
-    verifyBackupCsvContents(downloaded, pending, 'The downloaded CSV');
-    return true;
-  }
-
-  async function finishPendingBackup() {
-    const pending = state.sync.pendingBackup;
-    if (!pending) return false;
-    const existingFiles = await driveListBackups();
-    const sameNameFiles = existingFiles.filter(file => file.name === pending.name);
-    let verifiedExisting = false, lastVerifyError = null;
-    for (const file of sameNameFiles) {
-      try { await verifyDriveBackup(file.id, pending); verifiedExisting = true; break; }
-      catch (error) { lastVerifyError = error; }
-    }
-    if (!verifiedExisting) {
-      if (sameNameFiles.length) throw new Error(`A Drive file named ${pending.name} already exists but does not match the pending upload. No duplicate was created. ${lastVerifyError?.message || ''}`);
-      const uploaded = await driveUpload(pending.name, pending.csv, 'text/csv');
-      await verifyDriveBackup(uploaded.id, pending);
-    }
-
-    const previousPending = state.sync.pendingBackup;
-    const previousBackupAt = state.sync.lastBackupAt;
-    state.sync.pendingBackup = null;
-    state.sync.lastBackupAt = Date.now();
-    const saved = await persistExtended();
-    if (!saved) {
-      state.sync.pendingBackup = previousPending;
-      state.sync.lastBackupAt = previousBackupAt;
-      throw new Error('The Drive CSV was uploaded and verified, but the local backup status could not be saved. The pending upload has been retained; run Backup again to verify it without creating a duplicate.');
-    }
-    showToast(`Backed up and verified ${pending.recordCount} record${pending.recordCount === 1 ? '' : 's'} in ${pending.name}`);
-    return true;
-  }
-
-  // --- Backup: append new or changed record revisions, not just later event timestamps. ---
-  async function backupToDrive() {
-    ensureConfig();
-    if (!await persistExtended()) throw new Error('Backup stopped because local changes could not be saved first. Check the storage warning and retry.');
-    await ensureToken();
-
-    if (state.sync.pendingBackup) {
-      showToast('Finishing the previous verified backup…');
-      await finishPendingBackup();
-      return;
-    }
-
-    showToast('Checking existing Drive backups…');
-    const existingFiles = await driveListBackups();
-    const remoteData = existingFiles.length ? await readDriveBackupIndex(existingFiles) : {index:new Map(), conflicts:new Map(), failed:[]};
-    const remoteIndex = remoteData.index;
-    const records = collectCsvRecords(true); // an open sleep retains its ID; completion becomes a higher revision
-    const newRecords = [], conflicts = [], metadataChanged = false;
-    for (const record of records) {
-      const remoteConflict = remoteData.conflicts.get(record.id);
-      if (remoteConflict) {
-        // A deliberate local edit that advances beyond a same-type revision conflict
-        // can resolve it. A record-type collision always requires manual reconciliation.
-        if (!remoteConflict.typeConflict && record.revision > remoteConflict.revision) newRecords.push(record);
-        else conflicts.push(record.id);
-        continue;
-      }
-      const remote = remoteIndex.get(record.id);
-      if (!remote) { newRecords.push(record); continue; }
-      if (record.fingerprint === remote.fingerprint) {
-        // Same content is already safe in Drive. Adopt newer remote metadata if needed.
-        if (record.item && remote.revision > record.revision) {
-          record.item.createdAt = remote.createdAt;
-          record.item.updatedAt = remote.updatedAt;
-          record.item.revision = remote.revision;
-          record.item._backupHash = remote.fingerprint;
-          record.item._backupHashVersion = 2;
-          metadataChanged = true;
-        }
-        continue;
-      }
-      if (record.revision > remote.revision) newRecords.push(record);
-      else conflicts.push(record.id); // same revision with different content, or Drive has the higher revision
-    }
-
-    if (!newRecords.length) {
-      if (metadataChanged && !await persistExtended()) throw new Error('Drive already has the same record contents, but the local revision metadata could not be saved. Retry after checking local storage.');
-      showToast(conflicts.length
-        ? `No backup created · ${conflicts.length} record conflict(s) need resolving`
-        : 'No new or changed records to back up');
-      if (conflicts.length) alert(`${conflicts.length} record(s) have different contents at the same or a newer Drive revision. No backup was created for those records. Load from Drive to adopt a newer revision, or manually reconcile same-revision conflicts.\n\nRecord IDs:\n${conflicts.slice(0,10).join('\n')}${conflicts.length > 10 ? `\n…and ${conflicts.length - 10} more` : ''}`);
-      return;
-    }
-
-    const csv = serializeCsvRecords(newRecords);
-    const timestamp = Math.max(Date.now(), Number(existingFiles[existingFiles.length - 1]?.backupTimestamp || 0) + 1);
-    const name = `${BACKUP_PREFIX}${backupFilenameStamp(timestamp)}.csv`;
-    state.sync.pendingBackup = {
-      name, csv, payloadHash:hashText(csv), recordCount:newRecords.length,
-      recordIds:newRecords.map(record => record.id),
-      records:newRecords.map(record => ({id:record.id, fingerprint:record.fingerprint, csvHash:String(record.row[CSV_RECORD_HASH_COLUMN] || ''), createdAt:Number(record.item?.createdAt) || record.start, updatedAt:record.updatedAt, revision:record.revision})),
-      createdAt:Date.now()
-    };
-    if (!await persistExtended()) throw new Error('Backup was not uploaded because its retry-safe upload record could not be saved locally. Check browser storage and retry.');
-    showToast(`Backing up ${newRecords.length} new or changed records…`);
-    await finishPendingBackup();
-    if (conflicts.length) alert(`${conflicts.length} record(s) were not backed up because their Drive revision conflicts with local contents. They were left unchanged.\n\nRecord IDs:\n${conflicts.slice(0,10).join('\n')}${conflicts.length > 10 ? `\n…and ${conflicts.length - 10} more` : ''}`);
-  }
-
-  function parseBackupCsv(text) {
-    const rows = csvParse(text);
-    if (!rows.length) throw new Error('The CSV file is empty.');
-    const headers = rows[0].map(h => String(h || '').replace(/^\uFEFF/, '').trim().toLowerCase());
-    const expectedHeaders = CSV_HEADERS.map(header => header.toLowerCase());
-    if (JSON.stringify(headers) !== JSON.stringify(expectedHeaders)) {
-      throw new Error('This is not a current Little Feed backup. It must contain the complete revision-aware CSV header, including Record ID, Created At, Updated At, Revision and Record Hash.');
-    }
-    const col = name => headers.indexOf(name.toLowerCase());
-    const value = (row, name) => { const i = col(name); return i < 0 ? '' : String(row[i] ?? '').trim(); };
-    const idCol = col('Record ID'), createdCol = col('Created At'), updatedCol = col('Updated At');
-    const revisionCol = col('Revision'), hashCol = col('Record Hash');
-    const parsed = {entries:[]};
-    const seen = new Set();
-    const now = Date.now();
-
-    for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
-      const row = rows[rowIndex];
-      if (!row.length || row.every(cell => String(cell ?? '').trim() === '')) continue;
-      const line = rowIndex + 1;
-      if (row.length !== CSV_HEADERS.length) throw new Error(`Row ${line} has ${row.length} columns; expected ${CSV_HEADERS.length}.`);
-      const id = value(row, 'Record ID');
-      if (!id) throw new Error(`Row ${line} has no Record ID.`);
-      if (seen.has(id)) throw new Error(`The file contains duplicate Record ID ${id}.`);
-      seen.add(id);
-      const createdAt = Number(value(row, 'Created At'));
-      const updatedAt = Number(value(row, 'Updated At'));
-      const revision = Number(value(row, 'Revision'));
-      if (!(createdAt > 0) || !(updatedAt > 0) || !Number.isInteger(revision) || revision < 1) {
-        throw new Error(`Row ${line} has missing or invalid creation/revision metadata.`);
-      }
-      const csvHash = value(row, 'Record Hash');
-      if (!csvHash || csvHash !== csvDataFingerprint(row)) throw new Error(`Row ${line} failed its Record Hash check.`);
-
-      const result = parseCsvRecordRow(row, value, {allowOpenFeed:false, now});
-      if (result.status !== 'record' && result.status !== 'open-sleep') {
-        throw new Error(`Row ${line} is not a valid supported Little Feed record (${result.status}).`);
-      }
-      result.item.createdAt = createdAt;
-      result.item.updatedAt = updatedAt;
-      result.item.revision = revision;
-      result.item._backupHash = recordDataFingerprint(result.type, result.item);
-      result.item._backupHashVersion = 2;
-      const entry = {
-        id, type:result.type === 'breast' ? 'feed' : result.type, open:result.status === 'open-sleep',
-        timestamp:result.start, createdAt, updatedAt, revision,
-        fingerprint:result.item._backupHash, record:result.item
-      };
-      if (entry.open) entry.record.start = result.start;
-      parsed.entries.push(entry);
-    }
-    return parsed;
   }
 
   function localBackupRecordIndex() {
@@ -2486,44 +2097,9 @@
     return conflictDetails;
   }
 
-  async function loadFromDrive() {
-    if (!await persistExtended()) throw new Error('Restore stopped because existing local changes could not be saved first. Check the storage warning and retry.');
-    await ensureToken();
-    const rollbackSnapshot = persistedStateSnapshot();
-    showToast('Checking Drive for CSV backups…');
-    const files = await driveListBackups();
-    if (!files.length) { showToast('No CSV backup files found on Drive'); return; }
-
-    // Read every CSV, select the highest revision per ID, and preserve files with read
-    // errors for a retry on the next restore. One invalid file does not block others.
-    const remoteData = await readDriveBackupIndex(files, {allowPartial:true});
-    const counts = {added:0, updated:0, unchanged:0, metadataUpdated:0, keptLocalNewer:0, conflicts:0};
-    const conflictDetails = mergeDriveBackupIndex(remoteData, counts);
-    sortRecordHistories();
-    state.sync.lastLoadAt = Date.now();
-    const restoreSaved = await persistExtended();
-    if (!restoreSaved) {
-      applySavedState(rollbackSnapshot);
-      render();
-      throw new Error('Drive records were read, but the local database could not save them. The pre-restore local data has been restored in memory; check browser storage and try again.');
-    }
-    render(); refreshTimelineColumnHistoryIfOpen();
-    showToast(`Drive restore: ${counts.added} added · ${counts.updated} updated · ${counts.unchanged + counts.keptLocalNewer} unchanged`);
-
-    const messages = [];
-    if (remoteData.failed.length) {
-      messages.push(`Could not read ${remoteData.failed.length} backup file(s); these will be retried next time:\n${remoteData.failed.slice(0,3).join('\n')}${remoteData.failed.length > 3 ? `\n…and ${remoteData.failed.length - 3} more` : ''}`);
-    }
-    if (conflictDetails.length) {
-      messages.push(`${conflictDetails.length} record conflict(s) were preserved without overwriting either local data or the conflicting Drive copies:\n${conflictDetails.slice(0,12).join('\n')}${conflictDetails.length > 12 ? `\n…and ${conflictDetails.length - 12} more` : ''}\n\nThese records need manual reconciliation before a later backup can safely resolve them.`);
-    }
-    if (messages.length) alert(messages.join('\n\n'));
-  }
-
   // --- Menu wiring ---
   function updateSyncMenu() {
     updateDriveStatus();
-    const when = t => t ? new Date(t).toLocaleString([], {dateStyle:'short', timeStyle:'short'}) : 'never';
     const records = state.history.length + state.sleepHistory.length + state.growthHistory.length + state.mealHistory.length + (state.activeSleepStart ? 1 : 0);
     const enabled = autoSheetsBackupEnabled();
     if ($('sheetsAutoBackupToggle')) {
@@ -2531,7 +2107,7 @@
       $('sheetsAutoBackupState').textContent = enabled ? 'ON' : 'OFF';
       $('sheetsAutoBackupState').classList.toggle('enabled', enabled);
     }
-    $('driveNote').textContent = `${account ? `Signed in${account.email ? ` as ${account.email}` : ''}` : 'Not signed in'}\nLocal records: ${records}\nCSV archive backup: ${when(state.sync.lastBackupAt)}\nSheets backup: ${when(state.sync.lastSheetsBackupAt)}\nSheets: ${cfg.sheetId ? 'configured' : 'found or created on first use'}\nAutomatic backup on this device: ${enabled ? 'ON' : 'OFF'}`;
+    $('driveNote').textContent = `${account ? `Signed in${account.email ? ` as ${account.email}` : ''}` : 'Not signed in'}\nLocal records: ${records}\nSheets backup: ${state.sync.lastSheetsBackupAt ? new Date(state.sync.lastSheetsBackupAt).toLocaleString([], {dateStyle:'short', timeStyle:'short'}) : 'never'}\nSheets: ${cfg.sheetId ? 'configured' : 'found or created on first use'}\nAutomatic backup on this device: ${enabled ? 'ON' : 'OFF'}`;
   }
 
   function localDateKey(date = new Date()) {
@@ -2582,13 +2158,6 @@
     }).finally(() => { syncBusy = false; updateSyncMenu(); });
   }
 
-  async function runSync(label, fn) {
-    if (syncBusy) { showToast('Drive sync is already running…'); return; }
-    syncBusy = true;
-    try { await fn(); }
-    catch (error) { if (error && error.silent) return; console.warn(`Little Feed: ${label} failed`, error); alert(`${label} failed: ${error.message || error}`); }
-    finally { syncBusy = false; updateSyncMenu(); }
-  }
   $('refreshBtn').addEventListener('click', () => { updateSyncMenu(); if (navigator.onLine) loadGis().catch(() => {}); });
   $('sheetsAutoBackupToggle').addEventListener('click', () => {
     const enabled = !autoSheetsBackupEnabled();
@@ -2597,8 +2166,6 @@
   });
   $('sheetsBackupBtn').addEventListener('click', () => { closeHeaderMenu(); runSheetsSyncFromUserGesture('Sheets backup', () => backupToSheets()); });
   $('sheetsLoadBtn').addEventListener('click', () => { closeHeaderMenu(); runSheetsSyncFromUserGesture('Sheets restore', () => loadFromSheets()); });
-  $('driveBackupBtn').addEventListener('click', () => { closeHeaderMenu(); runSync('CSV archive backup', backupToDrive); });
-  $('driveLoadBtn').addEventListener('click', () => { closeHeaderMenu(); runSync('CSV archive restore', loadFromDrive); });
   $('autoSheetsBackupCloseBtn').addEventListener('click', closeAutoSheetsBackupPrompt);
   $('autoSheetsBackupLaterBtn').addEventListener('click', closeAutoSheetsBackupPrompt);
   $('autoSheetsBackupBackdrop').addEventListener('click', event => { if (event.target === $('autoSheetsBackupBackdrop')) closeAutoSheetsBackupPrompt(); });
